@@ -1,10 +1,28 @@
 import { app, BrowserWindow, ipcMain, dialog, Menu, shell } from 'electron'
-import { join, basename } from 'path'
+import { join, basename, relative } from 'path'
 import { readFile, writeFile, readdir, copyFile, mkdir } from 'fs/promises'
 import { watch, FSWatcher, existsSync, readdirSync } from 'fs'
+import { filterMissingRecentFiles, normalizeSidebarState, pushRecentFile, type PersistedSidebarState } from './sidebar-state'
+import { scanWorkdir, type WorkdirEntry } from './workdir'
 
 // Custom themes directory
-const themesDir = join(app.getPath('home'), '.colamd', 'themes')
+const appDataDir = join(app.getPath('home'), '.colamd')
+const themesDir = join(appDataDir, 'themes')
+const sidebarStatePath = join(appDataDir, 'sidebar-state.json')
+
+interface SidebarSnapshot extends PersistedSidebarState {
+  currentFilePath: string | null
+  workdirEntries: WorkdirEntry[]
+}
+
+let sidebarState: PersistedSidebarState = normalizeSidebarState(null)
+let workdirEntries: WorkdirEntry[] = []
+
+function ensureAppDataDir(): void {
+  if (!existsSync(appDataDir)) {
+    mkdir(appDataDir, { recursive: true }).catch(() => {})
+  }
+}
 
 function ensureThemesDir(): void {
   if (!existsSync(themesDir)) {
@@ -19,6 +37,43 @@ async function scanCustomThemes(): Promise<string[]> {
   } catch {
     return []
   }
+}
+
+async function refreshWorkdirEntries(): Promise<void> {
+  if (!sidebarState.workdirPath) {
+    workdirEntries = []
+    return
+  }
+
+  if (!existsSync(sidebarState.workdirPath)) {
+    sidebarState.workdirPath = null
+    workdirEntries = []
+    persistSidebarState()
+    return
+  }
+
+  try {
+    workdirEntries = await scanWorkdir(sidebarState.workdirPath)
+  } catch {
+    workdirEntries = []
+  }
+}
+
+function persistSidebarState(): void {
+  const payload = JSON.stringify(sidebarState, null, 2)
+  writeFile(sidebarStatePath, payload, 'utf-8').catch(() => {})
+}
+
+async function loadSidebarState(): Promise<void> {
+  try {
+    const raw = await readFile(sidebarStatePath, 'utf-8')
+    sidebarState = normalizeSidebarState(JSON.parse(raw))
+  } catch {
+    sidebarState = normalizeSidebarState(null)
+  }
+
+  sidebarState.recentFiles = filterMissingRecentFiles(sidebarState.recentFiles, (filePath) => existsSync(filePath))
+  await refreshWorkdirEntries()
 }
 
 // Per-window state
@@ -48,11 +103,42 @@ function getWinFromEvent(event: Electron.IpcMainInvokeEvent): BrowserWindow | nu
   return BrowserWindow.fromWebContents(event.sender)
 }
 
+function createSidebarSnapshot(win: BrowserWindow): SidebarSnapshot {
+  return {
+    ...sidebarState,
+    currentFilePath: getState(win).filePath,
+    workdirEntries,
+  }
+}
+
+function sendSidebarState(win: BrowserWindow): void {
+  if (!win.isDestroyed()) {
+    win.webContents.send('sidebar-state', createSidebarSnapshot(win))
+  }
+}
+
+function broadcastSidebarState(): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    sendSidebarState(win)
+  }
+}
+
+function recordRecentFile(filePath: string): void {
+  sidebarState.recentFiles = pushRecentFile(sidebarState.recentFiles, filePath)
+  persistSidebarState()
+}
+
+function isPathInsideWorkdir(filePath: string): boolean {
+  if (!sidebarState.workdirPath) return false
+  const relativePath = relative(sidebarState.workdirPath, filePath)
+  return relativePath !== '' && !relativePath.startsWith('..') && !relativePath.startsWith(`..${process.platform === 'win32' ? '\\' : '/'}`)
+}
+
 function createWindow(filePath?: string): BrowserWindow {
   const win = new BrowserWindow({
-    width: 960,
+    width: 1120,
     height: 720,
-    minWidth: 600,
+    minWidth: 760,
     minHeight: 400,
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 16 },
@@ -73,6 +159,7 @@ function createWindow(filePath?: string): BrowserWindow {
   }
 
   win.webContents.on('did-finish-load', () => {
+    sendSidebarState(win)
     if (filePath) {
       loadFileInWindow(win, filePath)
     }
@@ -178,7 +265,9 @@ function loadFileInWindow(win: BrowserWindow, filePath: string): void {
       state.filePath = filePath
       watchFile(win, state)
       updateTitle(win)
+      recordRecentFile(filePath)
       win.webContents.send('file-opened', { path: filePath, content: data })
+      broadcastSidebarState()
     })
     .catch(() => {})
 }
@@ -198,6 +287,8 @@ function openFile(filePath: string): void {
   // If already open, focus that window
   const existing = findWindowForFile(filePath)
   if (existing) {
+    recordRecentFile(filePath)
+    broadcastSidebarState()
     existing.focus()
     return
   }
@@ -232,6 +323,11 @@ async function saveToPath(win: BrowserWindow, filePath: string, content: string)
     state.filePath = filePath
     watchFile(win, state)
     updateTitle(win)
+    recordRecentFile(filePath)
+    if (isPathInsideWorkdir(filePath)) {
+      await refreshWorkdirEntries()
+    }
+    broadcastSidebarState()
     return true
   } catch {
     return false
@@ -266,15 +362,8 @@ ipcMain.handle('open-file', async (event) => {
   // If this window has no file, load here; otherwise open in new window
   const state = getState(win)
   if (!state.filePath) {
-    try {
-      const content = await readFile(filePath, 'utf-8')
-      state.filePath = filePath
-      watchFile(win, state)
-      updateTitle(win)
-      return { path: filePath, content }
-    } catch {
-      return null
-    }
+    loadFileInWindow(win, filePath)
+    return null
   } else {
     openFile(filePath)
     return null
@@ -288,19 +377,57 @@ ipcMain.handle('open-file-path', async (event, filePath: string) => {
 
   // If this window has no file, load here
   if (!state.filePath) {
-    try {
-      const content = await readFile(filePath, 'utf-8')
-      state.filePath = filePath
-      watchFile(win, state)
-      updateTitle(win)
-      return { path: filePath, content }
-    } catch {
-      return null
-    }
+    loadFileInWindow(win, filePath)
+    return null
   } else {
     openFile(filePath)
     return null
   }
+})
+
+ipcMain.handle('get-sidebar-state', async (event) => {
+  const win = getWinFromEvent(event)
+  if (!win) return null
+  return createSidebarSnapshot(win)
+})
+
+ipcMain.handle('toggle-sidebar', async () => {
+  sidebarState.sidebarOpen = !sidebarState.sidebarOpen
+  persistSidebarState()
+  broadcastSidebarState()
+  return sidebarState.sidebarOpen
+})
+
+ipcMain.handle('toggle-workdir-expanded', async () => {
+  sidebarState.workdirExpanded = !sidebarState.workdirExpanded
+  persistSidebarState()
+  broadcastSidebarState()
+  return sidebarState.workdirExpanded
+})
+
+ipcMain.handle('choose-workdir', async (event) => {
+  const win = getWinFromEvent(event)
+  if (!win) return null
+
+  const result = await dialog.showOpenDialog(win, {
+    properties: ['openDirectory'],
+  })
+
+  if (result.canceled || result.filePaths.length === 0) return null
+
+  sidebarState.workdirPath = result.filePaths[0]
+  sidebarState.workdirExpanded = true
+  await refreshWorkdirEntries()
+  persistSidebarState()
+  broadcastSidebarState()
+  return createSidebarSnapshot(win)
+})
+
+ipcMain.handle('open-sidebar-file', async (event, filePath: string) => {
+  const win = getWinFromEvent(event)
+  if (!win) return false
+  loadFileInWindow(win, filePath)
+  return true
 })
 
 ipcMain.handle('save-file', async (event, content: string) => {
@@ -347,7 +474,7 @@ ipcMain.handle('export-pdf', async (event) => {
   try {
     // Expand editor to full content height for printing
     const cssKey = await win.webContents.insertCSS(
-      'html, body { height: auto !important; overflow: visible !important; } #titlebar { display: none !important; } #editor { height: auto !important; overflow: visible !important; } #editor .ProseMirror { min-height: auto !important; }'
+      'html, body { height: auto !important; overflow: visible !important; } #titlebar, #sidebar { display: none !important; } #workspace, #editor-shell, #editor { height: auto !important; overflow: visible !important; } #editor .ProseMirror { min-height: auto !important; }'
     )
     const pdfData = await win.webContents.printToPDF({
       marginType: 0,
@@ -520,6 +647,16 @@ function buildMenu(): void {
     {
       label: 'View',
       submenu: [
+        {
+          label: 'Toggle Sidebar',
+          accelerator: 'CmdOrCtrl+\\',
+          click: () => {
+            sidebarState.sidebarOpen = !sidebarState.sidebarOpen
+            persistSidebarState()
+            broadcastSidebarState()
+          }
+        },
+        { type: 'separator' },
         { role: 'resetZoom' },
         { role: 'zoomIn' },
         { role: 'zoomOut' },
@@ -548,28 +685,33 @@ function buildMenu(): void {
 // App lifecycle
 
 app.whenReady().then(() => {
+  ensureAppDataDir()
   ensureThemesDir()
-  buildMenu()
+  loadSidebarState()
+    .catch(() => {})
+    .finally(() => {
+      buildMenu()
 
-  // Check command line args for file paths
-  const args = process.argv.slice(app.isPackaged ? 1 : 2)
-  const fileArgs = args.filter((arg) => !arg.startsWith('-'))
-  if (fileArgs.length > 0) {
-    pendingFilePaths = fileArgs
-  }
+      // Check command line args for file paths
+      const args = process.argv.slice(app.isPackaged ? 1 : 2)
+      const fileArgs = args.filter((arg) => !arg.startsWith('-'))
+      if (fileArgs.length > 0) {
+        pendingFilePaths = fileArgs
+      }
 
-  if (pendingFilePaths.length > 0) {
-    for (const fp of pendingFilePaths) {
-      createWindow(fp)
-    }
-    pendingFilePaths = []
-  } else {
-    createWindow()
-  }
+      if (pendingFilePaths.length > 0) {
+        for (const fp of pendingFilePaths) {
+          createWindow(fp)
+        }
+        pendingFilePaths = []
+      } else {
+        createWindow()
+      }
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
-  })
+      app.on('activate', () => {
+        if (BrowserWindow.getAllWindows().length === 0) createWindow()
+      })
+    })
 })
 
 app.on('window-all-closed', () => {

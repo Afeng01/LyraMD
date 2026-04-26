@@ -1,13 +1,27 @@
 import { createEditor, getMarkdown, getHTML, setMarkdown } from './editor/editor'
 import { applyTheme, loadSavedTheme } from './themes/theme-manager'
+import type { SidebarState } from '../preload/index'
 import './themes/base.css'
+
+function basename(filePath: string | null): string {
+  if (!filePath) return 'Untitled'
+  const normalized = filePath.replaceAll('\\', '/')
+  return normalized.slice(normalized.lastIndexOf('/') + 1)
+}
+
+function dirname(filePath: string | null): string {
+  if (!filePath) return ''
+  const normalized = filePath.replaceAll('\\', '/')
+  const lastSlash = normalized.lastIndexOf('/')
+  return lastSlash === -1 ? '' : normalized.slice(0, lastSlash)
+}
 
 async function init(): Promise<void> {
   const api = window.electronAPI
   const savedTheme = loadSavedTheme()
+  let sidebarState: SidebarState | null = null
   applyTheme(savedTheme)
 
-  // Restore custom theme CSS from disk
   if (savedTheme.startsWith('custom:')) {
     const fileName = savedTheme.slice(7)
     const css = await api.loadThemeCSS(fileName)
@@ -16,9 +30,61 @@ async function init(): Promise<void> {
 
   await createEditor('editor')
 
+  const appShell = document.getElementById('app-shell')
+  const sidebarToggle = document.getElementById('sidebar-toggle') as HTMLButtonElement | null
+  const workdirToggle = document.getElementById('workdir-toggle') as HTMLButtonElement | null
+  const workdirChange = document.getElementById('workdir-change') as HTMLButtonElement | null
+  const currentFile = document.getElementById('current-file')
+  const recentFiles = document.getElementById('recent-files')
+  const workdirPath = document.getElementById('workdir-path')
+  const workdirBody = document.getElementById('workdir-body')
+  const workdirSection = document.getElementById('workdir-section')
+
+  const renderSidebar = (): void => {
+    if (!appShell || !currentFile || !recentFiles || !workdirPath || !workdirBody || !workdirSection || !sidebarState) return
+
+    appShell.classList.toggle('sidebar-open', sidebarState.sidebarOpen)
+    workdirSection.classList.toggle('collapsed', !sidebarState.workdirExpanded)
+
+    currentFile.innerHTML = `
+      <div class="sidebar-title">${basename(sidebarState.currentFilePath)}</div>
+      <div class="sidebar-meta">${sidebarState.currentFilePath ? dirname(sidebarState.currentFilePath) || '当前窗口文件' : '当前未打开文件'}</div>
+    `
+
+    const recentMarkup = sidebarState.recentFiles.map((filePath) => `
+      <button type="button" class="sidebar-list-item${filePath === sidebarState?.currentFilePath ? ' active' : ''}" data-file-path="${filePath}">
+        <span class="sidebar-title">${basename(filePath)}</span>
+        <span class="sidebar-meta">${dirname(filePath)}</span>
+      </button>
+    `).join('')
+    recentFiles.innerHTML = recentMarkup || '<div class="sidebar-empty">还没有最近文件</div>'
+
+    workdirPath.textContent = sidebarState.workdirPath ?? '尚未选择工作目录'
+    workdirPath.title = sidebarState.workdirPath ?? ''
+
+    if (!sidebarState.workdirPath) {
+      workdirBody.innerHTML = '<button type="button" id="workdir-empty-action" class="sidebar-empty-action">选择工作目录</button>'
+      return
+    }
+
+    if (!sidebarState.workdirExpanded) {
+      workdirBody.innerHTML = ''
+      return
+    }
+
+    const workdirMarkup = sidebarState.workdirEntries.map((entry) => `
+      <button type="button" class="sidebar-list-item workdir-item${entry.absolutePath === sidebarState?.currentFilePath ? ' active' : ''}" data-file-path="${entry.absolutePath}">
+        <span class="sidebar-title">${entry.relativePath}</span>
+      </button>
+    `).join('')
+    workdirBody.innerHTML = workdirMarkup || '<div class="sidebar-empty">这个目录里没有 Markdown 文件</div>'
+  }
+
+  sidebarState = await api.getSidebarState()
+  if (sidebarState) renderSidebar()
+
   api.onMenuOpen(async () => {
-    const result = await api.openFile()
-    if (result) setMarkdown(result.content)
+    await api.openFile()
   })
 
   api.onMenuSave(() => api.saveFile(getMarkdown()))
@@ -40,7 +106,6 @@ async function init(): Promise<void> {
     const tableHeaderBg = v('--table-header-bg')
     const selectionBg = v('--selection-bg')
 
-    // Get computed styles from actual editor elements
     const editor = document.querySelector('#editor .ProseMirror')
     const fontFamily = editor ? getComputedStyle(editor).fontFamily : '-apple-system,BlinkMacSystemFont,sans-serif'
 
@@ -93,7 +158,37 @@ img{max-width:100%}
     if (agentDot) agentDot.className = state === 'idle' ? '' : state
   })
 
-  // Handle drag-and-drop of text files
+  api.onSidebarState((state) => {
+    sidebarState = state
+    renderSidebar()
+  })
+
+  sidebarToggle?.addEventListener('click', () => {
+    api.toggleSidebar().catch(() => {})
+  })
+
+  workdirToggle?.addEventListener('click', () => {
+    api.toggleWorkdirExpanded().catch(() => {})
+  })
+
+  workdirChange?.addEventListener('click', () => {
+    api.chooseWorkdir().catch(() => {})
+  })
+
+  document.addEventListener('click', (event) => {
+    const target = event.target as HTMLElement | null
+    const fileButton = target?.closest('[data-file-path]') as HTMLElement | null
+    if (fileButton) {
+      const filePath = fileButton.dataset.filePath
+      if (filePath) api.openSidebarFile(filePath).catch(() => {})
+      return
+    }
+
+    if (target?.closest('#workdir-empty-action')) {
+      api.chooseWorkdir().catch(() => {})
+    }
+  })
+
   document.addEventListener('dragover', (e) => e.preventDefault())
   document.addEventListener('drop', async (e) => {
     e.preventDefault()
@@ -101,8 +196,7 @@ img{max-width:100%}
     if (!file) return
     const filePath = api.getPathForFile(file)
     if (!filePath) return
-    const result = await api.openFilePath(filePath)
-    if (result) setMarkdown(result.content)
+    await api.openFilePath(filePath)
   })
 }
 

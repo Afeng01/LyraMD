@@ -1,0 +1,44 @@
+import { afterEach, describe, expect, it } from 'vitest'
+import { mkdtemp, mkdir, rm, writeFile } from 'fs/promises'
+import { join } from 'path'
+import { tmpdir } from 'os'
+
+import { scanWorkdir } from './workdir'
+
+describe('scanWorkdir', () => {
+  const tempDirs: string[] = []
+
+  afterEach(async () => {
+    await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
+  })
+
+  it('recursively finds markdown files and sorts them by relative path', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'colamd-workdir-'))
+    tempDirs.push(root)
+
+    await mkdir(join(root, 'daily'), { recursive: true })
+    await mkdir(join(root, 'notes', 'nested'), { recursive: true })
+
+    await writeFile(join(root, 'z-last.md'), '# z')
+    await writeFile(join(root, 'daily', 'entry.md'), '# daily')
+    await writeFile(join(root, 'notes', 'nested', 'idea.markdown'), '# idea')
+    await writeFile(join(root, 'ignore.txt'), 'ignore')
+
+    const entries = await scanWorkdir(root)
+
+    expect(entries).toEqual([
+      {
+        absolutePath: join(root, 'daily', 'entry.md'),
+        relativePath: 'daily/entry.md',
+      },
+      {
+        absolutePath: join(root, 'notes', 'nested', 'idea.markdown'),
+        relativePath: 'notes/nested/idea.markdown',
+      },
+      {
+        absolutePath: join(root, 'z-last.md'),
+        relativePath: 'z-last.md',
+      },
+    ])
+  })
+})

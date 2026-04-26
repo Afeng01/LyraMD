@@ -1,14 +1,33 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
+export interface WorkdirEntry {
+  absolutePath: string
+  relativePath: string
+}
+
+export interface SidebarState {
+  sidebarOpen: boolean
+  workdirExpanded: boolean
+  workdirPath: string | null
+  recentFiles: string[]
+  currentFilePath: string | null
+  workdirEntries: WorkdirEntry[]
+}
+
 export interface ElectronAPI {
-  openFile: () => Promise<{ path: string; content: string } | null>
-  openFilePath: (path: string) => Promise<{ path: string; content: string } | null>
+  openFile: () => Promise<null>
+  openFilePath: (path: string) => Promise<null>
   saveFile: (content: string) => Promise<boolean>
   saveFileAs: (content: string) => Promise<boolean>
   exportPDF: () => Promise<boolean>
   exportHTML: (html: string) => Promise<boolean>
   loadCustomTheme: () => Promise<{ name: string; css: string } | null>
   loadThemeCSS: (fileName: string) => Promise<string | null>
+  getSidebarState: () => Promise<SidebarState | null>
+  toggleSidebar: () => Promise<boolean>
+  toggleWorkdirExpanded: () => Promise<boolean>
+  chooseWorkdir: () => Promise<SidebarState | null>
+  openSidebarFile: (path: string) => Promise<boolean>
   getPathForFile: (file: File) => string
   openExternal: (url: string) => void
   onFileChanged: (callback: (content: string) => void) => void
@@ -23,6 +42,7 @@ export interface ElectronAPI {
   onSetCustomCSS: (callback: (css: string) => void) => void
   onMenuImportTheme: (callback: () => void) => void
   onAgentActivity: (callback: (state: string) => void) => void
+  onSidebarState: (callback: (state: SidebarState) => void) => void
 }
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -34,6 +54,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   exportHTML: (html: string) => ipcRenderer.invoke('export-html', html),
   loadCustomTheme: () => ipcRenderer.invoke('load-custom-theme'),
   loadThemeCSS: (fileName: string) => ipcRenderer.invoke('load-theme-css', fileName),
+  getSidebarState: () => ipcRenderer.invoke('get-sidebar-state'),
+  toggleSidebar: () => ipcRenderer.invoke('toggle-sidebar'),
+  toggleWorkdirExpanded: () => ipcRenderer.invoke('toggle-workdir-expanded'),
+  chooseWorkdir: () => ipcRenderer.invoke('choose-workdir'),
+  openSidebarFile: (path: string) => ipcRenderer.invoke('open-sidebar-file', path),
   getPathForFile: (file: File) => webUtils.getPathForFile(file),
   openExternal: (url: string) => ipcRenderer.send('open-external', url),
   onFileChanged: (callback: (content: string) => void) => {
@@ -71,5 +96,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onAgentActivity: (callback: (state: string) => void) => {
     ipcRenderer.on('agent-activity', (_event, state) => callback(state))
+  },
+  onSidebarState: (callback: (state: SidebarState) => void) => {
+    ipcRenderer.on('sidebar-state', (_event, state) => callback(state))
   }
 } satisfies ElectronAPI)

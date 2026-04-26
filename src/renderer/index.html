@@ -7,8 +7,47 @@
   <title>ColaMD</title>
 </head>
 <body>
-  <div id="titlebar"><div id="agent-dot"></div></div>
-  <div id="editor"></div>
+  <div id="app-shell">
+    <div id="titlebar">
+      <button id="sidebar-toggle" type="button" aria-label="Toggle sidebar">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+      <div id="agent-dot"></div>
+    </div>
+    <div id="workspace">
+      <aside id="sidebar">
+        <section class="sidebar-section">
+          <h2 class="sidebar-label">当前文件</h2>
+          <div id="current-file" class="sidebar-card">
+            <div class="sidebar-title">Untitled</div>
+            <div class="sidebar-meta">当前未打开文件</div>
+          </div>
+        </section>
+
+        <section class="sidebar-section">
+          <h2 class="sidebar-label">最近文件</h2>
+          <div id="recent-files" class="sidebar-list"></div>
+        </section>
+
+        <section id="workdir-section" class="sidebar-section">
+          <div class="sidebar-section-header">
+            <button id="workdir-toggle" type="button" class="sidebar-section-toggle">
+              <span>工作目录</span>
+            </button>
+            <button id="workdir-change" type="button" class="sidebar-inline-button">更换</button>
+          </div>
+          <div id="workdir-path" class="sidebar-meta sidebar-path"></div>
+          <div id="workdir-body"></div>
+        </section>
+      </aside>
+
+      <main id="editor-shell">
+        <div id="editor"></div>
+      </main>
+    </div>
+  </div>
   <script type="module" src="./main.ts"></script>
 </body>
 </html>

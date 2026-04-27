@@ -30,6 +30,21 @@ npm install
 npm run dev
 ```
 
+## macOS 安装与打开
+
+从 [Releases](https://github.com/Afeng01/LyraMD/releases) 下载最新的 `.dmg`，打开后把 `LyraMD.app` 拖到 `/Applications`。
+
+LyraMD 目前没有做 Apple 公证，因为公证需要付费 Apple Developer 账号。如果 macOS 第一次打开时拦截：
+
+1. 打开 **系统设置 > 隐私与安全性**。
+2. 找到被拦截的 `LyraMD` 提示。
+3. 点击 **仍要打开**。
+4. macOS 再次确认时继续允许。
+
+也可以第一次右键点击 `LyraMD.app`，选择 **打开**。
+
+签名和公证不是一回事。签名用于标识 App 的发布者；公证是 Apple 对 App 做安全扫描并盖章。面向公开分发时，签名并公证体验最好。当前项目暂时不做公证。
+
 ## 构建
 
 ```bash

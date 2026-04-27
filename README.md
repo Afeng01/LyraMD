@@ -30,6 +30,21 @@ npm install
 npm run dev
 ```
 
+## Install on macOS
+
+Download the latest `.dmg` from [Releases](https://github.com/Afeng01/LyraMD/releases), open it, and drag `LyraMD.app` into `/Applications`.
+
+LyraMD is currently distributed without Apple notarization because notarization requires a paid Apple Developer account. If macOS blocks the first launch:
+
+1. Open **System Settings > Privacy & Security**.
+2. Find the blocked `LyraMD` message.
+3. Click **Open Anyway**.
+4. Confirm once more when macOS asks.
+
+You can also right-click `LyraMD.app` and choose **Open** for the first launch.
+
+Code signing and notarization are different. Signing identifies who produced an app; notarization is Apple's security scan and approval step. For public distribution outside the App Store, a signed and notarized build gives the smoothest user experience. This project currently ships without notarization.
+
 ## Build
 
 ```bash

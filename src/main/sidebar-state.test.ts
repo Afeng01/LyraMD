@@ -49,7 +49,6 @@ describe('normalizeSidebarState', () => {
       sidebarWidth: 296,
       workdirExpanded: true,
       recentFilesExpanded: true,
-      showPathDetails: false,
       workdirPath: null,
       recentFiles: ['a.md'],
     })

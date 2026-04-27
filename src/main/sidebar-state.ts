@@ -8,7 +8,6 @@ export interface PersistedSidebarState {
   sidebarWidth: number
   workdirExpanded: boolean
   recentFilesExpanded: boolean
-  showPathDetails: boolean
   workdirPath: string | null
   recentFiles: string[]
 }
@@ -18,7 +17,6 @@ export const DEFAULT_SIDEBAR_STATE: PersistedSidebarState = {
   sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
   workdirExpanded: true,
   recentFilesExpanded: true,
-  showPathDetails: false,
   workdirPath: null,
   recentFiles: [],
 }
@@ -59,7 +57,6 @@ export function normalizeSidebarState(value: unknown): PersistedSidebarState {
     sidebarWidth: clampSidebarWidth(typeof candidate.sidebarWidth === 'number' ? candidate.sidebarWidth : DEFAULT_SIDEBAR_WIDTH),
     workdirExpanded: candidate.workdirExpanded !== false,
     recentFilesExpanded: candidate.recentFilesExpanded !== false,
-    showPathDetails: candidate.showPathDetails === true,
     workdirPath: typeof candidate.workdirPath === 'string' ? candidate.workdirPath : null,
     recentFiles: Array.isArray(candidate.recentFiles)
       ? candidate.recentFiles.filter((entry): entry is string => typeof entry === 'string').slice(0, DEFAULT_MAX_RECENT_FILES)

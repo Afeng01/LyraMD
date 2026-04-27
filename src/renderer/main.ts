@@ -16,14 +16,6 @@ function dirname(filePath: string | null): string {
   return lastSlash === -1 ? '' : normalized.slice(0, lastSlash)
 }
 
-function compactPath(filePath: string | null, segmentCount = 2): string {
-  if (!filePath) return ''
-  const normalized = filePath.replaceAll('\\', '/')
-  const segments = normalized.split('/').filter(Boolean)
-  if (segments.length <= segmentCount) return normalized
-  return segments.slice(-segmentCount).join('/')
-}
-
 function isSamePath(a: string | null, b: string | null): boolean {
   if (!a || !b) return false
   return a === b
@@ -105,24 +97,21 @@ async function init(): Promise<void> {
   const recentFilesClear = document.getElementById('recent-files-clear') as HTMLButtonElement | null
   const workdirToggle = document.getElementById('workdir-toggle') as HTMLButtonElement | null
   const workdirChange = document.getElementById('workdir-change') as HTMLButtonElement | null
-  const showPathCheckbox = document.getElementById('show-path-checkbox') as HTMLInputElement | null
   const currentFile = document.getElementById('current-file')
   const recentFiles = document.getElementById('recent-files')
   const recentFilesSection = document.getElementById('recent-files-section')
   const workdirName = document.getElementById('workdir-name')
-  const workdirPath = document.getElementById('workdir-path')
   const workdirBody = document.getElementById('workdir-body')
   const workdirSection = document.getElementById('workdir-section')
   const sidebarResizer = document.getElementById('sidebar-resizer')
 
   const renderSidebar = (): void => {
-    if (!appShell || !currentFile || !recentFiles || !recentFilesSection || !workdirPath || !workdirBody || !workdirSection || !sidebarState) return
+    if (!appShell || !currentFile || !recentFiles || !recentFilesSection || !workdirBody || !workdirSection || !sidebarState) return
 
     appShell.classList.toggle('sidebar-open', sidebarState.sidebarOpen)
     appShell.style.setProperty('--sidebar-width', `${sidebarState.sidebarWidth}px`)
     recentFilesSection.classList.toggle('collapsed', !sidebarState.recentFilesExpanded)
     workdirSection.classList.toggle('collapsed', !sidebarState.workdirExpanded)
-    if (showPathCheckbox) showPathCheckbox.checked = sidebarState.showPathDetails
     if (recentFilesClear) {
       recentFilesClear.textContent = managingRecentFiles ? '完成' : '清除'
       recentFilesClear.classList.toggle('active', managingRecentFiles)
@@ -134,9 +123,7 @@ async function init(): Promise<void> {
     currentFile.appendChild(createTextBlock('sidebar-title', basename(sidebarState.currentFilePath)))
     currentFile.appendChild(createTextBlock(
       'sidebar-meta',
-      sidebarState.currentFilePath
-        ? (sidebarState.showPathDetails ? compactPath(dirname(sidebarState.currentFilePath)) || '当前窗口文件' : '当前正在编辑')
-        : '当前未打开文件',
+      sidebarState.currentFilePath ? '当前正在编辑' : '当前未打开文件',
     ))
 
     clearElement(recentFiles)
@@ -148,7 +135,7 @@ async function init(): Promise<void> {
           const item = createFileItem(
             filePath,
             basename(filePath),
-            sidebarState.showPathDetails ? compactPath(dirname(filePath)) : null,
+            null,
             sidebarState.currentFilePath,
           )
 
@@ -190,8 +177,6 @@ async function init(): Promise<void> {
       workdirName.textContent = sidebarState.workdirPath ? basename(sidebarState.workdirPath) : ''
       workdirName.title = sidebarState.workdirPath ?? ''
     }
-    workdirPath.textContent = sidebarState.showPathDetails ? (compactPath(sidebarState.workdirPath) || '尚未选择工作目录') : ''
-    workdirPath.title = sidebarState.showPathDetails ? (sidebarState.workdirPath ?? '') : ''
 
     clearElement(workdirBody)
     if (!sidebarState.workdirPath) {
@@ -218,7 +203,7 @@ async function init(): Promise<void> {
     for (const entry of sidebarState.workdirEntries) {
       workdirList.appendChild(createFileItem(
         entry.absolutePath,
-        sidebarState.showPathDetails ? entry.relativePath : basename(entry.relativePath),
+        basename(entry.relativePath),
         null,
         sidebarState.currentFilePath,
         'workdir-item',
@@ -330,10 +315,6 @@ img{max-width:100%}
 
   workdirChange?.addEventListener('click', () => {
     api.chooseWorkdir().catch(() => {})
-  })
-
-  showPathCheckbox?.addEventListener('change', () => {
-    api.setShowPathDetails(showPathCheckbox.checked).catch(() => {})
   })
 
   document.addEventListener('click', (event) => {

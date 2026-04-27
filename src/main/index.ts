@@ -418,13 +418,6 @@ ipcMain.handle('toggle-recent-files-expanded', async () => {
   return sidebarState.recentFilesExpanded
 })
 
-ipcMain.handle('set-show-path-details', async (_event, value: boolean) => {
-  sidebarState.showPathDetails = value === true
-  persistSidebarState()
-  broadcastSidebarState()
-  return sidebarState.showPathDetails
-})
-
 ipcMain.handle('set-sidebar-width', async (_event, width: number) => {
   sidebarState.sidebarWidth = clampSidebarWidth(width)
   persistSidebarState()

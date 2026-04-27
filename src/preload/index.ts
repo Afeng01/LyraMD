@@ -10,7 +10,6 @@ export interface SidebarState {
   sidebarWidth: number
   workdirExpanded: boolean
   recentFilesExpanded: boolean
-  showPathDetails: boolean
   workdirPath: string | null
   recentFiles: string[]
   currentFilePath: string | null
@@ -30,7 +29,6 @@ export interface ElectronAPI {
   toggleSidebar: () => Promise<boolean>
   toggleWorkdirExpanded: () => Promise<boolean>
   toggleRecentFilesExpanded: () => Promise<boolean>
-  setShowPathDetails: (value: boolean) => Promise<boolean>
   setSidebarWidth: (width: number) => Promise<number>
   chooseWorkdir: () => Promise<SidebarState | null>
   openSidebarFile: (path: string) => Promise<boolean>
@@ -65,7 +63,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   toggleSidebar: () => ipcRenderer.invoke('toggle-sidebar'),
   toggleWorkdirExpanded: () => ipcRenderer.invoke('toggle-workdir-expanded'),
   toggleRecentFilesExpanded: () => ipcRenderer.invoke('toggle-recent-files-expanded'),
-  setShowPathDetails: (value: boolean) => ipcRenderer.invoke('set-show-path-details', value),
   setSidebarWidth: (width: number) => ipcRenderer.invoke('set-sidebar-width', width),
   chooseWorkdir: () => ipcRenderer.invoke('choose-workdir'),
   openSidebarFile: (path: string) => ipcRenderer.invoke('open-sidebar-file', path),

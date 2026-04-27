@@ -6,6 +6,8 @@ LyraMD is a personal fork of [ColaMD](https://github.com/marswaveai/ColaMD), ada
 
 [中文](README_CN.md)
 
+![LyraMD screenshot](docs/assets/lyramd-screenshot.png)
+
 ## Features
 
 - **Live file refresh**: when an AI agent edits the current Markdown file, LyraMD reloads it automatically.

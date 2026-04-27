@@ -6,6 +6,8 @@ LyraMD 基于 [ColaMD](https://github.com/marswaveai/ColaMD) 修改，是一个�
 
 [English](README.md)
 
+![LyraMD 截图](docs/assets/lyramd-screenshot.png)
+
 ## 功能
 
 - **文件实时刷新**：AI agent 修改当前 Markdown 文件时，LyraMD 自动刷新内容。

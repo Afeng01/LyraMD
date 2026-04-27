@@ -1,6 +1,6 @@
-# ColaMD Themes
+# LyraMD Themes
 
-Download any `.css` file and place it in `~/.colamd/themes/`, or use **Theme > Import Theme** in ColaMD to import directly.
+Download any `.css` file and place it in `~/.lyramd/themes/`, or use **Theme > Import Theme** in LyraMD to import directly.
 
 ## Available Themes
 
@@ -10,7 +10,7 @@ Download any `.css` file and place it in `~/.colamd/themes/`, or use **Theme > I
 
 ## Creating Your Own Theme
 
-ColaMD custom themes are plain CSS files. You can style the editor by targeting CSS custom properties or writing direct selectors.
+LyraMD custom themes are plain CSS files. You can style the editor by targeting CSS custom properties or writing direct selectors.
 
 ### CSS Variables
 

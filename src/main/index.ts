@@ -2,11 +2,11 @@ import { app, BrowserWindow, ipcMain, dialog, Menu, shell } from 'electron'
 import { join, basename, relative } from 'path'
 import { readFile, writeFile, readdir, copyFile, mkdir } from 'fs/promises'
 import { watch, FSWatcher, existsSync, readdirSync } from 'fs'
-import { filterMissingRecentFiles, normalizeSidebarState, pushRecentFile, type PersistedSidebarState } from './sidebar-state'
+import { clampSidebarWidth, filterMissingRecentFiles, normalizeSidebarState, pushRecentFile, removeRecentFile, type PersistedSidebarState } from './sidebar-state'
 import { scanWorkdir, type WorkdirEntry } from './workdir'
 
 // Custom themes directory
-const appDataDir = join(app.getPath('home'), '.colamd')
+const appDataDir = join(app.getPath('home'), '.lyramd')
 const themesDir = join(appDataDir, 'themes')
 const sidebarStatePath = join(appDataDir, 'sidebar-state.json')
 
@@ -73,6 +73,7 @@ async function loadSidebarState(): Promise<void> {
   }
 
   sidebarState.recentFiles = filterMissingRecentFiles(sidebarState.recentFiles, (filePath) => existsSync(filePath))
+  persistSidebarState()
   await refreshWorkdirEntries()
 }
 
@@ -177,7 +178,7 @@ function createWindow(filePath?: string): BrowserWindow {
 function updateTitle(win: BrowserWindow): void {
   const state = getState(win)
   const fileName = state.filePath ? basename(state.filePath) : 'Untitled'
-  win.setTitle(`${fileName} — ColaMD`)
+  win.setTitle(`${fileName} — LyraMD`)
 }
 
 function suggestFileName(win: BrowserWindow, content?: string): string | undefined {
@@ -258,18 +259,23 @@ function watchFile(win: BrowserWindow, state: WindowState): void {
   })
 }
 
-function loadFileInWindow(win: BrowserWindow, filePath: string): void {
-  readFile(filePath, 'utf-8')
-    .then((data) => {
-      const state = getState(win)
-      state.filePath = filePath
-      watchFile(win, state)
-      updateTitle(win)
-      recordRecentFile(filePath)
-      win.webContents.send('file-opened', { path: filePath, content: data })
-      broadcastSidebarState()
-    })
-    .catch(() => {})
+async function loadFileInWindow(win: BrowserWindow, filePath: string): Promise<boolean> {
+  try {
+    const data = await readFile(filePath, 'utf-8')
+    const state = getState(win)
+    state.filePath = filePath
+    watchFile(win, state)
+    updateTitle(win)
+    recordRecentFile(filePath)
+    win.webContents.send('file-opened', { path: filePath, content: data })
+    broadcastSidebarState()
+    return true
+  } catch {
+    sidebarState.recentFiles = filterMissingRecentFiles(sidebarState.recentFiles, (candidate) => existsSync(candidate))
+    persistSidebarState()
+    broadcastSidebarState()
+    return false
+  }
 }
 
 // Find window that already has this file open
@@ -405,6 +411,27 @@ ipcMain.handle('toggle-workdir-expanded', async () => {
   return sidebarState.workdirExpanded
 })
 
+ipcMain.handle('toggle-recent-files-expanded', async () => {
+  sidebarState.recentFilesExpanded = !sidebarState.recentFilesExpanded
+  persistSidebarState()
+  broadcastSidebarState()
+  return sidebarState.recentFilesExpanded
+})
+
+ipcMain.handle('set-show-path-details', async (_event, value: boolean) => {
+  sidebarState.showPathDetails = value === true
+  persistSidebarState()
+  broadcastSidebarState()
+  return sidebarState.showPathDetails
+})
+
+ipcMain.handle('set-sidebar-width', async (_event, width: number) => {
+  sidebarState.sidebarWidth = clampSidebarWidth(width)
+  persistSidebarState()
+  broadcastSidebarState()
+  return sidebarState.sidebarWidth
+})
+
 ipcMain.handle('choose-workdir', async (event) => {
   const win = getWinFromEvent(event)
   if (!win) return null
@@ -426,7 +453,20 @@ ipcMain.handle('choose-workdir', async (event) => {
 ipcMain.handle('open-sidebar-file', async (event, filePath: string) => {
   const win = getWinFromEvent(event)
   if (!win) return false
-  loadFileInWindow(win, filePath)
+  if (typeof filePath !== 'string' || !existsSync(filePath)) {
+    sidebarState.recentFiles = filterMissingRecentFiles(sidebarState.recentFiles, (candidate) => existsSync(candidate))
+    persistSidebarState()
+    broadcastSidebarState()
+    return false
+  }
+  return loadFileInWindow(win, filePath)
+})
+
+ipcMain.handle('remove-recent-file', async (_event, filePath: string) => {
+  if (typeof filePath !== 'string') return false
+  sidebarState.recentFiles = removeRecentFile(sidebarState.recentFiles, filePath)
+  persistSidebarState()
+  broadcastSidebarState()
   return true
 })
 
@@ -584,7 +624,7 @@ function buildMenu(): void {
 
   const template: Electron.MenuItemConstructorOptions[] = [
     ...(isMac ? [{
-      label: 'ColaMD',
+      label: 'LyraMD',
       submenu: [
         { role: 'about' as const },
         { type: 'separator' as const },
@@ -672,8 +712,8 @@ function buildMenu(): void {
       label: 'Help',
       submenu: [
         {
-          label: 'About ColaMD',
-          click: () => shell.openExternal('https://github.com/marswaveai/colamd')
+          label: 'About LyraMD',
+          click: () => shell.openExternal('https://github.com/Afeng01/LyraMD')
         }
       ]
     }

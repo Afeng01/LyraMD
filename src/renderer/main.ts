@@ -16,10 +16,79 @@ function dirname(filePath: string | null): string {
   return lastSlash === -1 ? '' : normalized.slice(0, lastSlash)
 }
 
+function compactPath(filePath: string | null, segmentCount = 2): string {
+  if (!filePath) return ''
+  const normalized = filePath.replaceAll('\\', '/')
+  const segments = normalized.split('/').filter(Boolean)
+  if (segments.length <= segmentCount) return normalized
+  return segments.slice(-segmentCount).join('/')
+}
+
+function isSamePath(a: string | null, b: string | null): boolean {
+  if (!a || !b) return false
+  return a === b
+}
+
+function clampSidebarWidth(width: number): number {
+  return Math.min(460, Math.max(220, Math.round(width)))
+}
+
+function clearElement(element: Element): void {
+  while (element.firstChild) element.removeChild(element.firstChild)
+}
+
+function createTextBlock(className: string, text: string): HTMLDivElement {
+  const block = document.createElement('div')
+  block.className = className
+  block.textContent = text
+  return block
+}
+
+function createFileItem(
+  filePath: string,
+  title: string,
+  meta: string | null,
+  currentFilePath: string | null,
+  extraClass = '',
+): HTMLButtonElement {
+  const item = document.createElement('button')
+  item.type = 'button'
+  item.className = `sidebar-list-item${extraClass ? ` ${extraClass}` : ''}`
+  item.dataset.filePath = filePath
+  item.title = filePath
+  item.classList.toggle('active', isSamePath(filePath, currentFilePath))
+
+  item.appendChild(createTextBlock('sidebar-title', title))
+  if (meta) item.appendChild(createTextBlock('sidebar-meta', meta))
+  return item
+}
+
+function syncSidebarState(): void {
+  window.electronAPI.getSidebarState().then((state) => {
+    if (state) {
+      activeSidebarStateSetter?.(state)
+    }
+  }).catch(() => {})
+}
+
+let activeSidebarStateSetter: ((state: SidebarState) => void) | null = null
+
+function renderEmpty(element: Element, text: string): void {
+  clearElement(element)
+  element.appendChild(createTextBlock('sidebar-empty', text))
+}
+
 async function init(): Promise<void> {
   const api = window.electronAPI
   const savedTheme = loadSavedTheme()
   let sidebarState: SidebarState | null = null
+  let managingRecentFiles = false
+  const setSidebarState = (state: SidebarState): void => {
+    sidebarState = state
+    if (state.recentFiles.length === 0) managingRecentFiles = false
+    renderSidebar()
+  }
+  activeSidebarStateSetter = setSidebarState
   applyTheme(savedTheme)
 
   if (savedTheme.startsWith('custom:')) {
@@ -32,52 +101,130 @@ async function init(): Promise<void> {
 
   const appShell = document.getElementById('app-shell')
   const sidebarToggle = document.getElementById('sidebar-toggle') as HTMLButtonElement | null
+  const recentFilesToggle = document.getElementById('recent-files-toggle') as HTMLButtonElement | null
+  const recentFilesClear = document.getElementById('recent-files-clear') as HTMLButtonElement | null
   const workdirToggle = document.getElementById('workdir-toggle') as HTMLButtonElement | null
   const workdirChange = document.getElementById('workdir-change') as HTMLButtonElement | null
+  const showPathCheckbox = document.getElementById('show-path-checkbox') as HTMLInputElement | null
   const currentFile = document.getElementById('current-file')
   const recentFiles = document.getElementById('recent-files')
+  const recentFilesSection = document.getElementById('recent-files-section')
+  const workdirName = document.getElementById('workdir-name')
   const workdirPath = document.getElementById('workdir-path')
   const workdirBody = document.getElementById('workdir-body')
   const workdirSection = document.getElementById('workdir-section')
+  const sidebarResizer = document.getElementById('sidebar-resizer')
 
   const renderSidebar = (): void => {
-    if (!appShell || !currentFile || !recentFiles || !workdirPath || !workdirBody || !workdirSection || !sidebarState) return
+    if (!appShell || !currentFile || !recentFiles || !recentFilesSection || !workdirPath || !workdirBody || !workdirSection || !sidebarState) return
 
     appShell.classList.toggle('sidebar-open', sidebarState.sidebarOpen)
+    appShell.style.setProperty('--sidebar-width', `${sidebarState.sidebarWidth}px`)
+    recentFilesSection.classList.toggle('collapsed', !sidebarState.recentFilesExpanded)
     workdirSection.classList.toggle('collapsed', !sidebarState.workdirExpanded)
+    if (showPathCheckbox) showPathCheckbox.checked = sidebarState.showPathDetails
+    if (recentFilesClear) {
+      recentFilesClear.textContent = managingRecentFiles ? '完成' : '清除'
+      recentFilesClear.classList.toggle('active', managingRecentFiles)
+      recentFilesClear.disabled = sidebarState.recentFiles.length === 0
+    }
 
-    currentFile.innerHTML = `
-      <div class="sidebar-title">${basename(sidebarState.currentFilePath)}</div>
-      <div class="sidebar-meta">${sidebarState.currentFilePath ? dirname(sidebarState.currentFilePath) || '当前窗口文件' : '当前未打开文件'}</div>
-    `
+    clearElement(currentFile)
+    currentFile.className = 'sidebar-list-item current-file-item'
+    currentFile.appendChild(createTextBlock('sidebar-title', basename(sidebarState.currentFilePath)))
+    currentFile.appendChild(createTextBlock(
+      'sidebar-meta',
+      sidebarState.currentFilePath
+        ? (sidebarState.showPathDetails ? compactPath(dirname(sidebarState.currentFilePath)) || '当前窗口文件' : '当前正在编辑')
+        : '当前未打开文件',
+    ))
 
-    const recentMarkup = sidebarState.recentFiles.map((filePath) => `
-      <button type="button" class="sidebar-list-item${filePath === sidebarState?.currentFilePath ? ' active' : ''}" data-file-path="${filePath}">
-        <span class="sidebar-title">${basename(filePath)}</span>
-        <span class="sidebar-meta">${dirname(filePath)}</span>
-      </button>
-    `).join('')
-    recentFiles.innerHTML = recentMarkup || '<div class="sidebar-empty">还没有最近文件</div>'
+    clearElement(recentFiles)
+    if (sidebarState.recentFilesExpanded) {
+      if (sidebarState.recentFiles.length === 0) {
+        recentFiles.appendChild(createTextBlock('sidebar-empty', '还没有最近文件'))
+      } else {
+        for (const filePath of sidebarState.recentFiles) {
+          const item = createFileItem(
+            filePath,
+            basename(filePath),
+            sidebarState.showPathDetails ? compactPath(dirname(filePath)) : null,
+            sidebarState.currentFilePath,
+          )
 
-    workdirPath.textContent = sidebarState.workdirPath ?? '尚未选择工作目录'
-    workdirPath.title = sidebarState.workdirPath ?? ''
+          if (!managingRecentFiles) {
+            recentFiles.appendChild(item)
+          } else {
+            const row = document.createElement('div')
+            row.className = 'sidebar-recent-row'
+            row.appendChild(item)
 
+            const remove = document.createElement('button')
+            remove.type = 'button'
+            remove.className = 'recent-remove-button'
+            remove.dataset.removeRecentPath = filePath
+            remove.setAttribute('aria-label', `删除 ${basename(filePath)}`)
+            remove.textContent = '−'
+            remove.addEventListener('click', (event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              if (!sidebarState) return
+              sidebarState = {
+                ...sidebarState,
+                recentFiles: sidebarState.recentFiles.filter((entry) => entry !== filePath),
+              }
+              if (sidebarState.recentFiles.length === 0) managingRecentFiles = false
+              renderSidebar()
+              api.removeRecentFile(filePath).then((removed) => {
+                if (!removed) syncSidebarState()
+              }).catch(() => syncSidebarState())
+            })
+            row.appendChild(remove)
+            recentFiles.appendChild(row)
+          }
+        }
+      }
+    }
+
+    if (workdirName) {
+      workdirName.textContent = sidebarState.workdirPath ? basename(sidebarState.workdirPath) : ''
+      workdirName.title = sidebarState.workdirPath ?? ''
+    }
+    workdirPath.textContent = sidebarState.showPathDetails ? (compactPath(sidebarState.workdirPath) || '尚未选择工作目录') : ''
+    workdirPath.title = sidebarState.showPathDetails ? (sidebarState.workdirPath ?? '') : ''
+
+    clearElement(workdirBody)
     if (!sidebarState.workdirPath) {
-      workdirBody.innerHTML = '<button type="button" id="workdir-empty-action" class="sidebar-empty-action">选择工作目录</button>'
+      const action = document.createElement('button')
+      action.type = 'button'
+      action.id = 'workdir-empty-action'
+      action.className = 'sidebar-empty-action'
+      action.textContent = '选择工作目录'
+      workdirBody.appendChild(action)
       return
     }
 
     if (!sidebarState.workdirExpanded) {
-      workdirBody.innerHTML = ''
       return
     }
 
-    const workdirMarkup = sidebarState.workdirEntries.map((entry) => `
-      <button type="button" class="sidebar-list-item workdir-item${entry.absolutePath === sidebarState?.currentFilePath ? ' active' : ''}" data-file-path="${entry.absolutePath}">
-        <span class="sidebar-title">${entry.relativePath}</span>
-      </button>
-    `).join('')
-    workdirBody.innerHTML = workdirMarkup || '<div class="sidebar-empty">这个目录里没有 Markdown 文件</div>'
+    if (sidebarState.workdirEntries.length === 0) {
+      renderEmpty(workdirBody, '这个目录里没有 Markdown 文件')
+      return
+    }
+
+    const workdirList = document.createElement('div')
+    workdirList.className = 'sidebar-list'
+    for (const entry of sidebarState.workdirEntries) {
+      workdirList.appendChild(createFileItem(
+        entry.absolutePath,
+        sidebarState.showPathDetails ? entry.relativePath : basename(entry.relativePath),
+        null,
+        sidebarState.currentFilePath,
+        'workdir-item',
+      ))
+    }
+    workdirBody.appendChild(workdirList)
   }
 
   sidebarState = await api.getSidebarState()
@@ -117,7 +264,7 @@ async function init(): Promise<void> {
     const codeColor = getElColor('code', textColor)
 
     const html = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>ColaMD Export</title>
+<html><head><meta charset="utf-8"><title>LyraMD Export</title>
 <style>
 body{max-width:780px;margin:40px auto;padding:20px;font-family:${fontFamily};line-height:1.75;background:${bgColor};color:${textColor}}
 h1{font-size:2em;font-weight:700;border-bottom:1px solid ${borderColor};padding-bottom:.3em}
@@ -159,12 +306,22 @@ img{max-width:100%}
   })
 
   api.onSidebarState((state) => {
-    sidebarState = state
-    renderSidebar()
+    setSidebarState(state)
   })
 
   sidebarToggle?.addEventListener('click', () => {
     api.toggleSidebar().catch(() => {})
+  })
+
+  recentFilesToggle?.addEventListener('click', () => {
+    api.toggleRecentFilesExpanded().catch(() => {})
+  })
+
+  recentFilesClear?.addEventListener('click', () => {
+    if (!sidebarState?.recentFiles.length) return
+    managingRecentFiles = !managingRecentFiles
+    if (!sidebarState.recentFilesExpanded) api.toggleRecentFilesExpanded().catch(() => {})
+    renderSidebar()
   })
 
   workdirToggle?.addEventListener('click', () => {
@@ -175,10 +332,15 @@ img{max-width:100%}
     api.chooseWorkdir().catch(() => {})
   })
 
+  showPathCheckbox?.addEventListener('change', () => {
+    api.setShowPathDetails(showPathCheckbox.checked).catch(() => {})
+  })
+
   document.addEventListener('click', (event) => {
     const target = event.target as HTMLElement | null
     const fileButton = target?.closest('[data-file-path]') as HTMLElement | null
     if (fileButton) {
+      if (managingRecentFiles) return
       const filePath = fileButton.dataset.filePath
       if (filePath) api.openSidebarFile(filePath).catch(() => {})
       return
@@ -187,6 +349,31 @@ img{max-width:100%}
     if (target?.closest('#workdir-empty-action')) {
       api.chooseWorkdir().catch(() => {})
     }
+  })
+
+  let dragOriginX = 0
+  let dragOriginWidth = 0
+
+  const handlePointerMove = (event: PointerEvent): void => {
+    if (!sidebarState) return
+    const nextWidth = clampSidebarWidth(dragOriginWidth + (event.clientX - dragOriginX))
+    appShell?.style.setProperty('--sidebar-width', `${nextWidth}px`)
+  }
+
+  const handlePointerUp = async (event: PointerEvent): Promise<void> => {
+    window.removeEventListener('pointermove', handlePointerMove)
+    window.removeEventListener('pointerup', handlePointerUp)
+    if (!sidebarState) return
+    const nextWidth = clampSidebarWidth(dragOriginWidth + (event.clientX - dragOriginX))
+    await api.setSidebarWidth(nextWidth).catch(() => {})
+  }
+
+  sidebarResizer?.addEventListener('pointerdown', (event) => {
+    if (!sidebarState?.sidebarOpen) return
+    dragOriginX = event.clientX
+    dragOriginWidth = sidebarState.sidebarWidth
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', handlePointerUp)
   })
 
   document.addEventListener('dragover', (e) => e.preventDefault())
@@ -200,4 +387,4 @@ img{max-width:100%}
   })
 }
 
-init().catch((e) => console.error('ColaMD init failed:', e))
+init().catch((e) => console.error('LyraMD init failed:', e))

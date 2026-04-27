@@ -32,9 +32,9 @@ export function applyTheme(name: string, customCSS?: string): void {
   }
 
   // Persist theme choice
-  localStorage.setItem('colamd-theme', name)
+  localStorage.setItem('lyramd-theme', name)
 }
 
 export function loadSavedTheme(): string {
-  return localStorage.getItem('colamd-theme') || 'elegant'
+  return localStorage.getItem('lyramd-theme') || 'elegant'
 }

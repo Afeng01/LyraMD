@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https: http:;">
-  <title>ColaMD</title>
+  <title>LyraMD</title>
 </head>
 <body>
   <div id="app-shell">
@@ -19,15 +19,24 @@
     <div id="workspace">
       <aside id="sidebar">
         <section class="sidebar-section">
-          <h2 class="sidebar-label">当前文件</h2>
+          <div class="sidebar-section-header">
+            <div class="sidebar-section-title static">
+              <span>当前文件</span>
+            </div>
+          </div>
           <div id="current-file" class="sidebar-card">
             <div class="sidebar-title">Untitled</div>
             <div class="sidebar-meta">当前未打开文件</div>
           </div>
         </section>
 
-        <section class="sidebar-section">
-          <h2 class="sidebar-label">最近文件</h2>
+        <section id="recent-files-section" class="sidebar-section">
+          <div class="sidebar-section-header">
+            <button id="recent-files-toggle" type="button" class="sidebar-section-toggle">
+              <span>最近文件</span>
+            </button>
+            <button id="recent-files-clear" type="button" class="sidebar-inline-button">清除</button>
+          </div>
           <div id="recent-files" class="sidebar-list"></div>
         </section>
 
@@ -36,12 +45,18 @@
             <button id="workdir-toggle" type="button" class="sidebar-section-toggle">
               <span>工作目录</span>
             </button>
+            <span id="workdir-name" class="workdir-name"></span>
             <button id="workdir-change" type="button" class="sidebar-inline-button">更换</button>
           </div>
+          <label id="show-path-toggle" class="sidebar-option compact">
+            <input id="show-path-checkbox" type="checkbox">
+            <span>展示目录及文件路径</span>
+          </label>
           <div id="workdir-path" class="sidebar-meta sidebar-path"></div>
           <div id="workdir-body"></div>
         </section>
       </aside>
+      <div id="sidebar-resizer" aria-hidden="true"></div>
 
       <main id="editor-shell">
         <div id="editor"></div>

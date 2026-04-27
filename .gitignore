@@ -4,5 +4,8 @@ release/
 *.log
 .DS_Store
 .claude/
+.codex/
+.superpowers/
+AGENTS.md
 *.env
 log.md

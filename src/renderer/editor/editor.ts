@@ -56,7 +56,7 @@ function enhanceClipboard(e: ClipboardEvent): void {
   e.clipboardData?.setData('text/html', doc.body.innerHTML)
 }
 
-const defaultContent = `# Welcome to ColaMD
+const defaultContent = `# Welcome to LyraMD
 
 Start typing here...
 `

@@ -1,6 +1,6 @@
-appId: ai.marswave.colamd
-productName: ColaMD
-copyright: Copyright © 2024-2026 marswave.ai
+appId: ai.cherryxiao.lyramd
+productName: LyraMD
+copyright: Copyright © 2026 Cherry Xiao. Based on ColaMD © 2026 marswave.ai
 
 directories:
   output: release

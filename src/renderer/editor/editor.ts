@@ -1,5 +1,6 @@
 import { Editor, rootCtx, defaultValueCtx, editorViewCtx, serializerCtx, remarkPluginsCtx } from '@milkdown/kit/core'
-import { DOMSerializer } from '@milkdown/kit/prose/model'
+import { DOMSerializer, type Node as ProseNode } from '@milkdown/kit/prose/model'
+import { TextSelection } from '@milkdown/kit/prose/state'
 import remarkBreaks from 'remark-breaks'
 import { commonmark } from '@milkdown/kit/preset/commonmark'
 import { gfm } from '@milkdown/kit/preset/gfm'
@@ -8,10 +9,23 @@ import { listener, listenerCtx } from '@milkdown/kit/plugin/listener'
 import { clipboard } from '@milkdown/kit/plugin/clipboard'
 import { replaceAll } from '@milkdown/kit/utils'
 import { htmlView } from './html-view'
+import {
+  createSearchState,
+  getActiveSearchMatch,
+  getNextSearchMatchIndex,
+  getPreviousSearchMatchIndex,
+  setActiveSearchMatchIndex,
+  type SearchState,
+} from './search'
 
 import '@milkdown/kit/prose/view/style/prosemirror.css'
 
 let editorInstance: Editor | null = null
+let isProgrammaticChange = false
+let onUserEditCallback: (() => void) | null = null
+let searchState: SearchState = createSearchState('', '')
+let lastEditorSelection: { anchor: number; head: number } | null = null
+let isManagedSelectionChange = false
 
 const inlineStyles: Record<string, string> = {
   'h1': 'font-size:1.8em;font-weight:700;margin:1em 0 .5em;padding-bottom:.3em;border-bottom:1px solid #eee;',
@@ -56,10 +70,7 @@ function enhanceClipboard(e: ClipboardEvent): void {
   e.clipboardData?.setData('text/html', doc.body.innerHTML)
 }
 
-const defaultContent = `# Welcome to LyraMD
-
-Start typing here...
-`
+const defaultContent = ''
 
 export async function createEditor(
   rootId: string,
@@ -73,11 +84,22 @@ export async function createEditor(
       ctx.set(rootCtx, root)
       ctx.set(defaultValueCtx, defaultContent)
       ctx.set(remarkPluginsCtx, [{ plugin: remarkBreaks, options: undefined }])
-      if (onChange) {
-        ctx.get(listenerCtx).markdownUpdated((_ctx, markdown) => {
-          onChange(markdown)
-        })
-      }
+      ctx.get(listenerCtx).markdownUpdated((_ctx, markdown) => {
+        if (onChange) onChange(markdown)
+        if (!isProgrammaticChange && onUserEditCallback) onUserEditCallback()
+        isProgrammaticChange = false
+      })
+      ctx.get(listenerCtx).selectionUpdated((_ctx, selection) => {
+        if (isManagedSelectionChange) {
+          isManagedSelectionChange = false
+          return
+        }
+
+        lastEditorSelection = {
+          anchor: selection.anchor,
+          head: selection.head,
+        }
+      })
     })
     .use(commonmark)
     .use(gfm)
@@ -102,6 +124,11 @@ export async function createEditor(
       window.electronAPI.openExternal(href)
     }
   })
+
+  searchState = createSearchState(getCurrentSearchSourceText(), searchState.query, {
+    previousActiveIndex: searchState.activeIndex,
+  })
+  rememberCurrentSelection()
 
   return editorInstance
 }
@@ -132,5 +159,231 @@ export function getHTML(): string {
 
 export function setMarkdown(content: string): void {
   if (!editorInstance) return
-  editorInstance.action(replaceAll(content))
+  const currentContent = getMarkdown()
+  if (currentContent === content) return
+
+  const selectionBeforeReplace = lastEditorSelection
+  isProgrammaticChange = true
+  editorInstance.action(replaceAll(content, true))
+  if (selectionBeforeReplace) {
+    restoreSelection(selectionBeforeReplace)
+  }
+  searchState = createSearchState(getCurrentSearchSourceText(), searchState.query, {
+    previousActiveIndex: searchState.activeIndex,
+  })
+  rememberCurrentSelection()
+}
+
+export function onUserEdit(cb: () => void): void {
+  onUserEditCallback = cb
+}
+
+export function setSearchQuery(query: string): SearchState {
+  searchState = createSearchState(getCurrentSearchSourceText(), query, {
+    previousActiveIndex: searchState.query === query ? searchState.activeIndex : undefined,
+  })
+  revealActiveSearchMatch()
+  return searchState
+}
+
+export function getSearchState(): SearchState {
+  searchState = createSearchState(getCurrentSearchSourceText(), searchState.query, {
+    previousActiveIndex: searchState.activeIndex,
+  })
+  return searchState
+}
+
+export function nextSearchMatch(): SearchState {
+  searchState = createSearchState(getCurrentSearchSourceText(), searchState.query, {
+    previousActiveIndex: searchState.activeIndex,
+  })
+  searchState = setActiveSearchMatchIndex(searchState, getNextSearchMatchIndex(searchState))
+  revealActiveSearchMatch()
+  return searchState
+}
+
+export function previousSearchMatch(): SearchState {
+  searchState = createSearchState(getCurrentSearchSourceText(), searchState.query, {
+    previousActiveIndex: searchState.activeIndex,
+  })
+  searchState = setActiveSearchMatchIndex(searchState, getPreviousSearchMatchIndex(searchState))
+  revealActiveSearchMatch()
+  return searchState
+}
+
+export function activateSearchMatch(index: number): SearchState {
+  searchState = createSearchState(getCurrentSearchSourceText(), searchState.query, {
+    previousActiveIndex: index,
+  })
+  revealActiveSearchMatch()
+  return searchState
+}
+
+export function focusEditorAtLastSelection(): void {
+  withEditorView((view) => {
+    const fallback = {
+      anchor: view.state.selection.anchor,
+      head: view.state.selection.head,
+    }
+    const target = lastEditorSelection ?? fallback
+    const selection = createSafeTextSelection(view.state.doc, target.anchor, target.head)
+    if (selection) {
+      isManagedSelectionChange = true
+      view.dispatch(view.state.tr.setSelection(selection).scrollIntoView())
+    }
+    view.focus()
+  })
+}
+
+export function focusEditorPreservingSelection(): void {
+  withEditorView((view) => {
+    view.focus()
+  })
+}
+
+export function isEditorTextFocused(): boolean {
+  const root = document.querySelector('#editor .ProseMirror') as HTMLElement | null
+  if (!root) return false
+
+  const activeElement = document.activeElement as HTMLElement | null
+  return activeElement === root || (!!activeElement && root.contains(activeElement))
+}
+
+function revealActiveSearchMatch(): void {
+  const activeMatch = getActiveSearchMatch(searchState)
+  if (!activeMatch) return
+
+  withEditorView((view) => {
+    const textIndex = buildTextIndex(view.state.doc)
+    const range = resolveDocRangeFromOffsets(textIndex.segments, activeMatch.from, activeMatch.to)
+    if (!range) return
+
+    const selection = createSafeTextSelection(view.state.doc, range.from, range.to)
+    if (!selection) return
+
+    isManagedSelectionChange = true
+    view.dispatch(view.state.tr.setSelection(selection).scrollIntoView())
+  })
+}
+
+function rememberCurrentSelection(): void {
+  withEditorView((view) => {
+    lastEditorSelection = {
+      anchor: view.state.selection.anchor,
+      head: view.state.selection.head,
+    }
+  })
+}
+
+function restoreSelection(selectionSnapshot: { anchor: number; head: number }): void {
+  withEditorView((view) => {
+    const selection = createSafeTextSelection(
+      view.state.doc,
+      selectionSnapshot.anchor,
+      selectionSnapshot.head,
+    )
+    if (!selection) return
+
+    isManagedSelectionChange = true
+    view.dispatch(view.state.tr.setSelection(selection))
+  })
+}
+
+function getCurrentSearchSourceText(): string {
+  return withEditorView((view) => buildTextIndex(view.state.doc).text) ?? ''
+}
+
+function withEditorView<T>(callback: (view: ReturnType<typeof getEditorView>) => T): T | null {
+  const view = getEditorView()
+  if (!view) return null
+  return callback(view)
+}
+
+function getEditorView() {
+  if (!editorInstance) return null
+  let view: ReturnType<typeof editorViewCtx['slice']['type']> | null = null
+  editorInstance.action((ctx) => {
+    view = ctx.get(editorViewCtx)
+  })
+  return view
+}
+
+function buildTextIndex(doc: ProseNode): {
+  text: string
+  segments: Array<{ from: number; to: number; startOffset: number; endOffset: number }>
+} {
+  const segments: Array<{ from: number; to: number; startOffset: number; endOffset: number }> = []
+  let text = ''
+
+  doc.descendants((node, pos) => {
+    if (!node.isTextblock) return
+
+    const blockSegments: Array<{ from: number; to: number; text: string }> = []
+    node.descendants((child, childPos) => {
+      if (!child.isText || !child.text) return
+
+      blockSegments.push({
+        from: pos + childPos + 1,
+        to: pos + childPos + 1 + child.text.length,
+        text: child.text,
+      })
+    })
+
+    if (blockSegments.length === 0) return false
+
+    if (text.length > 0) {
+      text += '\n'
+    }
+
+    for (const segment of blockSegments) {
+      const startOffset = text.length
+      text += segment.text
+      segments.push({
+        from: segment.from,
+        to: segment.to,
+        startOffset,
+        endOffset: text.length,
+      })
+    }
+
+    return false
+  })
+
+  return { text, segments }
+}
+
+function resolveDocRangeFromOffsets(
+  segments: Array<{ from: number; to: number; startOffset: number; endOffset: number }>,
+  fromOffset: number,
+  toOffset: number,
+): { from: number; to: number } | null {
+  let from: number | null = null
+  let to: number | null = null
+
+  for (const segment of segments) {
+    if (from == null && fromOffset < segment.endOffset) {
+      from = segment.from + Math.max(0, fromOffset - segment.startOffset)
+    }
+
+    if (to == null && toOffset <= segment.endOffset) {
+      to = segment.from + Math.max(0, toOffset - segment.startOffset)
+    }
+
+    if (from != null && to != null) break
+  }
+
+  if (from == null || to == null) return null
+  return { from, to: Math.max(from, to) }
+}
+
+function createSafeTextSelection(doc: ProseNode, anchor: number, head: number): TextSelection | null {
+  const maxPos = doc.content.size
+  const safeAnchor = Math.max(0, Math.min(anchor, maxPos))
+  const safeHead = Math.max(0, Math.min(head, maxPos))
+
+  try {
+    return TextSelection.create(doc, safeAnchor, safeHead)
+  } catch {
+    return null
+  }
 }

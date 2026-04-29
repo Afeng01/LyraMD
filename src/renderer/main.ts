@@ -1,4 +1,34 @@
-import { createEditor, getMarkdown, getHTML, setMarkdown } from './editor/editor'
+import {
+  activateSearchMatch,
+  createEditor,
+  focusEditorPreservingSelection,
+  focusEditorAtLastSelection,
+  getHTML,
+  getMarkdown,
+  isEditorTextFocused,
+  getSearchState,
+  nextSearchMatch,
+  onUserEdit,
+  previousSearchMatch,
+  setMarkdown,
+  setSearchQuery,
+} from './editor/editor'
+import {
+  getNearbySearchMatchPreviews,
+  type SearchMatchPreview,
+  type SearchState,
+} from './editor/search'
+import {
+  consumeQueuedContent,
+  recordQueuedContent,
+  releaseQueuedContent,
+  resolveIncomingContentDecision,
+} from './editor/content-sync'
+import {
+  decideAutosaveBehavior,
+  getDocumentViewportKey,
+  shouldShowEmptyEditorPlaceholder,
+} from './editor/session-ux'
 import { applyTheme, loadSavedTheme } from './themes/theme-manager'
 import type { SidebarState } from '../preload/index'
 import './themes/base.css'
@@ -36,6 +66,20 @@ function createTextBlock(className: string, text: string): HTMLDivElement {
   return block
 }
 
+function currentDocumentTitle(state: SidebarState): string {
+  if (state.currentDocumentKind === 'draft') {
+    return state.draftEntries.find((entry) => entry.id === state.currentDraftId)?.displayTitle ?? '未命名草稿'
+  }
+  if (state.currentDocumentKind === 'blank') return '未命名文档'
+  return basename(state.currentFilePath)
+}
+
+function currentDocumentMeta(state: SidebarState): string {
+  if (state.currentDocumentKind === 'draft') return '草稿会自动保存并可恢复'
+  if (state.currentDocumentKind === 'blank') return '开始输入后会自动进入草稿'
+  return state.currentFilePath ? '当前正在编辑' : '当前未打开文件'
+}
+
 function createFileItem(
   filePath: string,
   title: string,
@@ -52,6 +96,20 @@ function createFileItem(
 
   item.appendChild(createTextBlock('sidebar-title', title))
   if (meta) item.appendChild(createTextBlock('sidebar-meta', meta))
+  return item
+}
+
+function createDraftItem(
+  draftId: string,
+  title: string,
+  currentDraftId: string | null,
+): HTMLButtonElement {
+  const item = document.createElement('button')
+  item.type = 'button'
+  item.className = 'sidebar-list-item draft-item'
+  item.dataset.draftId = draftId
+  item.classList.toggle('active', draftId === currentDraftId)
+  item.appendChild(createTextBlock('sidebar-title', title))
   return item
 }
 
@@ -74,11 +132,44 @@ async function init(): Promise<void> {
   const api = window.electronAPI
   const savedTheme = loadSavedTheme()
   let sidebarState: SidebarState | null = null
+  let lastDocumentViewportKey: string | null = null
+  let managingDrafts = false
   let managingRecentFiles = false
+  let pendingBlankMaterialization = false
+  const savedViewportOffsets = new Map<string, number>()
+  let drawerOpenedByHover = false
+  let drawerHoverOpenTimer: ReturnType<typeof setTimeout> | null = null
+  let drawerHoverCloseTimer: ReturnType<typeof setTimeout> | null = null
   const setSidebarState = (state: SidebarState): void => {
+    const nextViewportKey = getDocumentViewportKey(
+      state.currentDocumentKind,
+      state.currentFilePath,
+      state.currentDraftId,
+    )
     sidebarState = state
+    if (state.currentDocumentKind !== 'blank') {
+      pendingBlankMaterialization = false
+    }
+    if (state.draftEntries.length === 0) managingDrafts = false
     if (state.recentFiles.length === 0) managingRecentFiles = false
+    if (!state.isDrawerMode || !state.sidebarOpen) drawerOpenedByHover = false
     renderSidebar()
+    schedulePlaceholderLayoutSync()
+
+    if (!editorShell) {
+      lastDocumentViewportKey = nextViewportKey
+      return
+    }
+
+    if (lastDocumentViewportKey === nextViewportKey) return
+
+    const restoreOffset = nextViewportKey ? savedViewportOffsets.get(nextViewportKey) ?? 0 : 0
+    queueMicrotask(() => {
+      requestAnimationFrame(() => {
+        editorShell.scrollTop = restoreOffset
+      })
+    })
+    lastDocumentViewportKey = nextViewportKey
   }
   activeSidebarStateSetter = setSidebarState
   applyTheme(savedTheme)
@@ -89,42 +180,521 @@ async function init(): Promise<void> {
     if (css) applyTheme(savedTheme, css)
   }
 
-  await createEditor('editor')
+  const editorShell = document.getElementById('editor-shell') as HTMLElement | null
+  const editorStage = document.getElementById('editor-stage') as HTMLElement | null
+  const editorPlaceholder = document.getElementById('editor-placeholder') as HTMLDivElement | null
+
+  const updateEditorPlaceholder = (content: string): void => {
+    if (!editorPlaceholder) return
+    editorPlaceholder.hidden = !shouldShowEmptyEditorPlaceholder(content)
+  }
+
+  const syncEditorPlaceholderLayout = (): void => {
+    if (!editorPlaceholder || !editorStage) return
+
+    const proseMirror = document.querySelector('#editor .ProseMirror') as HTMLElement | null
+    if (!proseMirror) return
+
+    const anchor = (proseMirror.firstElementChild as HTMLElement | null) ?? proseMirror
+    const stageRect = editorStage.getBoundingClientRect()
+    const anchorRect = anchor.getBoundingClientRect()
+    const proseRect = proseMirror.getBoundingClientRect()
+
+    editorPlaceholder.style.top = `${Math.max(0, anchorRect.top - stageRect.top)}px`
+    editorPlaceholder.style.left = `${Math.max(0, proseRect.left - stageRect.left)}px`
+    editorPlaceholder.style.width = `${proseRect.width}px`
+  }
+
+  const schedulePlaceholderLayoutSync = (): void => {
+    requestAnimationFrame(() => {
+      syncEditorPlaceholderLayout()
+    })
+  }
+
+  await createEditor('editor', (markdown) => {
+    updateEditorPlaceholder(markdown)
+    schedulePlaceholderLayoutSync()
+  })
+  updateEditorPlaceholder(getMarkdown())
+  schedulePlaceholderLayoutSync()
+
+  let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
+  let dirtyByUser = false
+  let immediateSaveInFlight = false
+  let pendingImmediateSaveContent: string | null = null
+  let immediateSavePromise: Promise<void> | null = null
+  let deferredIncomingContent: { content: string; scrollTop: number } | null = null
+  const recentLocalEchoes = new Map<string, number>()
+
+  const hasPendingImmediateSave = (): boolean => immediateSaveInFlight || pendingImmediateSaveContent !== null
+
+  const recordRecentLocalEcho = (content: string): void => {
+    recordQueuedContent(recentLocalEchoes, content)
+    setTimeout(() => {
+      releaseQueuedContent(recentLocalEchoes, content)
+    }, 2500)
+  }
+
+  const resetLocalEchoState = (): void => {
+    recentLocalEchoes.clear()
+    deferredIncomingContent = null
+  }
+
+  const clearPendingAutoSave = (): void => {
+    if (autoSaveTimer) {
+      clearTimeout(autoSaveTimer)
+      autoSaveTimer = null
+    }
+    dirtyByUser = false
+  }
+
+  const processIncomingDocumentContent = (
+    content: string,
+    scrollTop: number,
+    options: { allowDefer: boolean },
+  ): void => {
+    const decision = resolveIncomingContentDecision({
+      currentContent: getMarkdown(),
+      incomingContent: content,
+      hasPendingLocalSave: options.allowDefer && hasPendingImmediateSave(),
+      isKnownLocalEcho: consumeQueuedContent(recentLocalEchoes, content),
+    })
+
+    if (decision === 'ignore') return
+
+    if (decision === 'defer') {
+      deferredIncomingContent = { content, scrollTop }
+      return
+    }
+
+    deferredIncomingContent = null
+    applyProgrammaticDocumentContent(content, scrollTop)
+  }
+
+  const flushDeferredIncomingContent = (): void => {
+    if (!deferredIncomingContent || hasPendingImmediateSave()) return
+
+    const { content, scrollTop } = deferredIncomingContent
+    deferredIncomingContent = null
+    processIncomingDocumentContent(content, scrollTop, { allowDefer: false })
+  }
+
+  const runImmediateAutoSave = async (): Promise<void> => {
+    if (immediateSaveInFlight) return immediateSavePromise ?? Promise.resolve()
+
+    immediateSaveInFlight = true
+    immediateSavePromise = (async () => {
+      while (pendingImmediateSaveContent !== null) {
+        const nextContent = pendingImmediateSaveContent
+        pendingImmediateSaveContent = null
+        recordRecentLocalEcho(nextContent)
+        const result = await api.autosaveDocument(nextContent).catch(() => null)
+        if (!result && pendingBlankMaterialization) {
+          pendingBlankMaterialization = false
+        }
+        if (!result) {
+          releaseQueuedContent(recentLocalEchoes, nextContent)
+        }
+        syncSidebarState()
+      }
+
+      immediateSaveInFlight = false
+      immediateSavePromise = null
+      flushDeferredIncomingContent()
+    })()
+
+    return immediateSavePromise
+  }
+
+  const saveImmediately = (content: string): Promise<void> => {
+    pendingImmediateSaveContent = content
+    return runImmediateAutoSave()
+  }
+
+  const flushAutoSave = async (): Promise<void> => {
+    if (autoSaveTimer) {
+      clearTimeout(autoSaveTimer)
+      autoSaveTimer = null
+    }
+    if (dirtyByUser) {
+      dirtyByUser = false
+      await api.autosaveDocument(getMarkdown()).catch(() => null)
+      syncSidebarState()
+    }
+    await (immediateSavePromise ?? Promise.resolve())
+  }
+
+  const scheduleAutoSave = (): void => {
+    if (autoSaveTimer) clearTimeout(autoSaveTimer)
+    dirtyByUser = true
+    autoSaveTimer = setTimeout(() => {
+      void flushAutoSave()
+    }, 3000)
+  }
 
   const appShell = document.getElementById('app-shell')
   const sidebarToggle = document.getElementById('sidebar-toggle') as HTMLButtonElement | null
+  const drawerBackdrop = document.getElementById('sidebar-drawer-backdrop') as HTMLDivElement | null
+  const drawerEdgeTrigger = document.getElementById('drawer-edge-trigger') as HTMLDivElement | null
+  const drawerShell = document.getElementById('sidebar-drawer-shell') as HTMLDivElement | null
+  const onboardingOverlay = document.getElementById('onboarding-overlay') as HTMLDivElement | null
+  const onboardingChoose = document.getElementById('onboarding-choose') as HTMLButtonElement | null
+  const onboardingSkip = document.getElementById('onboarding-skip') as HTMLButtonElement | null
+  const onboardingDirectoryPreview = document.getElementById('onboarding-directory-preview') as HTMLDivElement | null
+  const currentFileNew = document.getElementById('current-file-new') as HTMLButtonElement | null
+  const draftsToggle = document.getElementById('drafts-toggle') as HTMLButtonElement | null
+  const draftsClear = document.getElementById('drafts-clear') as HTMLButtonElement | null
   const recentFilesToggle = document.getElementById('recent-files-toggle') as HTMLButtonElement | null
   const recentFilesClear = document.getElementById('recent-files-clear') as HTMLButtonElement | null
   const workdirToggle = document.getElementById('workdir-toggle') as HTMLButtonElement | null
   const workdirChange = document.getElementById('workdir-change') as HTMLButtonElement | null
   const currentFile = document.getElementById('current-file')
+  const draftsList = document.getElementById('drafts-list')
+  const draftsSection = document.getElementById('drafts-section')
   const recentFiles = document.getElementById('recent-files')
   const recentFilesSection = document.getElementById('recent-files-section')
   const workdirName = document.getElementById('workdir-name')
   const workdirBody = document.getElementById('workdir-body')
   const workdirSection = document.getElementById('workdir-section')
   const sidebarResizer = document.getElementById('sidebar-resizer')
+  const searchPanel = document.getElementById('search-panel') as HTMLDivElement | null
+  const searchOverlay = document.getElementById('search-overlay') as HTMLDivElement | null
+  const searchInput = document.getElementById('search-input') as HTMLInputElement | null
+  const searchCount = document.getElementById('search-count') as HTMLDivElement | null
+  const searchLocate = document.getElementById('search-locate') as HTMLButtonElement | null
+  const searchContext = document.getElementById('search-context') as HTMLDivElement | null
+  const searchPrev = document.getElementById('search-prev') as HTMLButtonElement | null
+  const searchNext = document.getElementById('search-next') as HTMLButtonElement | null
+  const searchResultsToggle = document.getElementById('search-results-toggle') as HTMLButtonElement | null
+  const searchResults = document.getElementById('search-results') as HTMLDivElement | null
+
+  const persistCurrentViewportOffset = (): void => {
+    if (!editorShell || !sidebarState) return
+    const currentKey = getDocumentViewportKey(
+      sidebarState.currentDocumentKind,
+      sidebarState.currentFilePath,
+      sidebarState.currentDraftId,
+    )
+    if (!currentKey) return
+    savedViewportOffsets.set(currentKey, editorShell.scrollTop)
+  }
+
+  const applyProgrammaticDocumentContent = (content: string, nextScrollTop?: number): void => {
+    const shouldRestoreFocus = isEditorTextFocused()
+    clearPendingAutoSave()
+    pendingBlankMaterialization = false
+    setMarkdown(content)
+    updateEditorPlaceholder(content)
+    schedulePlaceholderLayoutSync()
+    refreshSearchPanel()
+
+    if (!editorShell) return
+    if (typeof nextScrollTop === 'number') {
+      requestAnimationFrame(() => {
+        editorShell.scrollTop = nextScrollTop
+      })
+    }
+
+    if (shouldRestoreFocus) {
+      requestAnimationFrame(() => {
+        focusEditorAtLastSelection()
+      })
+    }
+  }
+
+  const beginBlankDocumentFromSidebar = (): void => {
+    void flushAutoSave().then(async () => {
+      persistCurrentViewportOffset()
+      const snapshot = await api.beginBlankDocument().catch(() => null)
+      if (snapshot) setSidebarState(snapshot)
+      resetLocalEchoState()
+      applyProgrammaticDocumentContent('', 0)
+      focusEditorAtLastSelection()
+    })
+  }
+
+  const getEffectiveDocumentKind = (): SidebarState['currentDocumentKind'] => {
+    if (pendingBlankMaterialization) return 'draft'
+    return sidebarState?.currentDocumentKind ?? 'blank'
+  }
+
+  onUserEdit(() => {
+    const markdown = getMarkdown()
+    updateEditorPlaceholder(markdown)
+
+    const decision = decideAutosaveBehavior(
+      'user',
+      getEffectiveDocumentKind(),
+      markdown,
+    )
+
+    if (decision.clearPending) {
+      clearPendingAutoSave()
+    }
+
+    if (decision.materializeDraftImmediately) {
+      pendingBlankMaterialization = true
+      dirtyByUser = false
+      void saveImmediately(markdown).catch(() => {
+        pendingBlankMaterialization = false
+      })
+      return
+    }
+
+    if (decision.persistImmediately) {
+      clearPendingAutoSave()
+      void saveImmediately(markdown)
+      return
+    }
+
+    if (decision.scheduleDebouncedSave) {
+      scheduleAutoSave()
+    }
+  })
+
+  editorShell?.addEventListener('scroll', () => {
+    persistCurrentViewportOffset()
+  }, { passive: true })
+
+  let searchPanelOpen = false
+  let searchResultsExpanded = false
+
+  const jumpToActiveSearchMatch = (): void => {
+    const state = getSearchState()
+    if (state.totalMatches === 0 || state.activeIndex < 0) return
+
+    activateSearchMatch(state.activeIndex)
+    refreshSearchPanel()
+    focusEditorPreservingSelection()
+  }
+
+  const renderSearchContextPreview = (
+    container: HTMLDivElement,
+    match: SearchMatchPreview,
+  ): void => {
+    clearElement(container)
+
+    const previousLine = document.createElement('div')
+    previousLine.className = 'search-context-line muted'
+    previousLine.textContent = match.previousLine || ' '
+    container.appendChild(previousLine)
+
+    const currentLine = document.createElement('div')
+    currentLine.className = 'search-context-line active'
+    currentLine.appendChild(document.createTextNode(match.before))
+
+    const hit = document.createElement('mark')
+    hit.className = 'search-context-hit'
+    hit.textContent = match.match
+    currentLine.appendChild(hit)
+    currentLine.appendChild(document.createTextNode(match.after))
+    container.appendChild(currentLine)
+
+    const nextLine = document.createElement('div')
+    nextLine.className = 'search-context-line muted'
+    nextLine.textContent = match.nextLine || ' '
+    container.appendChild(nextLine)
+  }
+
+  const renderSearchPanel = (state: SearchState): void => {
+    if (!searchCount || !searchContext || !searchPrev || !searchNext || !searchResultsToggle || !searchResults) return
+
+    const activeNumber = state.totalMatches > 0 && state.activeIndex >= 0 ? state.activeIndex + 1 : 0
+    const nearbyMatches = getNearbySearchMatchPreviews(state)
+    searchCount.textContent = `${activeNumber} / ${state.totalMatches}`
+    if (searchLocate) {
+      searchLocate.disabled = state.totalMatches === 0
+    }
+    searchPrev.disabled = state.totalMatches === 0
+    searchNext.disabled = state.totalMatches === 0
+    searchResultsToggle.disabled = state.totalMatches === 0
+    searchResultsToggle.textContent = searchResultsExpanded ? '收起附近结果' : '附近结果'
+
+    const activeMatch = state.matches[state.activeIndex] ?? null
+    if (!state.normalizedQuery) {
+      searchContext.textContent = '输入关键词后，这里会显示当前命中的上一行、当前行和下一行。'
+    } else if (!activeMatch) {
+      searchContext.textContent = '没有找到匹配内容。'
+    } else {
+      renderSearchContextPreview(searchContext, activeMatch)
+    }
+
+    clearElement(searchResults)
+    if (searchResultsExpanded && state.matches.length > 0) {
+      for (const match of nearbyMatches) {
+        const item = document.createElement('button')
+        item.type = 'button'
+        item.className = 'search-result-item'
+        item.dataset.matchIndex = String(match.index)
+        item.disabled = match.index === state.activeIndex
+
+        const badge = document.createElement('span')
+        badge.className = 'search-result-badge'
+        badge.textContent = `${match.index + 1} / ${state.totalMatches}`
+        item.appendChild(badge)
+
+        const text = document.createElement('span')
+        text.className = 'search-result-text'
+        const previousLine = match.previousLine ? `${match.previousLine} / ` : ''
+        const nextLine = match.nextLine ? ` / ${match.nextLine}` : ''
+        text.textContent = `${previousLine}${match.before}${match.match}${match.after}${nextLine}`.trim()
+        item.appendChild(text)
+
+        item.disabled = match.index === state.activeIndex
+        searchResults.appendChild(item)
+      }
+
+      if (state.totalMatches > nearbyMatches.length) {
+        const summary = document.createElement('div')
+        summary.className = 'search-results-summary'
+        summary.textContent = `仅显示当前命中附近的 ${nearbyMatches.length} 条结果`
+        searchResults.appendChild(summary)
+      }
+    }
+    searchResults.hidden = !searchResultsExpanded || state.matches.length === 0
+  }
+
+  const refreshSearchPanel = (): void => {
+    renderSearchPanel(getSearchState())
+  }
+
+  const openSearchPanel = (): void => {
+    searchPanelOpen = true
+    if (searchOverlay) {
+      searchOverlay.hidden = false
+      searchOverlay.setAttribute('aria-hidden', 'false')
+    }
+    if (searchPanel) {
+      searchPanel.hidden = false
+      searchPanel.setAttribute('aria-hidden', 'false')
+    }
+    refreshSearchPanel()
+    searchInput?.focus()
+    searchInput?.select()
+  }
+
+  const closeSearchPanel = (): void => {
+    searchPanelOpen = false
+    searchResultsExpanded = false
+    if (searchOverlay) {
+      searchOverlay.hidden = true
+      searchOverlay.setAttribute('aria-hidden', 'true')
+    }
+    if (searchPanel) {
+      searchPanel.hidden = true
+      searchPanel.setAttribute('aria-hidden', 'true')
+    }
+    if (searchResults) {
+      searchResults.hidden = true
+    }
+  }
+
+  const clearDrawerHoverTimers = (): void => {
+    if (drawerHoverOpenTimer) {
+      clearTimeout(drawerHoverOpenTimer)
+      drawerHoverOpenTimer = null
+    }
+    if (drawerHoverCloseTimer) {
+      clearTimeout(drawerHoverCloseTimer)
+      drawerHoverCloseTimer = null
+    }
+  }
+
+  const scheduleDrawerHoverOpen = (): void => {
+    if (!sidebarState?.isDrawerMode || sidebarState.sidebarOpen) return
+    if (drawerHoverOpenTimer) clearTimeout(drawerHoverOpenTimer)
+    drawerHoverOpenTimer = setTimeout(() => {
+      drawerHoverOpenTimer = null
+      if (!sidebarState?.isDrawerMode || sidebarState.sidebarOpen) return
+      drawerOpenedByHover = true
+      api.toggleSidebar().catch(() => {
+        drawerOpenedByHover = false
+      })
+    }, 140)
+  }
+
+  const scheduleDrawerHoverClose = (): void => {
+    if (!drawerOpenedByHover || !sidebarState?.isDrawerMode || !sidebarState.sidebarOpen) return
+    if (drawerHoverCloseTimer) clearTimeout(drawerHoverCloseTimer)
+    drawerHoverCloseTimer = setTimeout(() => {
+      drawerHoverCloseTimer = null
+      if (!drawerOpenedByHover || !sidebarState?.isDrawerMode || !sidebarState.sidebarOpen) return
+      drawerOpenedByHover = false
+      api.toggleSidebar().catch(() => {})
+    }, 160)
+  }
 
   const renderSidebar = (): void => {
-    if (!appShell || !currentFile || !recentFiles || !recentFilesSection || !workdirBody || !workdirSection || !sidebarState) return
+    if (!appShell || !currentFile || !draftsList || !recentFiles || !recentFilesSection || !workdirBody || !workdirSection || !sidebarState) return
 
     appShell.classList.toggle('sidebar-open', sidebarState.sidebarOpen)
+    appShell.classList.toggle('drawer-mode', sidebarState.isDrawerMode)
+    appShell.classList.toggle('drawer-open', sidebarState.isDrawerMode && sidebarState.sidebarOpen)
     appShell.style.setProperty('--sidebar-width', `${sidebarState.sidebarWidth}px`)
+    draftsSection?.classList.toggle('collapsed', !sidebarState.draftsExpanded)
     recentFilesSection.classList.toggle('collapsed', !sidebarState.recentFilesExpanded)
     workdirSection.classList.toggle('collapsed', !sidebarState.workdirExpanded)
+    if (drawerBackdrop) {
+      drawerBackdrop.hidden = !(sidebarState.isDrawerMode && sidebarState.sidebarOpen)
+      drawerBackdrop.setAttribute('aria-hidden', sidebarState.isDrawerMode && sidebarState.sidebarOpen ? 'false' : 'true')
+    }
+    if (sidebarResizer) {
+      sidebarResizer.hidden = sidebarState.isDrawerMode || !sidebarState.sidebarOpen
+    }
+    if (onboardingOverlay) {
+      onboardingOverlay.hidden = sidebarState.draftOnboardingCompleted
+      onboardingOverlay.setAttribute('aria-hidden', sidebarState.draftOnboardingCompleted ? 'true' : 'false')
+    }
+    if (onboardingDirectoryPreview) {
+      onboardingDirectoryPreview.textContent = sidebarState.draftDirectoryPath ?? 'Documents/LyraMD Drafts'
+    }
+
     if (recentFilesClear) {
       recentFilesClear.textContent = managingRecentFiles ? '完成' : '清除'
       recentFilesClear.classList.toggle('active', managingRecentFiles)
       recentFilesClear.disabled = sidebarState.recentFiles.length === 0
     }
 
+    if (draftsClear) {
+      draftsClear.textContent = managingDrafts ? '完成' : '清除'
+      draftsClear.classList.toggle('active', managingDrafts)
+      draftsClear.disabled = sidebarState.draftEntries.length === 0
+    }
+
     clearElement(currentFile)
     currentFile.className = 'sidebar-list-item current-file-item'
-    currentFile.appendChild(createTextBlock('sidebar-title', basename(sidebarState.currentFilePath)))
+    currentFile.appendChild(createTextBlock('sidebar-title', currentDocumentTitle(sidebarState)))
     currentFile.appendChild(createTextBlock(
       'sidebar-meta',
-      sidebarState.currentFilePath ? '当前正在编辑' : '当前未打开文件',
+      currentDocumentMeta(sidebarState),
     ))
+
+    clearElement(draftsList)
+    if (sidebarState.draftEntries.length === 0) {
+      draftsList.appendChild(createTextBlock('sidebar-empty', '未命名草稿会在开始输入后出现在这里'))
+    } else {
+      for (const draft of sidebarState.draftEntries) {
+        const item = createDraftItem(draft.id, draft.displayTitle, sidebarState.currentDraftId)
+        if (!managingDrafts) {
+          draftsList.appendChild(item)
+          continue
+        }
+
+        const row = document.createElement('div')
+        row.className = 'sidebar-recent-row'
+        row.appendChild(item)
+
+        const remove = document.createElement('button')
+        remove.type = 'button'
+        remove.className = 'recent-remove-button'
+        remove.dataset.removeDraftId = draft.id
+        remove.setAttribute('data-remove-draft-id', draft.id)
+        remove.setAttribute('aria-label', `删除 ${draft.displayTitle}`)
+        remove.textContent = '−'
+        row.appendChild(remove)
+        draftsList.appendChild(row)
+      }
+    }
 
     clearElement(recentFiles)
     if (sidebarState.recentFilesExpanded) {
@@ -216,11 +786,25 @@ async function init(): Promise<void> {
   if (sidebarState) renderSidebar()
 
   api.onMenuOpen(async () => {
+    persistCurrentViewportOffset()
+    await flushAutoSave()
     await api.openFile()
   })
 
-  api.onMenuSave(() => api.saveFile(getMarkdown()))
-  api.onMenuSaveAs(() => api.saveFileAs(getMarkdown()))
+  api.onMenuSave(() => {
+    void flushAutoSave().then(() => {
+      const markdown = getMarkdown()
+      recordRecentLocalEcho(markdown)
+      api.saveFile(markdown).catch(() => {})
+    })
+  })
+  api.onMenuSaveAs(() => {
+    void flushAutoSave().then(() => {
+      const markdown = getMarkdown()
+      recordRecentLocalEcho(markdown)
+      api.saveFileAs(markdown).catch(() => {})
+    })
+  })
   api.onMenuExportPDF(() => api.exportPDF())
   api.onMenuExportHTML(() => {
     const s = getComputedStyle(document.body)
@@ -271,9 +855,21 @@ img{max-width:100%}
 </head><body>${getHTML()}</body></html>`
     api.exportHTML(html)
   })
-  api.onNewFile(() => setMarkdown(''))
-  api.onFileOpened((data) => setMarkdown(data.content))
-  api.onFileChanged((content) => setMarkdown(content))
+  api.onNewFile(() => {
+    resetLocalEchoState()
+    applyProgrammaticDocumentContent('', 0)
+  })
+  api.onNewFileInWindow(() => {
+    beginBlankDocumentFromSidebar()
+  })
+  api.onFileOpened((data) => {
+    resetLocalEchoState()
+    applyProgrammaticDocumentContent(data.content)
+  })
+  api.onFileChanged((content) => {
+    const currentScrollTop = editorShell?.scrollTop ?? 0
+    processIncomingDocumentContent(content, currentScrollTop, { allowDefer: true })
+  })
   api.onSetTheme((theme) => applyTheme(theme))
   api.onSetCustomCSS((css) => {
     const theme = loadSavedTheme()
@@ -295,11 +891,77 @@ img{max-width:100%}
   })
 
   sidebarToggle?.addEventListener('click', () => {
+    clearDrawerHoverTimers()
+    drawerOpenedByHover = false
     api.toggleSidebar().catch(() => {})
+  })
+
+  drawerBackdrop?.addEventListener('click', () => {
+    if (sidebarState?.isDrawerMode && sidebarState.sidebarOpen) {
+      clearDrawerHoverTimers()
+      drawerOpenedByHover = false
+      api.toggleSidebar().catch(() => {})
+    }
+  })
+
+  drawerEdgeTrigger?.addEventListener('pointerenter', () => {
+    scheduleDrawerHoverOpen()
+  })
+
+  drawerEdgeTrigger?.addEventListener('pointerleave', () => {
+    if (drawerHoverOpenTimer) {
+      clearTimeout(drawerHoverOpenTimer)
+      drawerHoverOpenTimer = null
+    }
+  })
+
+  drawerShell?.addEventListener('pointerenter', () => {
+    if (drawerHoverCloseTimer) {
+      clearTimeout(drawerHoverCloseTimer)
+      drawerHoverCloseTimer = null
+    }
+  })
+
+  drawerShell?.addEventListener('pointerleave', () => {
+    scheduleDrawerHoverClose()
+  })
+
+  let zoomLevel = 0
+
+  const applyZoom = (): void => {
+    const editorShell = document.getElementById('editor-shell')
+    if (editorShell) {
+      editorShell.style.setProperty('--editor-zoom', String(Math.pow(1.1, zoomLevel)))
+    }
+    schedulePlaceholderLayoutSync()
+  }
+
+  api.onZoomChange((data) => {
+    if (data.level !== undefined) {
+      zoomLevel = data.level
+    } else if (data.delta !== undefined) {
+      zoomLevel = Math.max(-5, Math.min(5, zoomLevel + data.delta))
+    }
+    applyZoom()
   })
 
   recentFilesToggle?.addEventListener('click', () => {
     api.toggleRecentFilesExpanded().catch(() => {})
+  })
+
+  currentFileNew?.addEventListener('click', () => {
+    beginBlankDocumentFromSidebar()
+  })
+
+  draftsToggle?.addEventListener('click', () => {
+    api.toggleDraftsExpanded().catch(() => {})
+  })
+
+  draftsClear?.addEventListener('click', () => {
+    if (!sidebarState?.draftEntries.length) return
+    managingDrafts = !managingDrafts
+    if (!sidebarState.draftsExpanded) api.toggleDraftsExpanded().catch(() => {})
+    renderSidebar()
   })
 
   recentFilesClear?.addEventListener('click', () => {
@@ -317,18 +979,151 @@ img{max-width:100%}
     api.chooseWorkdir().catch(() => {})
   })
 
+  onboardingChoose?.addEventListener('click', () => {
+    api.chooseDraftDirectory().then((state) => {
+      if (state) setSidebarState(state)
+    }).catch(() => {})
+  })
+
+  onboardingSkip?.addEventListener('click', () => {
+    api.skipDraftOnboarding().then((state) => {
+      if (state) setSidebarState(state)
+    }).catch(() => {})
+  })
+
+  searchInput?.addEventListener('input', () => {
+    setSearchQuery(searchInput.value)
+    refreshSearchPanel()
+  })
+
+  searchInput?.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return
+
+    event.preventDefault()
+    if (event.shiftKey) {
+      previousSearchMatch()
+    } else {
+      nextSearchMatch()
+    }
+    refreshSearchPanel()
+  })
+
+  searchPrev?.addEventListener('click', () => {
+    previousSearchMatch()
+    refreshSearchPanel()
+    focusEditorPreservingSelection()
+  })
+
+  searchNext?.addEventListener('click', () => {
+    nextSearchMatch()
+    refreshSearchPanel()
+    focusEditorPreservingSelection()
+  })
+
+  searchResultsToggle?.addEventListener('click', () => {
+    searchResultsExpanded = !searchResultsExpanded
+    refreshSearchPanel()
+  })
+
+  searchLocate?.addEventListener('click', () => {
+    jumpToActiveSearchMatch()
+  })
+
+  searchOverlay?.addEventListener('click', () => {
+    if (!searchPanelOpen) return
+    closeSearchPanel()
+    focusEditorAtLastSelection()
+  })
+
+  document.addEventListener('keydown', (event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
+      event.preventDefault()
+      openSearchPanel()
+      return
+    }
+
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'l') {
+      event.preventDefault()
+      focusEditorAtLastSelection()
+      return
+    }
+
+    if (event.key === 'Escape' && searchPanelOpen) {
+      event.preventDefault()
+      closeSearchPanel()
+      focusEditorAtLastSelection()
+    }
+  })
+
   document.addEventListener('click', (event) => {
     const target = event.target as HTMLElement | null
+    const removeDraftButton = target?.closest('[data-remove-draft-id]') as HTMLElement | null
+    if (removeDraftButton) {
+      event.preventDefault()
+      event.stopPropagation()
+      const draftId = removeDraftButton.dataset.removeDraftId
+      if (!draftId || !sidebarState) return
+      sidebarState = {
+        ...sidebarState,
+        draftEntries: sidebarState.draftEntries.filter((entry) => entry.id !== draftId),
+      }
+      if (sidebarState.draftEntries.length === 0) managingDrafts = false
+      renderSidebar()
+      api.removeDraft(draftId).then((state) => {
+        if (state) {
+          setSidebarState(state)
+          return
+        }
+        syncSidebarState()
+      }).catch(() => syncSidebarState())
+      return
+    }
+
+    if (searchPanelOpen && searchPanel && !target?.closest('#search-panel')) {
+      closeSearchPanel()
+      focusEditorAtLastSelection()
+      return
+    }
+
+    const draftButton = target?.closest('[data-draft-id]') as HTMLElement | null
+    if (draftButton) {
+      if (managingDrafts) return
+      const draftId = draftButton.dataset.draftId
+      if (draftId) {
+        persistCurrentViewportOffset()
+        void flushAutoSave().then(() => {
+          api.openDraft(draftId).catch(() => {})
+        })
+      }
+      return
+    }
+
     const fileButton = target?.closest('[data-file-path]') as HTMLElement | null
     if (fileButton) {
       if (managingRecentFiles) return
       const filePath = fileButton.dataset.filePath
-      if (filePath) api.openSidebarFile(filePath).catch(() => {})
+      if (filePath) {
+        persistCurrentViewportOffset()
+        void flushAutoSave().then(() => {
+          api.openSidebarFile(filePath).catch(() => {})
+        })
+      }
       return
     }
 
     if (target?.closest('#workdir-empty-action')) {
       api.chooseWorkdir().catch(() => {})
+      return
+    }
+
+    const searchResultButton = target?.closest('[data-match-index]') as HTMLElement | null
+    if (searchResultButton) {
+      const nextIndex = Number.parseInt(searchResultButton.dataset.matchIndex ?? '', 10)
+      if (Number.isInteger(nextIndex)) {
+        activateSearchMatch(nextIndex)
+        refreshSearchPanel()
+        focusEditorPreservingSelection()
+      }
     }
   })
 
@@ -350,11 +1145,15 @@ img{max-width:100%}
   }
 
   sidebarResizer?.addEventListener('pointerdown', (event) => {
-    if (!sidebarState?.sidebarOpen) return
+    if (!sidebarState?.sidebarOpen || sidebarState.isDrawerMode) return
     dragOriginX = event.clientX
     dragOriginWidth = sidebarState.sidebarWidth
     window.addEventListener('pointermove', handlePointerMove)
     window.addEventListener('pointerup', handlePointerUp)
+  })
+
+  window.addEventListener('resize', () => {
+    schedulePlaceholderLayoutSync()
   })
 
   document.addEventListener('dragover', (e) => e.preventDefault())
@@ -364,6 +1163,8 @@ img{max-width:100%}
     if (!file) return
     const filePath = api.getPathForFile(file)
     if (!filePath) return
+    persistCurrentViewportOffset()
+    await flushAutoSave()
     await api.openFilePath(filePath)
   })
 }

@@ -9,53 +9,109 @@
 <body>
   <div id="app-shell">
     <div id="titlebar">
-      <button id="sidebar-toggle" type="button" aria-label="Toggle sidebar">
-        <span></span>
-        <span></span>
-        <span></span>
+      <button id="sidebar-toggle" type="button" aria-label="切换侧边栏">
+        <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="3.25" y1="3" x2="3.25" y2="13" />
+          <rect x="6.25" y="3.5" width="6.5" height="9" rx="1.7" />
+        </svg>
       </button>
       <div id="agent-dot"></div>
     </div>
     <div id="workspace">
-      <aside id="sidebar">
-        <section class="sidebar-section">
-          <div class="sidebar-section-header">
-            <div class="sidebar-section-title static">
-              <span>当前文件</span>
+      <div id="sidebar-drawer-backdrop" hidden aria-hidden="true"></div>
+      <div id="drawer-edge-trigger" aria-hidden="true"></div>
+      <div id="sidebar-drawer-shell">
+        <aside id="sidebar">
+          <section class="sidebar-section">
+            <div class="sidebar-section-header">
+              <div class="sidebar-section-title static">
+                <span>当前</span>
+              </div>
+              <button id="current-file-new" type="button" class="sidebar-inline-button">新建</button>
             </div>
-          </div>
-          <div id="current-file" class="sidebar-card">
-            <div class="sidebar-title">Untitled</div>
-            <div class="sidebar-meta">当前未打开文件</div>
-          </div>
-        </section>
+            <div id="current-file" class="sidebar-card">
+              <div class="sidebar-title">Untitled</div>
+              <div class="sidebar-meta">当前未打开文件</div>
+            </div>
+          </section>
 
-        <section id="recent-files-section" class="sidebar-section">
-          <div class="sidebar-section-header">
-            <button id="recent-files-toggle" type="button" class="sidebar-section-toggle">
-              <span>最近文件</span>
-            </button>
-            <button id="recent-files-clear" type="button" class="sidebar-inline-button">清除</button>
-          </div>
-          <div id="recent-files" class="sidebar-list"></div>
-        </section>
+          <section id="drafts-section" class="sidebar-section">
+            <div class="sidebar-section-header">
+              <button id="drafts-toggle" type="button" class="sidebar-section-toggle">
+                <span>草稿</span>
+              </button>
+              <button id="drafts-clear" type="button" class="sidebar-inline-button">清除</button>
+            </div>
+            <div id="drafts-list" class="sidebar-list">
+              <div class="sidebar-empty">未命名草稿会在开始输入后出现在这里</div>
+            </div>
+          </section>
 
-        <section id="workdir-section" class="sidebar-section">
-          <div class="sidebar-section-header">
-            <button id="workdir-toggle" type="button" class="sidebar-section-toggle">
-              <span>工作目录</span>
-            </button>
-            <span id="workdir-name" class="workdir-name"></span>
-            <button id="workdir-change" type="button" class="sidebar-inline-button">更换</button>
-          </div>
-          <div id="workdir-body"></div>
-        </section>
-      </aside>
-      <div id="sidebar-resizer" aria-hidden="true"></div>
+          <section id="recent-files-section" class="sidebar-section">
+            <div class="sidebar-section-header">
+              <button id="recent-files-toggle" type="button" class="sidebar-section-toggle">
+                <span>最近</span>
+              </button>
+              <button id="recent-files-clear" type="button" class="sidebar-inline-button">清除</button>
+            </div>
+            <div id="recent-files" class="sidebar-list"></div>
+          </section>
+
+          <section id="workdir-section" class="sidebar-section">
+            <div class="sidebar-section-header">
+              <button id="workdir-toggle" type="button" class="sidebar-section-toggle">
+                <span>工作目录</span>
+              </button>
+              <span id="workdir-name" class="workdir-name"></span>
+              <button id="workdir-change" type="button" class="sidebar-inline-button">更换</button>
+            </div>
+            <div id="workdir-body"></div>
+          </section>
+        </aside>
+        <div id="sidebar-resizer" aria-hidden="true"></div>
+      </div>
 
       <main id="editor-shell">
-        <div id="editor"></div>
+        <div id="search-overlay" hidden aria-hidden="true"></div>
+        <div id="search-panel" hidden aria-hidden="true">
+          <div class="search-panel-row">
+            <label class="sr-only" for="search-input">搜索当前文档</label>
+            <input id="search-input" type="search" placeholder="搜索当前文档" autocomplete="off" spellcheck="false">
+            <div class="search-meta">
+              <div id="search-count" class="search-count">- / -</div>
+              <button id="search-locate" type="button" class="search-inline-button compact" disabled>跳到</button>
+            </div>
+          </div>
+          <div id="search-context" class="search-context">命中上下文会显示在这里</div>
+          <div class="search-panel-actions">
+            <button id="search-prev" type="button" class="search-nav-button" disabled>上一个</button>
+            <button id="search-next" type="button" class="search-nav-button" disabled>下一个</button>
+            <button id="search-results-toggle" type="button" class="search-inline-button" disabled>附近结果</button>
+          </div>
+          <div id="search-results" class="search-results" hidden></div>
+        </div>
+        <div id="editor-stage">
+          <div id="editor-placeholder" aria-hidden="true">
+            What do you want to write today?
+          </div>
+          <div id="editor"></div>
+        </div>
       </main>
+    </div>
+
+    <div id="onboarding-overlay" hidden aria-hidden="true">
+      <div id="onboarding-dialog" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
+        <p class="overlay-kicker">草稿</p>
+        <h2 id="onboarding-title">选择默认草稿位置</h2>
+        <p id="onboarding-copy">
+          未命名文档在开始输入后会自动进入草稿体系，避免切换或关闭时丢失内容。
+        </p>
+        <div id="onboarding-directory-preview">Documents/LyraMD Drafts</div>
+        <div id="onboarding-actions">
+          <button id="onboarding-choose" type="button" class="overlay-button primary">选择位置</button>
+          <button id="onboarding-skip" type="button" class="overlay-button">稍后再说</button>
+        </div>
+      </div>
     </div>
   </div>
   <script type="module" src="./main.ts"></script>

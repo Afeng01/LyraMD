@@ -1,22 +1,55 @@
 import { app, BrowserWindow, ipcMain, dialog, Menu, shell } from 'electron'
 import { join, basename, relative } from 'path'
-import { readFile, writeFile, readdir, copyFile, mkdir } from 'fs/promises'
+import { readFile, writeFile, readdir, copyFile, mkdir, rename, unlink } from 'fs/promises'
 import { watch, FSWatcher, existsSync, readdirSync } from 'fs'
-import { clampSidebarWidth, filterMissingRecentFiles, normalizeSidebarState, pushRecentFile, removeRecentFile, type PersistedSidebarState } from './sidebar-state'
+import {
+  clampSidebarWidth,
+  filterMissingRecentFiles,
+  getSidebarOpenForWindow,
+  normalizeDrawerSidebarOpen,
+  normalizeSidebarState,
+  pushRecentFile,
+  removeRecentFile,
+  type PersistedSidebarState,
+} from './sidebar-state'
+import { deriveDraftDisplayTitle, isBlankDocumentContent, promoteDraftEntries, upsertDraftEntry, type DraftEntry } from './drafts'
+import {
+  consumeIgnoredWatchedContent,
+  reconcileWatchedContent,
+  recordIgnoredWatchedContent,
+} from './file-sync'
 import { scanWorkdir, type WorkdirEntry } from './workdir'
 
 // Custom themes directory
 const appDataDir = join(app.getPath('home'), '.lyramd')
 const themesDir = join(appDataDir, 'themes')
 const sidebarStatePath = join(appDataDir, 'sidebar-state.json')
+const sessionStatePath = join(appDataDir, 'session-state.json')
+const DRAWER_BREAKPOINT = 960
+
+type DocumentKind = 'blank' | 'draft' | 'file'
+
+interface PersistedSessionState {
+  lastActiveDocument: {
+    kind: Exclude<DocumentKind, 'blank'>
+    filePath: string
+    draftId?: string | null
+  } | null
+}
 
 interface SidebarSnapshot extends PersistedSidebarState {
+  currentDocumentKind: DocumentKind
   currentFilePath: string | null
+  currentDraftId: string | null
+  isDrawerMode: boolean
   workdirEntries: WorkdirEntry[]
 }
 
 let sidebarState: PersistedSidebarState = normalizeSidebarState(null)
 let workdirEntries: WorkdirEntry[] = []
+let persistedSessionState: PersistedSessionState = {
+  lastActiveDocument: null,
+}
 
 function ensureAppDataDir(): void {
   if (!existsSync(appDataDir)) {
@@ -64,6 +97,11 @@ function persistSidebarState(): void {
   writeFile(sidebarStatePath, payload, 'utf-8').catch(() => {})
 }
 
+function persistSessionState(): void {
+  const payload = JSON.stringify(persistedSessionState, null, 2)
+  writeFile(sessionStatePath, payload, 'utf-8').catch(() => {})
+}
+
 async function loadSidebarState(): Promise<void> {
   try {
     const raw = await readFile(sidebarStatePath, 'utf-8')
@@ -73,13 +111,49 @@ async function loadSidebarState(): Promise<void> {
   }
 
   sidebarState.recentFiles = filterMissingRecentFiles(sidebarState.recentFiles, (filePath) => existsSync(filePath))
+  sidebarState.draftEntries = sidebarState.draftEntries.filter((entry) => existsSync(entry.path))
   persistSidebarState()
   await refreshWorkdirEntries()
 }
 
+async function loadSessionState(): Promise<void> {
+  try {
+    const raw = await readFile(sessionStatePath, 'utf-8')
+    const parsed = JSON.parse(raw) as Partial<PersistedSessionState>
+    const lastActiveDocument = parsed.lastActiveDocument
+    if (
+      lastActiveDocument
+      && (lastActiveDocument.kind === 'draft' || lastActiveDocument.kind === 'file')
+      && typeof lastActiveDocument.filePath === 'string'
+    ) {
+      persistedSessionState = {
+        lastActiveDocument: {
+          kind: lastActiveDocument.kind,
+          filePath: lastActiveDocument.filePath,
+          draftId: typeof lastActiveDocument.draftId === 'string' ? lastActiveDocument.draftId : null,
+        },
+      }
+      return
+    }
+  } catch {
+    // fall through to defaults
+  }
+
+  persistedSessionState = {
+    lastActiveDocument: null,
+  }
+}
+
 // Per-window state
 interface WindowState {
+  drawerSidebarOpen: boolean
+  desktopSidebarOpen: boolean
+  isDrawerMode: boolean
+  documentKind: DocumentKind
   filePath: string | null
+  draftId: string | null
+  lastSyncedContent: string | null
+  ignoredWatchedContents: Map<string, number>
   watcher: FSWatcher | null
   isInternalSave: boolean
   debounceTimer: ReturnType<typeof setTimeout> | null
@@ -94,7 +168,22 @@ let pendingFilePaths: string[] = []
 function getState(win: BrowserWindow): WindowState {
   let state = windowStates.get(win.id)
   if (!state) {
-    state = { filePath: null, watcher: null, isInternalSave: false, debounceTimer: null, agentState: 'idle', lastExternalChange: 0, agentCooldownTimer: null }
+    state = {
+      drawerSidebarOpen: false,
+      desktopSidebarOpen: sidebarState.sidebarOpen,
+      isDrawerMode: false,
+      documentKind: 'blank',
+      filePath: null,
+      draftId: null,
+      lastSyncedContent: null,
+      ignoredWatchedContents: new Map<string, number>(),
+      watcher: null,
+      isInternalSave: false,
+      debounceTimer: null,
+      agentState: 'idle',
+      lastExternalChange: 0,
+      agentCooldownTimer: null,
+    }
     windowStates.set(win.id, state)
   }
   return state
@@ -104,15 +193,35 @@ function getWinFromEvent(event: Electron.IpcMainInvokeEvent): BrowserWindow | nu
   return BrowserWindow.fromWebContents(event.sender)
 }
 
+function isDrawerModeForWindow(win: BrowserWindow): boolean {
+  return win.getBounds().width < DRAWER_BREAKPOINT
+}
+
 function createSidebarSnapshot(win: BrowserWindow): SidebarSnapshot {
+  const state = getState(win)
+  const drawerMode = isDrawerModeForWindow(win)
+  const sidebarOpen = getSidebarOpenForWindow(
+    sidebarState.sidebarOpen,
+    drawerMode,
+    state.drawerSidebarOpen,
+    state.desktopSidebarOpen,
+  )
   return {
     ...sidebarState,
-    currentFilePath: getState(win).filePath,
+    sidebarOpen,
+    currentDocumentKind: state.documentKind,
+    currentFilePath: state.filePath,
+    currentDraftId: state.draftId,
+    isDrawerMode: drawerMode,
     workdirEntries,
   }
 }
 
 function sendSidebarState(win: BrowserWindow): void {
+  const state = getState(win)
+  const nextDrawerMode = isDrawerModeForWindow(win)
+  state.drawerSidebarOpen = normalizeDrawerSidebarOpen(state.isDrawerMode, nextDrawerMode, state.drawerSidebarOpen)
+  state.isDrawerMode = nextDrawerMode
   if (!win.isDestroyed()) {
     win.webContents.send('sidebar-state', createSidebarSnapshot(win))
   }
@@ -129,17 +238,54 @@ function recordRecentFile(filePath: string): void {
   persistSidebarState()
 }
 
+function updateDraftEntry(entry: DraftEntry): void {
+  sidebarState.draftEntries = sidebarState.draftEntries.map((candidate) => (
+    candidate.id === entry.id ? entry : candidate
+  ))
+  persistSidebarState()
+}
+
+function removeDraftEntry({ draftId, draftPath }: { draftId?: string | null; draftPath?: string | null }): void {
+  sidebarState.draftEntries = promoteDraftEntries(sidebarState.draftEntries, { draftId, draftPath })
+  persistSidebarState()
+}
+
+function setBlankDocumentState(win: BrowserWindow): void {
+  const state = getState(win)
+  stopWatching(state)
+  state.documentKind = 'blank'
+  state.filePath = null
+  state.draftId = null
+  state.lastSyncedContent = null
+  state.ignoredWatchedContents.clear()
+  updateTitle(win)
+  persistLastActiveDocument(state)
+}
+
+function setFileDocumentState(win: BrowserWindow, filePath: string, documentKind: Exclude<DocumentKind, 'blank'>, draftId: string | null = null): void {
+  const state = getState(win)
+  const shouldRewatch = state.filePath !== filePath || state.watcher === null
+  state.documentKind = documentKind
+  state.filePath = filePath
+  state.draftId = draftId
+  if (shouldRewatch) {
+    watchFile(win, state)
+  }
+  updateTitle(win)
+  persistLastActiveDocument(state)
+}
+
 function isPathInsideWorkdir(filePath: string): boolean {
   if (!sidebarState.workdirPath) return false
   const relativePath = relative(sidebarState.workdirPath, filePath)
   return relativePath !== '' && !relativePath.startsWith('..') && !relativePath.startsWith(`..${process.platform === 'win32' ? '\\' : '/'}`)
 }
 
-function createWindow(filePath?: string): BrowserWindow {
+function createWindow(initialDocument?: { filePath: string; documentKind?: Exclude<DocumentKind, 'blank'>; draftId?: string | null }): BrowserWindow {
   const win = new BrowserWindow({
     width: 1120,
     height: 720,
-    minWidth: 760,
+    minWidth: 560,
     minHeight: 400,
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 16 },
@@ -161,8 +307,12 @@ function createWindow(filePath?: string): BrowserWindow {
 
   win.webContents.on('did-finish-load', () => {
     sendSidebarState(win)
-    if (filePath) {
-      loadFileInWindow(win, filePath)
+    if (initialDocument) {
+      loadFileInWindow(win, initialDocument.filePath, {
+        documentKind: initialDocument.documentKind,
+        draftId: initialDocument.draftId,
+        recordRecent: initialDocument.documentKind !== 'draft',
+      })
     }
   })
 
@@ -171,13 +321,48 @@ function createWindow(filePath?: string): BrowserWindow {
     windowStates.delete(win.id)
   })
 
+  win.on('resize', () => {
+    sendSidebarState(win)
+  })
+
   updateTitle(win)
   return win
 }
 
+function findDraftEntryById(draftId: string | null): DraftEntry | null {
+  if (!draftId) return null
+  return sidebarState.draftEntries.find((entry) => entry.id === draftId) ?? null
+}
+
+function persistLastActiveDocument(state: WindowState): void {
+  if (state.documentKind === 'blank' || !state.filePath) {
+    persistedSessionState.lastActiveDocument = null
+  } else {
+    persistedSessionState.lastActiveDocument = {
+      kind: state.documentKind,
+      filePath: state.filePath,
+      draftId: state.draftId,
+    }
+  }
+
+  persistSessionState()
+}
+
+function defaultDraftDirectoryPath(): string {
+  return join(app.getPath('documents'), 'LyraMD Drafts')
+}
+
+function getEffectiveDraftDirectoryPath(): string {
+  return sidebarState.draftDirectoryPath ?? defaultDraftDirectoryPath()
+}
+
 function updateTitle(win: BrowserWindow): void {
   const state = getState(win)
-  const fileName = state.filePath ? basename(state.filePath) : 'Untitled'
+  const fileName = state.documentKind === 'draft'
+    ? findDraftEntryById(state.draftId)?.displayTitle ?? '未命名草稿'
+    : state.filePath
+      ? basename(state.filePath)
+      : 'Untitled'
   win.setTitle(`${fileName} — LyraMD`)
 }
 
@@ -195,6 +380,10 @@ function stopWatching(state: WindowState): void {
   if (state.watcher) {
     state.watcher.close()
     state.watcher = null
+  }
+  if (state.debounceTimer) {
+    clearTimeout(state.debounceTimer)
+    state.debounceTimer = null
   }
   if (state.agentCooldownTimer) {
     clearTimeout(state.agentCooldownTimer)
@@ -236,41 +425,67 @@ function watchFile(win: BrowserWindow, state: WindowState): void {
   stopWatching(state)
   const filePath = state.filePath
   state.watcher = watch(filePath, (eventType) => {
-    if (eventType !== 'change' || state.isInternalSave) return
-
-    // Agent activity detection
-    const now = Date.now()
-    const gap = now - state.lastExternalChange
-    state.lastExternalChange = now
-    if (gap > 0 && gap < 2000) {
-      transitionAgentState(win, state, 'active')
-    } else if (state.agentState === 'active') {
-      transitionAgentState(win, state, 'active') // reset cooldown timer
-    }
+    if (eventType !== 'change') return
 
     if (state.debounceTimer) clearTimeout(state.debounceTimer)
     state.debounceTimer = setTimeout(() => {
       readFile(filePath, 'utf-8')
         .then((data) => {
+          if (consumeIgnoredWatchedContent(state.ignoredWatchedContents, data)) return
+          const syncDecision = reconcileWatchedContent(state.lastSyncedContent, data)
+          state.lastSyncedContent = syncDecision.nextSyncedContent
+          if (!syncDecision.shouldPropagate) return
+
+          // Agent activity detection
+          const now = Date.now()
+          const gap = now - state.lastExternalChange
+          state.lastExternalChange = now
+          if (gap > 0 && gap < 2000) {
+            transitionAgentState(win, state, 'active')
+          } else if (state.agentState === 'active') {
+            transitionAgentState(win, state, 'active')
+          }
+          if (state.documentKind === 'draft' && state.draftId) {
+            const nextEntry = findDraftEntryById(state.draftId)
+            if (nextEntry) {
+              updateDraftEntry({
+                ...nextEntry,
+                updatedAt: Date.now(),
+                displayTitle: deriveDraftDisplayTitle(data),
+              })
+              updateTitle(win)
+            }
+          }
           if (!win.isDestroyed()) win.webContents.send('file-changed', data)
+          if (!win.isDestroyed()) sendSidebarState(win)
         })
         .catch(() => {})
     }, 100)
   })
 }
 
-async function loadFileInWindow(win: BrowserWindow, filePath: string): Promise<boolean> {
+async function loadFileInWindow(
+  win: BrowserWindow,
+  filePath: string,
+  options: { documentKind?: Exclude<DocumentKind, 'blank'>; draftId?: string | null; recordRecent?: boolean } = {},
+): Promise<boolean> {
   try {
     const data = await readFile(filePath, 'utf-8')
+    const documentKind = options.documentKind ?? 'file'
+    setFileDocumentState(win, filePath, documentKind, options.draftId ?? null)
     const state = getState(win)
-    state.filePath = filePath
-    watchFile(win, state)
-    updateTitle(win)
-    recordRecentFile(filePath)
+    state.lastSyncedContent = data
+    state.ignoredWatchedContents.clear()
+    if (options.recordRecent !== false && documentKind === 'file') {
+      recordRecentFile(filePath)
+    }
     win.webContents.send('file-opened', { path: filePath, content: data })
     broadcastSidebarState()
     return true
   } catch {
+    if (options.documentKind === 'draft') {
+      removeDraftEntry({ draftId: options.draftId, draftPath: filePath })
+    }
     sidebarState.recentFiles = filterMissingRecentFiles(sidebarState.recentFiles, (candidate) => existsSync(candidate))
     persistSidebarState()
     broadcastSidebarState()
@@ -308,7 +523,7 @@ function openFile(filePath: string): void {
   }
 
   // Create new window
-  const win = createWindow(filePath)
+  const win = createWindow({ filePath, documentKind: 'file' })
   win.focus()
 }
 
@@ -326,10 +541,21 @@ async function saveToPath(win: BrowserWindow, filePath: string, content: string)
   try {
     state.isInternalSave = true
     await writeFile(filePath, content, 'utf-8')
-    state.filePath = filePath
-    watchFile(win, state)
-    updateTitle(win)
-    recordRecentFile(filePath)
+    recordIgnoredWatchedContent(state.ignoredWatchedContents, content)
+    state.lastSyncedContent = content
+    setFileDocumentState(win, filePath, state.documentKind === 'draft' ? 'draft' : 'file', state.draftId)
+    if (state.documentKind === 'draft' && state.draftId) {
+      const existingEntry = findDraftEntryById(state.draftId)
+      if (existingEntry) {
+        updateDraftEntry({
+          ...existingEntry,
+          updatedAt: Date.now(),
+          displayTitle: deriveDraftDisplayTitle(content),
+        })
+      }
+    } else {
+      recordRecentFile(filePath)
+    }
     if (isPathInsideWorkdir(filePath)) {
       await refreshWorkdirEntries()
     }
@@ -340,6 +566,145 @@ async function saveToPath(win: BrowserWindow, filePath: string, content: string)
   } finally {
     setTimeout(() => { state.isInternalSave = false }, 100)
   }
+}
+
+async function autosaveWindowDocument(
+  win: BrowserWindow,
+  content: string,
+): Promise<{ kind: DocumentKind; path: string | null }> {
+  const state = getState(win)
+
+  if (state.documentKind === 'blank') {
+    if (isBlankDocumentContent(content)) {
+      return { kind: 'blank', path: null }
+    }
+
+    const now = Date.now()
+    const draftDirectoryPath = getEffectiveDraftDirectoryPath()
+    await mkdir(draftDirectoryPath, { recursive: true })
+    const nextDraftState = upsertDraftEntry({
+      entries: sidebarState.draftEntries,
+      content,
+      draftDirectoryPath,
+      now,
+      suffix: sidebarState.draftEntries.length + 1,
+    })
+
+    if (!nextDraftState.draftEntry) {
+      return { kind: 'blank', path: null }
+    }
+
+    sidebarState.draftEntries = nextDraftState.entries
+    persistSidebarState()
+    state.documentKind = 'draft'
+    state.filePath = nextDraftState.draftEntry.path
+    state.draftId = nextDraftState.draftEntry.id
+  } else if (state.documentKind === 'draft') {
+    const existingEntry = findDraftEntryById(state.draftId) ?? sidebarState.draftEntries.find((entry) => entry.path === state.filePath) ?? null
+    const nextDraftState = upsertDraftEntry({
+      entries: sidebarState.draftEntries,
+      content,
+      draftDirectoryPath: getEffectiveDraftDirectoryPath(),
+      now: Date.now(),
+      existingEntry,
+    })
+    if (nextDraftState.draftEntry) {
+      sidebarState.draftEntries = nextDraftState.entries
+      persistSidebarState()
+      state.filePath = nextDraftState.draftEntry.path
+      state.draftId = nextDraftState.draftEntry.id
+    }
+  }
+
+  if (!state.filePath) {
+    return { kind: 'blank', path: null }
+  }
+
+  await saveToPath(win, state.filePath, content)
+  return { kind: state.documentKind, path: state.filePath }
+}
+
+function toggleSidebarForWindow(win: BrowserWindow | null): boolean {
+  if (!win) return false
+
+  const state = getState(win)
+  const drawerMode = isDrawerModeForWindow(win)
+  state.drawerSidebarOpen = normalizeDrawerSidebarOpen(state.isDrawerMode, drawerMode, state.drawerSidebarOpen)
+  state.isDrawerMode = drawerMode
+
+  if (drawerMode) {
+    state.drawerSidebarOpen = !state.drawerSidebarOpen
+    sendSidebarState(win)
+    return state.drawerSidebarOpen
+  }
+
+  state.desktopSidebarOpen = !state.desktopSidebarOpen
+  sendSidebarState(win)
+  return state.desktopSidebarOpen
+}
+
+function beginBlankDocumentSession(win: BrowserWindow): SidebarSnapshot {
+  setBlankDocumentState(win)
+  const snapshot = createSidebarSnapshot(win)
+  sendSidebarState(win)
+  return snapshot
+}
+
+async function clearDraftsForAllWindows(triggerWin: BrowserWindow): Promise<SidebarSnapshot> {
+  const draftEntries = [...sidebarState.draftEntries]
+
+  for (const entry of draftEntries) {
+    if (!existsSync(entry.path)) continue
+    await shell.trashItem(entry.path)
+  }
+
+  sidebarState.draftEntries = []
+  persistSidebarState()
+
+  for (const win of BrowserWindow.getAllWindows()) {
+    const state = getState(win)
+    if (!state.filePath || !draftEntries.some((entry) => entry.path === state.filePath)) continue
+    setBlankDocumentState(win)
+    if (!win.isDestroyed()) {
+      win.webContents.send('new-file')
+    }
+  }
+
+  if (sidebarState.workdirPath) {
+    await refreshWorkdirEntries()
+  }
+
+  broadcastSidebarState()
+  return createSidebarSnapshot(triggerWin)
+}
+
+async function removeDraftForAllWindows(triggerWin: BrowserWindow, draftId: string): Promise<SidebarSnapshot> {
+  const draftEntry = sidebarState.draftEntries.find((entry) => entry.id === draftId)
+  if (!draftEntry) {
+    return createSidebarSnapshot(triggerWin)
+  }
+
+  if (existsSync(draftEntry.path)) {
+    await shell.trashItem(draftEntry.path)
+  }
+
+  removeDraftEntry({ draftId: draftEntry.id, draftPath: draftEntry.path })
+
+  for (const win of BrowserWindow.getAllWindows()) {
+    const state = getState(win)
+    if (state.filePath !== draftEntry.path) continue
+    setBlankDocumentState(win)
+    if (!win.isDestroyed()) {
+      win.webContents.send('new-file')
+    }
+  }
+
+  if (sidebarState.workdirPath) {
+    await refreshWorkdirEntries()
+  }
+
+  broadcastSidebarState()
+  return createSidebarSnapshot(triggerWin)
 }
 
 // IPC Handlers
@@ -367,7 +732,7 @@ ipcMain.handle('open-file', async (event) => {
 
   // If this window has no file, load here; otherwise open in new window
   const state = getState(win)
-  if (!state.filePath) {
+  if (state.documentKind === 'blank') {
     loadFileInWindow(win, filePath)
     return null
   } else {
@@ -382,7 +747,7 @@ ipcMain.handle('open-file-path', async (event, filePath: string) => {
   const state = getState(win)
 
   // If this window has no file, load here
-  if (!state.filePath) {
+  if (state.documentKind === 'blank') {
     loadFileInWindow(win, filePath)
     return null
   } else {
@@ -397,11 +762,27 @@ ipcMain.handle('get-sidebar-state', async (event) => {
   return createSidebarSnapshot(win)
 })
 
-ipcMain.handle('toggle-sidebar', async () => {
-  sidebarState.sidebarOpen = !sidebarState.sidebarOpen
+ipcMain.handle('begin-blank-document', async (event) => {
+  const win = getWinFromEvent(event)
+  if (!win) return null
+  return beginBlankDocumentSession(win)
+})
+
+ipcMain.handle('autosave-document', async (event, content: string) => {
+  const win = getWinFromEvent(event)
+  if (!win) return { kind: 'blank' as const, path: null }
+  return autosaveWindowDocument(win, content)
+})
+
+ipcMain.handle('toggle-sidebar', async (event) => {
+  return toggleSidebarForWindow(getWinFromEvent(event))
+})
+
+ipcMain.handle('toggle-drafts-expanded', async () => {
+  sidebarState.draftsExpanded = !sidebarState.draftsExpanded
   persistSidebarState()
   broadcastSidebarState()
-  return sidebarState.sidebarOpen
+  return sidebarState.draftsExpanded
 })
 
 ipcMain.handle('toggle-workdir-expanded', async () => {
@@ -443,6 +824,44 @@ ipcMain.handle('choose-workdir', async (event) => {
   return createSidebarSnapshot(win)
 })
 
+ipcMain.handle('choose-draft-directory', async (event) => {
+  const win = getWinFromEvent(event)
+  if (!win) return null
+  const result = await dialog.showOpenDialog(win, {
+    properties: ['openDirectory'],
+  })
+  if (result.canceled || result.filePaths.length === 0) return null
+
+  sidebarState.draftDirectoryPath = result.filePaths[0]
+  sidebarState.draftOnboardingCompleted = true
+  persistSidebarState()
+  broadcastSidebarState()
+  return createSidebarSnapshot(win)
+})
+
+ipcMain.handle('skip-draft-onboarding', async (event) => {
+  const win = getWinFromEvent(event)
+  if (!win) return null
+  sidebarState.draftDirectoryPath = getEffectiveDraftDirectoryPath()
+  sidebarState.draftOnboardingCompleted = true
+  persistSidebarState()
+  broadcastSidebarState()
+  return createSidebarSnapshot(win)
+})
+
+ipcMain.handle('clear-drafts', async (event) => {
+  const win = getWinFromEvent(event)
+  if (!win) return null
+  return clearDraftsForAllWindows(win)
+})
+
+ipcMain.handle('remove-draft', async (event, draftId: string) => {
+  const win = getWinFromEvent(event)
+  if (!win) return null
+  if (typeof draftId !== 'string') return createSidebarSnapshot(win)
+  return removeDraftForAllWindows(win, draftId)
+})
+
 ipcMain.handle('open-sidebar-file', async (event, filePath: string) => {
   const win = getWinFromEvent(event)
   if (!win) return false
@@ -453,6 +872,22 @@ ipcMain.handle('open-sidebar-file', async (event, filePath: string) => {
     return false
   }
   return loadFileInWindow(win, filePath)
+})
+
+ipcMain.handle('open-draft', async (event, draftId: string) => {
+  const win = getWinFromEvent(event)
+  if (!win) return false
+  const draftEntry = sidebarState.draftEntries.find((entry) => entry.id === draftId)
+  if (!draftEntry || !existsSync(draftEntry.path)) {
+    removeDraftEntry({ draftId })
+    broadcastSidebarState()
+    return false
+  }
+  return loadFileInWindow(win, draftEntry.path, {
+    documentKind: 'draft',
+    draftId: draftEntry.id,
+    recordRecent: false,
+  })
 })
 
 ipcMain.handle('remove-recent-file', async (_event, filePath: string) => {
@@ -467,6 +902,10 @@ ipcMain.handle('save-file', async (event, content: string) => {
   const win = getWinFromEvent(event)
   if (!win) return false
   const state = getState(win)
+  if (state.documentKind === 'draft' && state.filePath) {
+    return saveToPath(win, state.filePath, content)
+  }
+
   if (!state.filePath) {
     const result = await dialog.showSaveDialog(win, {
       defaultPath: suggestFileName(win, content),
@@ -484,6 +923,7 @@ ipcMain.handle('save-file', async (event, content: string) => {
 ipcMain.handle('save-file-as', async (event, content: string) => {
   const win = getWinFromEvent(event)
   if (!win) return false
+  const state = getState(win)
   const result = await dialog.showSaveDialog(win, {
     defaultPath: suggestFileName(win, content),
     filters: [
@@ -492,6 +932,41 @@ ipcMain.handle('save-file-as', async (event, content: string) => {
     ]
   })
   if (result.canceled || !result.filePath) return false
+  if (state.documentKind === 'draft' && state.filePath) {
+    const draftSourcePath = state.filePath
+    try {
+      state.isInternalSave = true
+      let renamed = true
+      await rename(draftSourcePath, result.filePath).catch(async () => {
+        renamed = false
+        await writeFile(result.filePath, content, 'utf-8')
+      })
+      await writeFile(result.filePath, content, 'utf-8')
+      if (!renamed && draftSourcePath !== result.filePath) {
+        await unlink(draftSourcePath).catch(async () => {
+          await shell.trashItem(draftSourcePath)
+          if (existsSync(draftSourcePath)) {
+            throw new Error('draft-cleanup-failed')
+          }
+        })
+      }
+      removeDraftEntry({ draftId: state.draftId, draftPath: draftSourcePath })
+      recordIgnoredWatchedContent(state.ignoredWatchedContents, content)
+      setFileDocumentState(win, result.filePath, 'file', null)
+      state.lastSyncedContent = content
+      recordRecentFile(result.filePath)
+      if (isPathInsideWorkdir(draftSourcePath) || isPathInsideWorkdir(result.filePath)) {
+        await refreshWorkdirEntries()
+      }
+      broadcastSidebarState()
+      return true
+    } catch {
+      return false
+    } finally {
+      setTimeout(() => { state.isInternalSave = false }, 100)
+    }
+  }
+
   return saveToPath(win, result.filePath, content)
 })
 
@@ -634,7 +1109,7 @@ function buildMenu(): void {
         {
           label: 'New',
           accelerator: 'CmdOrCtrl+N',
-          click: () => createWindow()
+          click: () => sendToFocused('menu-new-file-in-window')
         },
         {
           label: 'Open...',
@@ -683,16 +1158,24 @@ function buildMenu(): void {
         {
           label: 'Toggle Sidebar',
           accelerator: 'CmdOrCtrl+\\',
-          click: () => {
-            sidebarState.sidebarOpen = !sidebarState.sidebarOpen
-            persistSidebarState()
-            broadcastSidebarState()
-          }
+          click: () => { toggleSidebarForWindow(getFocusedWindow()) }
         },
         { type: 'separator' },
-        { role: 'resetZoom' },
-        { role: 'zoomIn' },
-        { role: 'zoomOut' },
+        {
+          label: 'Zoom In',
+          accelerator: 'CmdOrCtrl+=',
+          click: () => sendToFocused('menu-zoom', { delta: 1 })
+        },
+        {
+          label: 'Zoom Out',
+          accelerator: 'CmdOrCtrl+-',
+          click: () => sendToFocused('menu-zoom', { delta: -1 })
+        },
+        {
+          label: 'Reset Zoom',
+          accelerator: 'CmdOrCtrl+0',
+          click: () => sendToFocused('menu-zoom', { level: 0 })
+        },
         { type: 'separator' },
         { role: 'togglefullscreen' }
       ]
@@ -720,7 +1203,7 @@ function buildMenu(): void {
 app.whenReady().then(() => {
   ensureAppDataDir()
   ensureThemesDir()
-  loadSidebarState()
+  Promise.all([loadSidebarState(), loadSessionState()])
     .catch(() => {})
     .finally(() => {
       buildMenu()
@@ -734,9 +1217,18 @@ app.whenReady().then(() => {
 
       if (pendingFilePaths.length > 0) {
         for (const fp of pendingFilePaths) {
-          createWindow(fp)
+          createWindow({ filePath: fp, documentKind: 'file' })
         }
         pendingFilePaths = []
+      } else if (
+        persistedSessionState.lastActiveDocument?.kind === 'draft'
+        && existsSync(persistedSessionState.lastActiveDocument.filePath)
+      ) {
+        createWindow({
+          filePath: persistedSessionState.lastActiveDocument.filePath,
+          documentKind: 'draft',
+          draftId: persistedSessionState.lastActiveDocument.draftId ?? null,
+        })
       } else {
         createWindow()
       }

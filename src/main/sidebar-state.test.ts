@@ -1,9 +1,26 @@
 import { describe, expect, it } from 'vitest'
 
-import { clampSidebarWidth, filterMissingRecentFiles, normalizeSidebarState, pushRecentFile, removeRecentFile } from './sidebar-state'
+import {
+  DEFAULT_SIDEBAR_STATE,
+  DEFAULT_SIDEBAR_WIDTH,
+  clampSidebarWidth,
+  filterMissingRecentFiles,
+  getSidebarOpenForWindow,
+  normalizeDrawerSidebarOpen,
+  normalizeSidebarState,
+  pushRecentFile,
+  removeRecentFile,
+} from './sidebar-state'
+
+describe('sidebar defaults', () => {
+  it('uses the roomier default width for fresh sessions', () => {
+    expect(DEFAULT_SIDEBAR_WIDTH).toBe(336)
+    expect(DEFAULT_SIDEBAR_STATE.sidebarWidth).toBe(336)
+  })
+})
 
 describe('pushRecentFile', () => {
-  it('keeps existing order when a file is reopened', () => {
+  it('keeps the original order when reopening an already listed file', () => {
     const recentFiles = pushRecentFile(
       ['b.md', 'a.md', 'c.md'],
       'a.md',
@@ -46,10 +63,14 @@ describe('normalizeSidebarState', () => {
   it('fills in defaults for new sidebar preferences', () => {
     expect(normalizeSidebarState({ recentFiles: ['a.md'] })).toEqual({
       sidebarOpen: false,
-      sidebarWidth: 296,
+      sidebarWidth: 336,
+      draftsExpanded: true,
       workdirExpanded: true,
       recentFilesExpanded: true,
       workdirPath: null,
+      draftDirectoryPath: null,
+      draftOnboardingCompleted: false,
+      draftEntries: [],
       recentFiles: ['a.md'],
     })
   })
@@ -59,6 +80,32 @@ describe('normalizeSidebarState', () => {
       recentFiles: Array.from({ length: 12 }, (_, index) => `${index}.md`),
     }).recentFiles).toHaveLength(10)
   })
+
+  it('sanitizes invalid draft persistence fields', () => {
+    expect(normalizeSidebarState({
+      draftsExpanded: false,
+      draftDirectoryPath: 123,
+      draftOnboardingCompleted: 'yes',
+      draftEntries: [
+        { id: 'ok', path: '/tmp/a.md', createdAt: 1, updatedAt: 2, displayTitle: 'OK' },
+        { id: 'missing-path', createdAt: 1, updatedAt: 2, displayTitle: 'Missing' },
+        'bad-entry',
+      ],
+    })).toEqual({
+      sidebarOpen: false,
+      sidebarWidth: 336,
+      draftsExpanded: false,
+      workdirExpanded: true,
+      recentFilesExpanded: true,
+      workdirPath: null,
+      draftDirectoryPath: null,
+      draftOnboardingCompleted: false,
+      draftEntries: [
+        { id: 'ok', path: '/tmp/a.md', createdAt: 1, updatedAt: 2, displayTitle: 'OK' },
+      ],
+      recentFiles: [],
+    })
+  })
 })
 
 describe('clampSidebarWidth', () => {
@@ -66,6 +113,28 @@ describe('clampSidebarWidth', () => {
     expect(clampSidebarWidth(120)).toBe(220)
     expect(clampSidebarWidth(320)).toBe(320)
     expect(clampSidebarWidth(560)).toBe(460)
-    expect(clampSidebarWidth(Number.NaN)).toBe(296)
+    expect(clampSidebarWidth(Number.NaN)).toBe(336)
+  })
+})
+
+describe('drawer sidebar visibility', () => {
+  it('keeps drawer mode editor-first even when desktop sidebar was open', () => {
+    expect(getSidebarOpenForWindow(true, true, false)).toBe(false)
+  })
+
+  it('still respects the persisted sidebar state on desktop widths', () => {
+    expect(getSidebarOpenForWindow(true, false, false)).toBe(true)
+    expect(getSidebarOpenForWindow(false, false, true)).toBe(false)
+  })
+
+  it('prefers the current window desktop sidebar state over the persisted default', () => {
+    expect(getSidebarOpenForWindow(true, false, false, false)).toBe(false)
+    expect(getSidebarOpenForWindow(false, false, true, true)).toBe(true)
+  })
+
+  it('resets drawer visibility when entering or leaving drawer mode', () => {
+    expect(normalizeDrawerSidebarOpen(false, true, true)).toBe(false)
+    expect(normalizeDrawerSidebarOpen(true, false, true)).toBe(false)
+    expect(normalizeDrawerSidebarOpen(true, true, true)).toBe(true)
   })
 })

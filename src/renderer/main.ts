@@ -574,13 +574,29 @@ async function init(): Promise<void> {
     sidebarInlineTitleEdit = null
 
     if (editTarget.kind === 'draft') {
-      const snapshot = await api.updateDraftTitleById?.(editTarget.draftId, trimmedTitle).catch(() => null)
+      const snapshot = api.updateDraftTitleById
+        ? await api.updateDraftTitleById(editTarget.draftId, trimmedTitle).catch(() => null)
+        : (
+            sidebarState?.currentDocumentKind === 'draft'
+            && sidebarState.currentDraftId === editTarget.draftId
+            && api.updateCurrentDraftTitle
+              ? await api.updateCurrentDraftTitle(trimmedTitle).catch(() => null)
+              : null
+          )
       if (snapshot) setSidebarState(snapshot)
       else renderSidebar()
       return
     }
 
-    const snapshot = await api.updateFileTitleByPath?.(editTarget.filePath, trimmedTitle).catch(() => null)
+    const snapshot = api.updateFileTitleByPath
+      ? await api.updateFileTitleByPath(editTarget.filePath, trimmedTitle).catch(() => null)
+      : (
+          sidebarState?.currentDocumentKind === 'file'
+          && sidebarState.currentFilePath === editTarget.filePath
+          && api.updateCurrentFileTitle
+            ? await api.updateCurrentFileTitle(trimmedTitle).catch(() => null)
+            : null
+        )
     if (snapshot) setSidebarState(snapshot)
     else renderSidebar()
   }

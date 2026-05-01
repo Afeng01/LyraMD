@@ -13,11 +13,13 @@ import {
   setMarkdown,
   setSearchQuery,
 } from './editor/editor'
+import type { SearchState } from './editor/search'
 import {
-  getNearbySearchMatchPreviews,
-  type SearchMatchPreview,
-  type SearchState,
-} from './editor/search'
+  rememberQueryForDocument,
+  resolveRememberedQuery,
+  resolveSearchCount,
+  type SearchMemoryState,
+} from './editor/search-memory'
 import {
   consumeQueuedContent,
   recordQueuedContent,
@@ -699,15 +701,11 @@ async function init(): Promise<void> {
   const workdirSection = document.getElementById('workdir-section')
   const sidebarResizer = document.getElementById('sidebar-resizer')
   const searchPanel = document.getElementById('search-panel') as HTMLDivElement | null
-  const searchOverlay = document.getElementById('search-overlay') as HTMLDivElement | null
   const searchInput = document.getElementById('search-input') as HTMLInputElement | null
   const searchCount = document.getElementById('search-count') as HTMLDivElement | null
-  const searchLocate = document.getElementById('search-locate') as HTMLButtonElement | null
-  const searchContext = document.getElementById('search-context') as HTMLDivElement | null
+  const searchClose = document.getElementById('search-close') as HTMLButtonElement | null
   const searchPrev = document.getElementById('search-prev') as HTMLButtonElement | null
   const searchNext = document.getElementById('search-next') as HTMLButtonElement | null
-  const searchResultsToggle = document.getElementById('search-results-toggle') as HTMLButtonElement | null
-  const searchResults = document.getElementById('search-results') as HTMLDivElement | null
 
   const persistCurrentViewportOffset = (): void => {
     if (!editorShell || !sidebarState) return
@@ -798,101 +796,25 @@ async function init(): Promise<void> {
   }, { passive: true })
 
   let searchPanelOpen = false
-  let searchResultsExpanded = false
+  let searchInputComposing = false
+  let searchQueryMemory: SearchMemoryState = {}
 
-  const jumpToActiveSearchMatch = (): void => {
-    const state = getSearchState()
-    if (state.totalMatches === 0 || state.activeIndex < 0) return
-
-    activateSearchMatch(state.activeIndex)
-    refreshSearchPanel()
-    focusEditorPreservingSelection()
-  }
-
-  const renderSearchContextPreview = (
-    container: HTMLDivElement,
-    match: SearchMatchPreview,
-  ): void => {
-    clearElement(container)
-
-    const previousLine = document.createElement('div')
-    previousLine.className = 'search-context-line muted'
-    previousLine.textContent = match.previousLine || ' '
-    container.appendChild(previousLine)
-
-    const currentLine = document.createElement('div')
-    currentLine.className = 'search-context-line active'
-    currentLine.appendChild(document.createTextNode(match.before))
-
-    const hit = document.createElement('mark')
-    hit.className = 'search-context-hit'
-    hit.textContent = match.match
-    currentLine.appendChild(hit)
-    currentLine.appendChild(document.createTextNode(match.after))
-    container.appendChild(currentLine)
-
-    const nextLine = document.createElement('div')
-    nextLine.className = 'search-context-line muted'
-    nextLine.textContent = match.nextLine || ' '
-    container.appendChild(nextLine)
+  const getCurrentSearchDocumentKey = (): string | null => {
+    if (!sidebarState) return null
+    return getDocumentViewportKey(
+      sidebarState.currentDocumentKind,
+      sidebarState.currentFilePath,
+      sidebarState.currentDraftId,
+    )
   }
 
   const renderSearchPanel = (state: SearchState): void => {
-    if (!searchCount || !searchContext || !searchPrev || !searchNext || !searchResultsToggle || !searchResults) return
+    if (!searchCount || !searchPrev || !searchNext) return
 
-    const activeNumber = state.totalMatches > 0 && state.activeIndex >= 0 ? state.activeIndex + 1 : 0
-    const nearbyMatches = getNearbySearchMatchPreviews(state)
-    searchCount.textContent = `${activeNumber} / ${state.totalMatches}`
-    if (searchLocate) {
-      searchLocate.disabled = state.totalMatches === 0
-    }
+    const count = resolveSearchCount(state.query, state.totalMatches, state.activeIndex)
+    searchCount.textContent = `${count.activeNumber} / ${count.totalMatches}`
     searchPrev.disabled = state.totalMatches === 0
     searchNext.disabled = state.totalMatches === 0
-    searchResultsToggle.disabled = state.totalMatches === 0
-    searchResultsToggle.textContent = searchResultsExpanded ? '收起附近结果' : '附近结果'
-
-    const activeMatch = state.matches[state.activeIndex] ?? null
-    if (!state.normalizedQuery) {
-      searchContext.textContent = '输入关键词后，这里会显示当前命中的上一行、当前行和下一行。'
-    } else if (!activeMatch) {
-      searchContext.textContent = '没有找到匹配内容。'
-    } else {
-      renderSearchContextPreview(searchContext, activeMatch)
-    }
-
-    clearElement(searchResults)
-    if (searchResultsExpanded && state.matches.length > 0) {
-      for (const match of nearbyMatches) {
-        const item = document.createElement('button')
-        item.type = 'button'
-        item.className = 'search-result-item'
-        item.dataset.matchIndex = String(match.index)
-        item.disabled = match.index === state.activeIndex
-
-        const badge = document.createElement('span')
-        badge.className = 'search-result-badge'
-        badge.textContent = `${match.index + 1} / ${state.totalMatches}`
-        item.appendChild(badge)
-
-        const text = document.createElement('span')
-        text.className = 'search-result-text'
-        const previousLine = match.previousLine ? `${match.previousLine} / ` : ''
-        const nextLine = match.nextLine ? ` / ${match.nextLine}` : ''
-        text.textContent = `${previousLine}${match.before}${match.match}${match.after}${nextLine}`.trim()
-        item.appendChild(text)
-
-        item.disabled = match.index === state.activeIndex
-        searchResults.appendChild(item)
-      }
-
-      if (state.totalMatches > nearbyMatches.length) {
-        const summary = document.createElement('div')
-        summary.className = 'search-results-summary'
-        summary.textContent = `仅显示当前命中附近的 ${nearbyMatches.length} 条结果`
-        searchResults.appendChild(summary)
-      }
-    }
-    searchResults.hidden = !searchResultsExpanded || state.matches.length === 0
   }
 
   const refreshSearchPanel = (): void => {
@@ -900,15 +822,19 @@ async function init(): Promise<void> {
   }
 
   const openSearchPanel = (): void => {
+    const selectedText = window.getSelection?.()?.toString().trim() ?? ''
+    const documentKey = getCurrentSearchDocumentKey()
+    const nextQuery = selectedText || resolveRememberedQuery(searchQueryMemory, documentKey)
+
     searchPanelOpen = true
-    if (searchOverlay) {
-      searchOverlay.hidden = false
-      searchOverlay.setAttribute('aria-hidden', 'false')
-    }
     if (searchPanel) {
       searchPanel.hidden = false
       searchPanel.setAttribute('aria-hidden', 'false')
     }
+    if (searchInput) {
+      searchInput.value = nextQuery
+    }
+    setSearchQuery(nextQuery)
     refreshSearchPanel()
     searchInput?.focus()
     searchInput?.select()
@@ -916,17 +842,9 @@ async function init(): Promise<void> {
 
   const closeSearchPanel = (): void => {
     searchPanelOpen = false
-    searchResultsExpanded = false
-    if (searchOverlay) {
-      searchOverlay.hidden = true
-      searchOverlay.setAttribute('aria-hidden', 'true')
-    }
     if (searchPanel) {
       searchPanel.hidden = true
       searchPanel.setAttribute('aria-hidden', 'true')
-    }
-    if (searchResults) {
-      searchResults.hidden = true
     }
   }
 
@@ -1470,11 +1388,31 @@ img{max-width:100%}
   })
 
   searchInput?.addEventListener('input', () => {
-    setSearchQuery(searchInput.value)
+    const nextQuery = searchInput.value
+    const documentKey = getCurrentSearchDocumentKey()
+    searchQueryMemory = rememberQueryForDocument(searchQueryMemory, documentKey, nextQuery)
+    setSearchQuery(nextQuery)
     refreshSearchPanel()
   })
 
+  searchInput?.addEventListener('compositionstart', () => {
+    searchInputComposing = true
+  })
+
+  searchInput?.addEventListener('compositionend', () => {
+    searchInputComposing = false
+  })
+
   searchInput?.addEventListener('keydown', (event) => {
+    if (searchInputComposing) return
+
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      closeSearchPanel()
+      focusEditorAtLastSelection()
+      return
+    }
+
     if (event.key !== 'Enter') return
 
     event.preventDefault()
@@ -1498,17 +1436,7 @@ img{max-width:100%}
     focusEditorPreservingSelection()
   })
 
-  searchResultsToggle?.addEventListener('click', () => {
-    searchResultsExpanded = !searchResultsExpanded
-    refreshSearchPanel()
-  })
-
-  searchLocate?.addEventListener('click', () => {
-    jumpToActiveSearchMatch()
-  })
-
-  searchOverlay?.addEventListener('click', () => {
-    if (!searchPanelOpen) return
+  searchClose?.addEventListener('click', () => {
     closeSearchPanel()
     focusEditorAtLastSelection()
   })
@@ -1527,6 +1455,7 @@ img{max-width:100%}
     }
 
     if (event.key === 'Escape' && searchPanelOpen) {
+      if (document.activeElement === searchInput && searchInputComposing) return
       event.preventDefault()
       closeSearchPanel()
       focusEditorAtLastSelection()
@@ -1606,16 +1535,6 @@ img{max-width:100%}
     if (target?.closest('#workdir-empty-action')) {
       api.chooseWorkdir().catch(() => {})
       return
-    }
-
-    const searchResultButton = target?.closest('[data-match-index]') as HTMLElement | null
-    if (searchResultButton) {
-      const nextIndex = Number.parseInt(searchResultButton.dataset.matchIndex ?? '', 10)
-      if (Number.isInteger(nextIndex)) {
-        activateSearchMatch(nextIndex)
-        refreshSearchPanel()
-        focusEditorPreservingSelection()
-      }
     }
   })
 

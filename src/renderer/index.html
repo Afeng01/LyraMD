@@ -78,23 +78,19 @@
       </div>
 
       <main id="editor-shell">
-        <div id="search-overlay" hidden aria-hidden="true"></div>
         <div id="search-panel" hidden aria-hidden="true">
           <div class="search-panel-row">
             <label class="sr-only" for="search-input">搜索当前文档</label>
             <input id="search-input" type="search" placeholder="搜索当前文档" autocomplete="off" spellcheck="false">
             <div class="search-meta">
-              <div id="search-count" class="search-count">- / -</div>
-              <button id="search-locate" type="button" class="search-inline-button compact" disabled>跳到</button>
+              <div id="search-count" class="search-count">0 / 0</div>
+              <button id="search-close" type="button" class="search-inline-button compact" aria-label="关闭搜索">关闭</button>
             </div>
           </div>
-          <div id="search-context" class="search-context">命中上下文会显示在这里</div>
           <div class="search-panel-actions">
             <button id="search-prev" type="button" class="search-nav-button" disabled>上一个</button>
             <button id="search-next" type="button" class="search-nav-button" disabled>下一个</button>
-            <button id="search-results-toggle" type="button" class="search-inline-button" disabled>附近结果</button>
           </div>
-          <div id="search-results" class="search-results" hidden></div>
         </div>
         <div id="editor-stage">
           <div id="editor-placeholder" aria-hidden="true">

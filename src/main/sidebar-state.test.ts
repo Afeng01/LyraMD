@@ -72,6 +72,7 @@ describe('normalizeSidebarState', () => {
       draftOnboardingCompleted: false,
       draftEntries: [],
       recentFiles: ['a.md'],
+      fileTitleOverrides: {},
     })
   })
 
@@ -91,6 +92,10 @@ describe('normalizeSidebarState', () => {
         { id: 'missing-path', createdAt: 1, updatedAt: 2, displayTitle: 'Missing' },
         'bad-entry',
       ],
+      fileTitleOverrides: {
+        '/tmp/a.md': 'A',
+        '/tmp/b.md': 123,
+      },
     })).toEqual({
       sidebarOpen: false,
       sidebarWidth: 336,
@@ -104,6 +109,9 @@ describe('normalizeSidebarState', () => {
         { id: 'ok', path: '/tmp/a.md', createdAt: 1, updatedAt: 2, displayTitle: 'OK' },
       ],
       recentFiles: [],
+      fileTitleOverrides: {
+        '/tmp/a.md': 'A',
+      },
     })
   })
 })

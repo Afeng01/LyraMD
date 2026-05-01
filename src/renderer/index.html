@@ -15,6 +15,12 @@
           <rect x="6.25" y="3.5" width="6.5" height="9" rx="1.7" />
         </svg>
       </button>
+      <button id="settings-toggle" type="button" aria-label="打开设置">
+        <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="10" cy="10" r="2.5" />
+          <path d="M10 2.2l1.15 1.03 1.55-.3.78 1.38 1.55.39.08 1.58 1.2 1.03-.45 1.52.8 1.37-1 1.22.26 1.57-1.4.73-.55 1.48-1.57-.05-1.26.95-1.26-.95-1.57.05-.55-1.48-1.4-.73.26-1.57-1-1.22.8-1.37-.45-1.52 1.2-1.03.08-1.58 1.55-.39.78-1.38 1.55.3z" />
+        </svg>
+      </button>
       <div id="agent-dot"></div>
     </div>
     <div id="workspace">
@@ -110,6 +116,166 @@
         <div id="onboarding-actions">
           <button id="onboarding-choose" type="button" class="overlay-button primary">选择位置</button>
           <button id="onboarding-skip" type="button" class="overlay-button">稍后再说</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="title-sync-overlay" hidden aria-hidden="true">
+      <div id="title-sync-dialog" role="dialog" aria-modal="true" aria-labelledby="title-sync-title">
+        <p class="overlay-kicker">标题同步</p>
+        <h2 id="title-sync-title">标题变了，要同步文件名吗？</h2>
+        <p id="title-sync-copy">
+          当前文档标题已经更新。你可以只同步这一次，也可以把它设为默认行为。
+        </p>
+        <div id="title-sync-preview">
+          <div class="title-sync-preview-row">
+            <span class="title-sync-preview-label">当前文件</span>
+            <span id="title-sync-current-name" class="title-sync-preview-value">old.md</span>
+          </div>
+          <div class="title-sync-preview-row">
+            <span class="title-sync-preview-label">建议文件</span>
+            <span id="title-sync-next-name" class="title-sync-preview-value">new.md</span>
+          </div>
+        </div>
+        <div id="title-sync-actions">
+          <button id="title-sync-once" type="button" class="overlay-button primary">这次同步</button>
+          <button id="title-sync-always" type="button" class="overlay-button">始终同步</button>
+          <button id="title-sync-never" type="button" class="overlay-button">保持原名</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="settings-overlay" hidden aria-hidden="true">
+      <div id="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+        <aside class="settings-nav" aria-label="设置分组">
+          <div class="settings-nav-header">
+            <p class="overlay-kicker">设置</p>
+            <h2 id="settings-title">编辑器偏好</h2>
+            <p class="settings-nav-copy">围绕写作现场调整 LyraMD 的行为与氛围。</p>
+          </div>
+          <nav class="settings-nav-list">
+            <button type="button" class="settings-nav-item active" data-settings-pane="general">
+              <span class="settings-nav-label">通用</span>
+              <span class="settings-nav-meta">标题同步、另存为</span>
+            </button>
+            <button type="button" class="settings-nav-item" data-settings-pane="workspace">
+              <span class="settings-nav-label">工作区</span>
+              <span class="settings-nav-meta">草稿位置、主题</span>
+            </button>
+            <button type="button" class="settings-nav-item" data-settings-pane="shortcuts">
+              <span class="settings-nav-label">快捷键</span>
+              <span class="settings-nav-meta">核心操作速查</span>
+            </button>
+          </nav>
+          <div class="settings-nav-footer">
+            <div class="settings-nav-note">Cmd 会在 macOS 显示为 Command，Windows / Linux 对应 Ctrl。</div>
+          </div>
+        </aside>
+
+        <div class="settings-pane-shell">
+          <div class="settings-header">
+            <div class="settings-header-copy">
+              <p id="settings-pane-kicker" class="overlay-kicker">通用</p>
+              <h3 id="settings-pane-title">编辑器行为</h3>
+              <p id="settings-pane-description" class="settings-pane-description">决定标题和文件名如何一起工作，以及另存为后的切换方式。</p>
+            </div>
+            <button id="settings-close" type="button" class="settings-close-button" aria-label="关闭设置">关闭</button>
+          </div>
+
+          <div class="settings-pane-content">
+            <section class="settings-pane active" data-settings-panel="general">
+              <section class="settings-group settings-card">
+                <div class="settings-group-heading">
+                  <h4 class="settings-group-title">标题同步</h4>
+                  <p class="settings-group-copy">当文档标题变化时，决定文件名是否跟随。</p>
+                </div>
+                <label class="settings-option">
+                  <input type="radio" name="settings-title-sync-mode" value="ask">
+                  <span>修改标题时询问是否同步文件名</span>
+                </label>
+                <label class="settings-option">
+                  <input type="radio" name="settings-title-sync-mode" value="always">
+                  <span>修改标题后始终同步文件名</span>
+                </label>
+                <label class="settings-option">
+                  <input type="radio" name="settings-title-sync-mode" value="never">
+                  <span>标题和文件名保持独立</span>
+                </label>
+              </section>
+
+              <section class="settings-group settings-card">
+                <div class="settings-group-heading">
+                  <h4 class="settings-group-title">另存为行为</h4>
+                  <p class="settings-group-copy">决定生成新文件后，旧路径是保留还是被迁移。</p>
+                </div>
+                <label class="settings-option">
+                  <input type="radio" name="settings-save-as-mode" value="switch">
+                  <span>另存为后切换到新位置，保留旧文件</span>
+                </label>
+                <label class="settings-option">
+                  <input type="radio" name="settings-save-as-mode" value="move">
+                  <span>另存为后切换到新位置，并删除旧路径</span>
+                </label>
+              </section>
+            </section>
+
+            <section class="settings-pane" data-settings-panel="workspace" hidden>
+              <section class="settings-group settings-card">
+                <div class="settings-group-heading">
+                  <h4 class="settings-group-title">草稿位置</h4>
+                  <p class="settings-group-copy">未命名草稿会默认进入这个目录，方便和 Agent 协作时持续落盘。</p>
+                </div>
+                <div id="settings-draft-preview" class="settings-info-card">Documents/LyraMD Drafts</div>
+                <button id="settings-draft-choose" type="button" class="overlay-button">重新选择位置</button>
+              </section>
+
+              <section class="settings-group settings-card">
+                <div class="settings-group-heading">
+                  <h4 class="settings-group-title">主题</h4>
+                  <p class="settings-group-copy">切换当前写作氛围，或导入自己的 CSS 主题。</p>
+                </div>
+                <div id="settings-theme-summary" class="settings-theme-summary">当前主题 · Elegant</div>
+                <div class="settings-theme-grid">
+                  <button type="button" class="settings-theme-button" data-settings-theme="elegant">Elegant</button>
+                  <button type="button" class="settings-theme-button" data-settings-theme="newsprint">Newsprint</button>
+                  <button type="button" class="settings-theme-button" data-settings-theme="light">Light</button>
+                  <button type="button" class="settings-theme-button" data-settings-theme="dark">Dark</button>
+                </div>
+                <button id="settings-theme-import" type="button" class="overlay-button">导入自定义主题</button>
+              </section>
+            </section>
+
+            <section class="settings-pane" data-settings-panel="shortcuts" hidden>
+              <section class="settings-group settings-card">
+                <div class="settings-group-heading">
+                  <h4 class="settings-group-title">快捷键</h4>
+                  <p class="settings-group-copy">写作时最常用的操作都在这里，保持手不离键盘。</p>
+                </div>
+                <div class="settings-shortcut-list">
+                  <div class="settings-shortcut-item">
+                    <span class="settings-shortcut-label">保存</span>
+                    <kbd class="settings-shortcut-key">Cmd/Ctrl+S</kbd>
+                  </div>
+                  <div class="settings-shortcut-item">
+                    <span class="settings-shortcut-label">另存为</span>
+                    <kbd class="settings-shortcut-key">Cmd/Ctrl+Shift+S</kbd>
+                  </div>
+                  <div class="settings-shortcut-item">
+                    <span class="settings-shortcut-label">打开设置</span>
+                    <kbd class="settings-shortcut-key">Cmd/Ctrl+,</kbd>
+                  </div>
+                  <div class="settings-shortcut-item">
+                    <span class="settings-shortcut-label">搜索</span>
+                    <kbd class="settings-shortcut-key">Cmd/Ctrl+F</kbd>
+                  </div>
+                  <div class="settings-shortcut-item">
+                    <span class="settings-shortcut-label">切换侧边栏</span>
+                    <kbd class="settings-shortcut-key">Cmd/Ctrl+\</kbd>
+                  </div>
+                </div>
+              </section>
+            </section>
+          </div>
         </div>
       </div>
     </div>

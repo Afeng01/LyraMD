@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog, Menu, shell } from 'electron'
 import { join, basename, relative } from 'path'
 import { readFile, writeFile, readdir, copyFile, mkdir, rename, unlink } from 'fs/promises'
-import { watch, FSWatcher, existsSync, readdirSync } from 'fs'
+import { FSWatcher, existsSync, readdirSync } from 'fs'
 import {
   clampSidebarWidth,
   filterMissingRecentFiles,
@@ -12,12 +12,17 @@ import {
   removeRecentFile,
   type PersistedSidebarState,
 } from './sidebar-state'
-import { deriveDraftDisplayTitle, isBlankDocumentContent, promoteDraftEntries, upsertDraftEntry, type DraftEntry } from './drafts'
+import { deriveDocumentTitle, deriveDraftDisplayTitle, isBlankDocumentContent, promoteDraftEntries, upsertDraftEntry, type DraftEntry } from './drafts'
 import {
   consumeIgnoredWatchedContent,
+  decideWatchEvent,
   reconcileWatchedContent,
   recordIgnoredWatchedContent,
+  watchTargetFile,
 } from './file-sync'
+import { DEFAULT_APP_SETTINGS, loadAppSettings, updateAppSettings, type AppSettings } from './settings'
+import { shouldRemoveSourceAfterSaveAs } from './save-as'
+import { buildTitleSyncPath, decideTitleSync } from './title-sync'
 import { scanWorkdir, type WorkdirEntry } from './workdir'
 
 // Custom themes directory
@@ -25,6 +30,7 @@ const appDataDir = join(app.getPath('home'), '.lyramd')
 const themesDir = join(appDataDir, 'themes')
 const sidebarStatePath = join(appDataDir, 'sidebar-state.json')
 const sessionStatePath = join(appDataDir, 'session-state.json')
+const settingsPath = join(appDataDir, 'settings.json')
 const DRAWER_BREAKPOINT = 960
 
 type DocumentKind = 'blank' | 'draft' | 'file'
@@ -41,6 +47,7 @@ interface SidebarSnapshot extends PersistedSidebarState {
   currentDocumentKind: DocumentKind
   currentFilePath: string | null
   currentDraftId: string | null
+  currentDisplayTitle: string
   isDrawerMode: boolean
   workdirEntries: WorkdirEntry[]
 }
@@ -50,6 +57,7 @@ let workdirEntries: WorkdirEntry[] = []
 let persistedSessionState: PersistedSessionState = {
   lastActiveDocument: null,
 }
+let appSettings: AppSettings = DEFAULT_APP_SETTINGS
 
 function ensureAppDataDir(): void {
   if (!existsSync(appDataDir)) {
@@ -144,6 +152,10 @@ async function loadSessionState(): Promise<void> {
   }
 }
 
+async function loadSettingsState(): Promise<void> {
+  appSettings = await loadAppSettings(settingsPath)
+}
+
 // Per-window state
 interface WindowState {
   drawerSidebarOpen: boolean
@@ -152,6 +164,7 @@ interface WindowState {
   documentKind: DocumentKind
   filePath: string | null
   draftId: string | null
+  displayTitle: string
   lastSyncedContent: string | null
   ignoredWatchedContents: Map<string, number>
   watcher: FSWatcher | null
@@ -175,6 +188,7 @@ function getState(win: BrowserWindow): WindowState {
       documentKind: 'blank',
       filePath: null,
       draftId: null,
+      displayTitle: '未命名文档',
       lastSyncedContent: null,
       ignoredWatchedContents: new Map<string, number>(),
       watcher: null,
@@ -212,6 +226,7 @@ function createSidebarSnapshot(win: BrowserWindow): SidebarSnapshot {
     currentDocumentKind: state.documentKind,
     currentFilePath: state.filePath,
     currentDraftId: state.draftId,
+    currentDisplayTitle: state.displayTitle,
     isDrawerMode: drawerMode,
     workdirEntries,
   }
@@ -238,6 +253,67 @@ function recordRecentFile(filePath: string): void {
   persistSidebarState()
 }
 
+function replaceRecentFilePath(previousPath: string, nextPath: string): void {
+  sidebarState.recentFiles = sidebarState.recentFiles.map((entry) => (
+    entry === previousPath ? nextPath : entry
+  ))
+  recordRecentFile(nextPath)
+}
+
+function getFileTitleOverride(filePath: string | null): string | null {
+  if (!filePath) return null
+  const override = sidebarState.fileTitleOverrides[filePath]
+  return typeof override === 'string' && override.trim().length > 0 ? override : null
+}
+
+function setFileTitleOverride(filePath: string, nextTitle: string): void {
+  const trimmedTitle = nextTitle.trim()
+  if (!trimmedTitle) {
+    delete sidebarState.fileTitleOverrides[filePath]
+  } else {
+    sidebarState.fileTitleOverrides[filePath] = trimmedTitle
+  }
+  persistSidebarState()
+}
+
+function moveFileTitleOverride(previousPath: string, nextPath: string): void {
+  const override = getFileTitleOverride(previousPath)
+  if (!override) return
+  delete sidebarState.fileTitleOverrides[previousPath]
+  sidebarState.fileTitleOverrides[nextPath] = override
+  persistSidebarState()
+}
+
+function resolveFileDisplayTitle(filePath: string, content: string): string {
+  return getFileTitleOverride(filePath) ?? deriveDocumentTitle(content, basename(filePath))
+}
+
+function resolveDraftDisplayTitle(draftId: string | null, content: string): string {
+  return deriveDraftDisplayTitle(content, findDraftEntryById(draftId)?.manualTitle)
+}
+
+async function renameCurrentFileToPath(win: BrowserWindow, nextPath: string): Promise<{ path: string | null }> {
+  const state = getState(win)
+  if (!state.filePath || state.documentKind !== 'file') return { path: null }
+
+  const previousPath = state.filePath
+  if (previousPath === nextPath) return { path: nextPath }
+  if (existsSync(nextPath)) return { path: null }
+
+  const currentDisplayTitle = state.displayTitle
+  await rename(previousPath, nextPath)
+  moveFileTitleOverride(previousPath, nextPath)
+  setFileDocumentState(win, nextPath, 'file', null)
+  state.displayTitle = currentDisplayTitle
+  updateTitle(win)
+  replaceRecentFilePath(previousPath, nextPath)
+  if (isPathInsideWorkdir(previousPath) || isPathInsideWorkdir(nextPath)) {
+    await refreshWorkdirEntries()
+  }
+  broadcastSidebarState()
+  return { path: nextPath }
+}
+
 function updateDraftEntry(entry: DraftEntry): void {
   sidebarState.draftEntries = sidebarState.draftEntries.map((candidate) => (
     candidate.id === entry.id ? entry : candidate
@@ -256,6 +332,7 @@ function setBlankDocumentState(win: BrowserWindow): void {
   state.documentKind = 'blank'
   state.filePath = null
   state.draftId = null
+  state.displayTitle = '未命名文档'
   state.lastSyncedContent = null
   state.ignoredWatchedContents.clear()
   updateTitle(win)
@@ -268,6 +345,9 @@ function setFileDocumentState(win: BrowserWindow, filePath: string, documentKind
   state.documentKind = documentKind
   state.filePath = filePath
   state.draftId = draftId
+  state.displayTitle = documentKind === 'draft'
+    ? findDraftEntryById(draftId)?.displayTitle ?? '未命名草稿'
+    : getFileTitleOverride(filePath) ?? basename(filePath)
   if (shouldRewatch) {
     watchFile(win, state)
   }
@@ -358,12 +438,7 @@ function getEffectiveDraftDirectoryPath(): string {
 
 function updateTitle(win: BrowserWindow): void {
   const state = getState(win)
-  const fileName = state.documentKind === 'draft'
-    ? findDraftEntryById(state.draftId)?.displayTitle ?? '未命名草稿'
-    : state.filePath
-      ? basename(state.filePath)
-      : 'Untitled'
-  win.setTitle(`${fileName} — LyraMD`)
+  win.setTitle(`${state.displayTitle} — LyraMD`)
 }
 
 function suggestFileName(win: BrowserWindow, content?: string): string | undefined {
@@ -424,8 +499,9 @@ function watchFile(win: BrowserWindow, state: WindowState): void {
   if (!state.filePath) return
   stopWatching(state)
   const filePath = state.filePath
-  state.watcher = watch(filePath, (eventType) => {
-    if (eventType !== 'change') return
+  state.watcher = watchTargetFile(filePath, (eventType) => {
+    const watchDecision = decideWatchEvent(eventType)
+    if (!watchDecision.shouldReadFile) return
 
     if (state.debounceTimer) clearTimeout(state.debounceTimer)
     state.debounceTimer = setTimeout(() => {
@@ -451,10 +527,14 @@ function watchFile(win: BrowserWindow, state: WindowState): void {
               updateDraftEntry({
                 ...nextEntry,
                 updatedAt: Date.now(),
-                displayTitle: deriveDraftDisplayTitle(data),
+                displayTitle: deriveDraftDisplayTitle(data, nextEntry.manualTitle),
               })
+              state.displayTitle = resolveDraftDisplayTitle(state.draftId, data)
               updateTitle(win)
             }
+          } else if (state.documentKind === 'file' && state.filePath) {
+            state.displayTitle = resolveFileDisplayTitle(state.filePath, data)
+            updateTitle(win)
           }
           if (!win.isDestroyed()) win.webContents.send('file-changed', data)
           if (!win.isDestroyed()) sendSidebarState(win)
@@ -475,6 +555,9 @@ async function loadFileInWindow(
     setFileDocumentState(win, filePath, documentKind, options.draftId ?? null)
     const state = getState(win)
     state.lastSyncedContent = data
+    state.displayTitle = documentKind === 'draft'
+      ? resolveDraftDisplayTitle(options.draftId ?? null, data)
+      : resolveFileDisplayTitle(filePath, data)
     state.ignoredWatchedContents.clear()
     if (options.recordRecent !== false && documentKind === 'file') {
       recordRecentFile(filePath)
@@ -539,24 +622,48 @@ function findEmptyWindow(): BrowserWindow | null {
 async function saveToPath(win: BrowserWindow, filePath: string, content: string): Promise<boolean> {
   const state = getState(win)
   try {
+    const previousFilePath = state.filePath
+    const previousDisplayTitle = state.displayTitle
     state.isInternalSave = true
     await writeFile(filePath, content, 'utf-8')
     recordIgnoredWatchedContent(state.ignoredWatchedContents, content)
     state.lastSyncedContent = content
     setFileDocumentState(win, filePath, state.documentKind === 'draft' ? 'draft' : 'file', state.draftId)
+    state.displayTitle = state.documentKind === 'draft'
+      ? resolveDraftDisplayTitle(state.draftId, content)
+      : resolveFileDisplayTitle(filePath, content)
+    updateTitle(win)
     if (state.documentKind === 'draft' && state.draftId) {
       const existingEntry = findDraftEntryById(state.draftId)
       if (existingEntry) {
         updateDraftEntry({
           ...existingEntry,
           updatedAt: Date.now(),
-          displayTitle: deriveDraftDisplayTitle(content),
+          displayTitle: deriveDraftDisplayTitle(content, existingEntry.manualTitle),
         })
       }
     } else {
       recordRecentFile(filePath)
     }
+    if (state.documentKind === 'file' && previousFilePath) {
+      const syncDecision = decideTitleSync({
+        mode: appSettings.titleSyncMode,
+        filePath: previousFilePath,
+        previousTitle: previousDisplayTitle,
+        nextTitle: state.displayTitle,
+      })
+
+      if (syncDecision.shouldRename && syncDecision.nextPath && syncDecision.nextPath !== previousFilePath) {
+        const renameResult = await renameCurrentFileToPath(win, syncDecision.nextPath)
+        if (renameResult.path) {
+          state.lastSyncedContent = content
+        }
+      }
+    }
     if (isPathInsideWorkdir(filePath)) {
+      await refreshWorkdirEntries()
+    }
+    if (state.filePath && state.filePath !== filePath && isPathInsideWorkdir(state.filePath)) {
       await refreshWorkdirEntries()
     }
     broadcastSidebarState()
@@ -566,6 +673,77 @@ async function saveToPath(win: BrowserWindow, filePath: string, content: string)
   } finally {
     setTimeout(() => { state.isInternalSave = false }, 100)
   }
+}
+
+async function removeSourceFileAfterSaveAs(sourcePath: string): Promise<void> {
+  await unlink(sourcePath).catch(async () => {
+    await shell.trashItem(sourcePath)
+    if (existsSync(sourcePath)) {
+      throw new Error('save-as-source-cleanup-failed')
+    }
+  })
+}
+
+async function saveFileAsForWindow(win: BrowserWindow, nextPath: string, content: string): Promise<boolean> {
+  const state = getState(win)
+  const sourcePath = state.filePath
+  const sourceDraftId = state.draftId
+  const previousDocumentKind = state.documentKind
+  const sourceDraft = sourceDraftId ? findDraftEntryById(sourceDraftId) : null
+
+  if (previousDocumentKind === 'draft' && sourcePath) {
+    try {
+      state.isInternalSave = true
+      await writeFile(nextPath, content, 'utf-8')
+
+      if (shouldRemoveSourceAfterSaveAs({
+        documentKind: previousDocumentKind,
+        currentPath: sourcePath,
+        nextPath,
+        saveAsMode: appSettings.saveAsMode,
+      })) {
+        await removeSourceFileAfterSaveAs(sourcePath)
+      }
+
+      removeDraftEntry({ draftId: sourceDraftId, draftPath: sourcePath })
+      recordIgnoredWatchedContent(state.ignoredWatchedContents, content)
+      setFileDocumentState(win, nextPath, 'file', null)
+      state.lastSyncedContent = content
+      if (sourceDraft?.manualTitle) {
+        setFileTitleOverride(nextPath, sourceDraft.manualTitle)
+      }
+      state.displayTitle = resolveFileDisplayTitle(nextPath, content)
+      updateTitle(win)
+      recordRecentFile(nextPath)
+      if (isPathInsideWorkdir(sourcePath) || isPathInsideWorkdir(nextPath)) {
+        await refreshWorkdirEntries()
+      }
+      broadcastSidebarState()
+      return true
+    } catch {
+      return false
+    } finally {
+      setTimeout(() => { state.isInternalSave = false }, 100)
+    }
+  }
+
+  const didSave = await saveToPath(win, nextPath, content)
+  if (!didSave) return false
+
+  if (shouldRemoveSourceAfterSaveAs({
+    documentKind: previousDocumentKind,
+    currentPath: sourcePath,
+    nextPath,
+    saveAsMode: appSettings.saveAsMode,
+  }) && sourcePath) {
+    try {
+      await removeSourceFileAfterSaveAs(sourcePath)
+    } catch {
+      return false
+    }
+  }
+
+  return true
 }
 
 async function autosaveWindowDocument(
@@ -762,6 +940,122 @@ ipcMain.handle('get-sidebar-state', async (event) => {
   return createSidebarSnapshot(win)
 })
 
+ipcMain.handle('get-settings', async (event) => {
+  const win = getWinFromEvent(event)
+  if (!win) return null
+  return appSettings
+})
+
+ipcMain.handle('update-settings', async (event, patch: Partial<AppSettings>) => {
+  const win = getWinFromEvent(event)
+  if (!win) return null
+  appSettings = await updateAppSettings(settingsPath, appSettings, patch ?? {})
+  return appSettings
+})
+
+ipcMain.handle('update-current-draft-title', async (event, nextTitle: string) => {
+  const win = getWinFromEvent(event)
+  if (!win) return null
+  const state = getState(win)
+  const draftEntry = findDraftEntryById(state.draftId)
+  const trimmedTitle = typeof nextTitle === 'string' ? nextTitle.trim() : ''
+  if (state.documentKind !== 'draft' || !draftEntry || !trimmedTitle) {
+    return createSidebarSnapshot(win)
+  }
+
+  const nextEntry = {
+    ...draftEntry,
+    displayTitle: trimmedTitle,
+    manualTitle: trimmedTitle,
+    updatedAt: Date.now(),
+  }
+  updateDraftEntry(nextEntry)
+  state.displayTitle = trimmedTitle
+  updateTitle(win)
+  broadcastSidebarState()
+  return createSidebarSnapshot(win)
+})
+
+ipcMain.handle('update-current-file-title', async (event, nextTitle: string) => {
+  const win = getWinFromEvent(event)
+  if (!win) return null
+  const state = getState(win)
+  const trimmedTitle = typeof nextTitle === 'string' ? nextTitle.trim() : ''
+  if (state.documentKind !== 'file' || !state.filePath || !trimmedTitle) {
+    return createSidebarSnapshot(win)
+  }
+
+  setFileTitleOverride(state.filePath, trimmedTitle)
+  state.displayTitle = trimmedTitle
+  updateTitle(win)
+  broadcastSidebarState()
+  return createSidebarSnapshot(win)
+})
+
+ipcMain.handle('update-draft-title-by-id', async (event, draftId: string, nextTitle: string) => {
+  const win = getWinFromEvent(event)
+  if (!win) return null
+  const trimmedTitle = typeof nextTitle === 'string' ? nextTitle.trim() : ''
+  const draftEntry = typeof draftId === 'string' ? findDraftEntryById(draftId) : null
+  if (!draftEntry || !trimmedTitle) {
+    return createSidebarSnapshot(win)
+  }
+
+  const nextEntry = {
+    ...draftEntry,
+    displayTitle: trimmedTitle,
+    manualTitle: trimmedTitle,
+    updatedAt: Date.now(),
+  }
+  updateDraftEntry(nextEntry)
+
+  for (const window of BrowserWindow.getAllWindows()) {
+    const state = getState(window)
+    if (state.documentKind === 'draft' && state.draftId === draftId) {
+      state.displayTitle = trimmedTitle
+      updateTitle(window)
+    }
+  }
+
+  broadcastSidebarState()
+  return createSidebarSnapshot(win)
+})
+
+ipcMain.handle('update-file-title-by-path', async (event, filePath: string, nextTitle: string) => {
+  const win = getWinFromEvent(event)
+  if (!win) return null
+  const trimmedTitle = typeof nextTitle === 'string' ? nextTitle.trim() : ''
+  if (typeof filePath !== 'string' || !filePath || !trimmedTitle) {
+    return createSidebarSnapshot(win)
+  }
+
+  setFileTitleOverride(filePath, trimmedTitle)
+
+  for (const window of BrowserWindow.getAllWindows()) {
+    const state = getState(window)
+    if (state.documentKind === 'file' && state.filePath === filePath) {
+      state.displayTitle = trimmedTitle
+      updateTitle(window)
+    }
+  }
+
+  broadcastSidebarState()
+  return createSidebarSnapshot(win)
+})
+
+ipcMain.handle('rename-current-file-from-title', async (event, nextTitle: string) => {
+  const win = getWinFromEvent(event)
+  if (!win) return null
+  const state = getState(win)
+  if (typeof nextTitle !== 'string' || !state.filePath || state.documentKind !== 'file') {
+    return { path: null }
+  }
+
+  const nextPath = buildTitleSyncPath(state.filePath, nextTitle)
+  if (!nextPath) return { path: null }
+  return renameCurrentFileToPath(win, nextPath)
+})
+
 ipcMain.handle('begin-blank-document', async (event) => {
   const win = getWinFromEvent(event)
   if (!win) return null
@@ -920,10 +1214,16 @@ ipcMain.handle('save-file', async (event, content: string) => {
   return saveToPath(win, state.filePath, content)
 })
 
-ipcMain.handle('save-file-as', async (event, content: string) => {
+ipcMain.handle('save-file-as', async (event, content: string, requestedMode?: AppSettings['saveAsMode']) => {
   const win = getWinFromEvent(event)
   if (!win) return false
-  const state = getState(win)
+  const previousSaveAsMode = appSettings.saveAsMode
+  if (requestedMode === 'switch' || requestedMode === 'move') {
+    appSettings = {
+      ...appSettings,
+      saveAsMode: requestedMode,
+    }
+  }
   const result = await dialog.showSaveDialog(win, {
     defaultPath: suggestFileName(win, content),
     filters: [
@@ -932,42 +1232,14 @@ ipcMain.handle('save-file-as', async (event, content: string) => {
     ]
   })
   if (result.canceled || !result.filePath) return false
-  if (state.documentKind === 'draft' && state.filePath) {
-    const draftSourcePath = state.filePath
-    try {
-      state.isInternalSave = true
-      let renamed = true
-      await rename(draftSourcePath, result.filePath).catch(async () => {
-        renamed = false
-        await writeFile(result.filePath, content, 'utf-8')
-      })
-      await writeFile(result.filePath, content, 'utf-8')
-      if (!renamed && draftSourcePath !== result.filePath) {
-        await unlink(draftSourcePath).catch(async () => {
-          await shell.trashItem(draftSourcePath)
-          if (existsSync(draftSourcePath)) {
-            throw new Error('draft-cleanup-failed')
-          }
-        })
-      }
-      removeDraftEntry({ draftId: state.draftId, draftPath: draftSourcePath })
-      recordIgnoredWatchedContent(state.ignoredWatchedContents, content)
-      setFileDocumentState(win, result.filePath, 'file', null)
-      state.lastSyncedContent = content
-      recordRecentFile(result.filePath)
-      if (isPathInsideWorkdir(draftSourcePath) || isPathInsideWorkdir(result.filePath)) {
-        await refreshWorkdirEntries()
-      }
-      broadcastSidebarState()
-      return true
-    } catch {
-      return false
-    } finally {
-      setTimeout(() => { state.isInternalSave = false }, 100)
+  try {
+    return await saveFileAsForWindow(win, result.filePath, content)
+  } finally {
+    appSettings = {
+      ...appSettings,
+      saveAsMode: previousSaveAsMode,
     }
   }
-
-  return saveToPath(win, result.filePath, content)
 })
 
 ipcMain.handle('export-pdf', async (event) => {
@@ -1185,6 +1457,16 @@ function buildMenu(): void {
       submenu: themeSubmenu
     },
     {
+      label: 'Settings',
+      submenu: [
+        {
+          label: 'Open Settings',
+          accelerator: 'CmdOrCtrl+,',
+          click: () => sendToFocused('menu-settings')
+        }
+      ]
+    },
+    {
       label: 'Help',
       submenu: [
         {
@@ -1203,7 +1485,7 @@ function buildMenu(): void {
 app.whenReady().then(() => {
   ensureAppDataDir()
   ensureThemesDir()
-  Promise.all([loadSidebarState(), loadSessionState()])
+  Promise.all([loadSidebarState(), loadSessionState(), loadSettingsState()])
     .catch(() => {})
     .finally(() => {
       buildMenu()

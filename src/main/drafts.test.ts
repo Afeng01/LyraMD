@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   createDraftFileName,
+  deriveDocumentTitle,
   deriveDraftDisplayTitle,
   isBlankDocumentContent,
   promoteDraftEntries,
@@ -28,6 +29,30 @@ describe('deriveDraftDisplayTitle', () => {
 
   it('falls back to 未命名草稿 when content stays blank', () => {
     expect(deriveDraftDisplayTitle(' \n\t')).toBe('未命名草稿')
+  })
+
+  it('prefers a manual draft title over derived content', () => {
+    expect(deriveDraftDisplayTitle('\n# 第一标题\n正文', '手动标题')).toBe('手动标题')
+  })
+})
+
+describe('deriveDocumentTitle', () => {
+  it('prefers the first heading for general document titles', () => {
+    expect(deriveDocumentTitle('# 正式标题\n正文', 'fallback.md')).toBe('正式标题')
+  })
+
+  it('falls back to the first non-empty line for general document titles', () => {
+    expect(deriveDocumentTitle('\n  普通第一行  \n第二行', 'fallback.md')).toBe('普通第一行')
+  })
+
+  it('uses the provided fallback when content stays blank', () => {
+    expect(deriveDocumentTitle(' \n\t', 'fallback.md')).toBe('fallback.md')
+  })
+
+  it('skips markdown noise and html fragments when looking for a title', () => {
+    expect(
+      deriveDocumentTitle('| <br /> ![](file:///Users/demo/test.png) |\n\n毕业论文\n', 'fallback.md'),
+    ).toBe('毕业论文')
   })
 })
 
@@ -68,6 +93,7 @@ describe('upsertDraftEntry', () => {
       createdAt: Date.UTC(2026, 3, 28, 2, 31, 22),
       updatedAt: Date.UTC(2026, 3, 28, 2, 31, 22),
       displayTitle: '新草稿',
+      manualTitle: null,
     })
   })
 
@@ -80,6 +106,7 @@ describe('upsertDraftEntry', () => {
           createdAt: 1,
           updatedAt: 2,
           displayTitle: 'A',
+          manualTitle: null,
         },
         {
           id: 'draft-b',
@@ -87,6 +114,7 @@ describe('upsertDraftEntry', () => {
           createdAt: 3,
           updatedAt: 4,
           displayTitle: 'B',
+          manualTitle: 'B',
         },
       ],
       content: '# 更新后的 B',
@@ -98,6 +126,7 @@ describe('upsertDraftEntry', () => {
         createdAt: 3,
         updatedAt: 4,
         displayTitle: 'B',
+        manualTitle: 'B',
       },
     })
 
@@ -107,7 +136,8 @@ describe('upsertDraftEntry', () => {
       path: '/drafts/draft-b.md',
       createdAt: 3,
       updatedAt: 5,
-      displayTitle: '更新后的 B',
+      displayTitle: 'B',
+      manualTitle: 'B',
     })
   })
 })
@@ -121,6 +151,7 @@ describe('promoteDraftEntries', () => {
         createdAt: 1,
         updatedAt: 2,
         displayTitle: 'A',
+        manualTitle: null,
       },
       {
         id: 'draft-b',
@@ -128,6 +159,7 @@ describe('promoteDraftEntries', () => {
         createdAt: 3,
         updatedAt: 4,
         displayTitle: 'B',
+        manualTitle: null,
       },
     ], { draftPath: '/drafts/draft-a.md' })).toEqual([
       {
@@ -136,6 +168,7 @@ describe('promoteDraftEntries', () => {
         createdAt: 3,
         updatedAt: 4,
         displayTitle: 'B',
+        manualTitle: null,
       },
     ])
   })

@@ -6,6 +6,7 @@ export interface DraftEntry {
   createdAt: number
   updatedAt: number
   displayTitle: string
+  manualTitle?: string | null
 }
 
 export interface UpsertDraftEntryInput {
@@ -32,20 +33,30 @@ export function isBlankDocumentContent(content: string): boolean {
   return content.trim().length === 0
 }
 
-export function deriveDraftDisplayTitle(content: string): string {
+export function deriveDocumentTitle(content: string, fallback = '未命名草稿'): string {
   const lines = content.replaceAll('\r\n', '\n').split('\n')
 
   for (const line of lines) {
     const headingMatch = line.trim().match(/^#\s+(.+)$/)
-    if (headingMatch) return headingMatch[1].trim()
+    if (headingMatch) {
+      const normalizedHeading = normalizeTitleCandidate(headingMatch[1] ?? '')
+      if (normalizedHeading) return normalizedHeading
+    }
   }
 
   for (const line of lines) {
-    const trimmedLine = line.trim()
+    if (shouldSkipTitleCandidate(line)) continue
+    const trimmedLine = normalizeTitleCandidate(line)
     if (trimmedLine) return trimmedLine
   }
 
-  return '未命名草稿'
+  return fallback
+}
+
+export function deriveDraftDisplayTitle(content: string, manualTitle?: string | null): string {
+  const trimmedManualTitle = manualTitle?.trim()
+  if (trimmedManualTitle) return trimmedManualTitle
+  return deriveDocumentTitle(content, '未命名草稿')
 }
 
 export function createDraftFileName(now: number, suffix?: number): string {
@@ -84,7 +95,7 @@ export function upsertDraftEntry({
     ? {
         ...existingEntry,
         updatedAt: now,
-        displayTitle: deriveDraftDisplayTitle(content),
+        displayTitle: deriveDraftDisplayTitle(content, existingEntry.manualTitle),
       }
     : createDraftEntry(draftDirectoryPath, content, now, suffix)
 
@@ -114,5 +125,33 @@ function createDraftEntry(draftDirectoryPath: string, content: string, now: numb
     createdAt: now,
     updatedAt: now,
     displayTitle: deriveDraftDisplayTitle(content),
+    manualTitle: null,
   }
+}
+
+function normalizeTitleCandidate(line: string): string {
+  const normalized = line
+    .replace(/!\[[^\]]*]\([^)]+\)/g, ' ')
+    .replace(/\[([^\]]+)]\([^)]+\)/g, '$1')
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\|/g, ' ')
+    .replace(/[*_`~]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  if (!normalized) return ''
+  if (/^:?-{3,}:?$/.test(normalized)) return ''
+  return normalized
+}
+
+function shouldSkipTitleCandidate(line: string): boolean {
+  const trimmed = line.trim()
+  if (!trimmed) return true
+  if (/^<br\s*\/?>$/i.test(trimmed)) return true
+  if (/^!\[[^\]]*]\([^)]+\)$/.test(trimmed)) return true
+  if (/^<[^>]+>$/.test(trimmed)) return true
+  if (/^\|.*\|$/.test(trimmed)) return true
+  if (/^:?-{3,}:?(?:\|:?-{3,}:?)+$/.test(trimmed.replace(/\s+/g, ''))) return true
+  return false
 }

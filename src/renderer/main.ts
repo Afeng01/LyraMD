@@ -29,9 +29,18 @@ import {
   getDocumentViewportKey,
   shouldShowEmptyEditorPlaceholder,
 } from './editor/session-ux'
+import { createSettingsDialogController } from './settings-dialog'
 import { applyTheme, loadSavedTheme } from './themes/theme-manager'
-import type { SidebarState } from '../preload/index'
+import type { AppSettings, SidebarState } from '../preload/index'
 import './themes/base.css'
+
+type TitleEditingAPI = typeof window.electronAPI & {
+  updateCurrentDraftTitle?: (nextTitle: string) => Promise<SidebarState | null>
+  updateCurrentFileTitle?: (nextTitle: string) => Promise<SidebarState | null>
+  updateDraftTitleById?: (draftId: string, nextTitle: string) => Promise<SidebarState | null>
+  updateFileTitleByPath?: (filePath: string, nextTitle: string) => Promise<SidebarState | null>
+  onMenuSettings?: (callback: () => void) => void
+}
 
 function basename(filePath: string | null): string {
   if (!filePath) return 'Untitled'
@@ -39,11 +48,30 @@ function basename(filePath: string | null): string {
   return normalized.slice(normalized.lastIndexOf('/') + 1)
 }
 
+function extname(filePath: string | null): string {
+  if (!filePath) return ''
+  const base = basename(filePath)
+  const lastDot = base.lastIndexOf('.')
+  return lastDot <= 0 ? '' : base.slice(lastDot)
+}
+
 function dirname(filePath: string | null): string {
   if (!filePath) return ''
   const normalized = filePath.replaceAll('\\', '/')
   const lastSlash = normalized.lastIndexOf('/')
   return lastSlash === -1 ? '' : normalized.slice(0, lastSlash)
+}
+
+function sanitizeTitleToFileStem(title: string): string {
+  return title.trim().replace(/[/\\:*?"<>|]/g, '').slice(0, 60)
+}
+
+function buildSuggestedTitleSyncPath(filePath: string | null, nextTitle: string): string | null {
+  if (!filePath) return null
+  const stem = sanitizeTitleToFileStem(nextTitle)
+  if (!stem) return null
+  const extension = extname(filePath) || '.md'
+  return `${dirname(filePath)}/${stem}${extension}`
 }
 
 function isSamePath(a: string | null, b: string | null): boolean {
@@ -66,12 +94,51 @@ function createTextBlock(className: string, text: string): HTMLDivElement {
   return block
 }
 
+function createSidebarInlineEditor(
+  label: string,
+  value: string,
+  onInput: (nextValue: string) => void,
+  onCommit: () => void,
+  onCancel: () => void,
+): HTMLDivElement {
+  const shell = document.createElement('div')
+  shell.className = 'sidebar-list-item editing'
+
+  const input = document.createElement('input')
+  input.type = 'text'
+  input.className = 'sidebar-inline-title-input'
+  input.value = value
+  input.setAttribute('aria-label', label)
+  input.addEventListener('click', (event) => {
+    event.stopPropagation()
+  })
+  input.addEventListener('input', () => {
+    onInput(input.value)
+  })
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      onCommit()
+    } else if (event.key === 'Escape') {
+      event.preventDefault()
+      onCancel()
+    }
+  })
+  input.addEventListener('blur', () => {
+    onCommit()
+  })
+  shell.appendChild(input)
+
+  queueMicrotask(() => {
+    input.focus()
+    input.select()
+  })
+
+  return shell
+}
+
 function currentDocumentTitle(state: SidebarState): string {
-  if (state.currentDocumentKind === 'draft') {
-    return state.draftEntries.find((entry) => entry.id === state.currentDraftId)?.displayTitle ?? '未命名草稿'
-  }
-  if (state.currentDocumentKind === 'blank') return '未命名文档'
-  return basename(state.currentFilePath)
+  return state.currentDisplayTitle
 }
 
 function currentDocumentMeta(state: SidebarState): string {
@@ -80,17 +147,23 @@ function currentDocumentMeta(state: SidebarState): string {
   return state.currentFilePath ? '当前正在编辑' : '当前未打开文件'
 }
 
+function createDefaultSettings(): AppSettings {
+  return { titleSyncMode: 'ask', saveAsMode: 'switch' }
+}
+
 function createFileItem(
   filePath: string,
   title: string,
   meta: string | null,
   currentFilePath: string | null,
   extraClass = '',
+  source: 'recent' | 'workdir' = 'recent',
 ): HTMLButtonElement {
   const item = document.createElement('button')
   item.type = 'button'
   item.className = `sidebar-list-item${extraClass ? ` ${extraClass}` : ''}`
   item.dataset.filePath = filePath
+  item.dataset.sidebarSource = source
   item.title = filePath
   item.classList.toggle('active', isSamePath(filePath, currentFilePath))
 
@@ -129,13 +202,38 @@ function renderEmpty(element: Element, text: string): void {
 }
 
 async function init(): Promise<void> {
-  const api = window.electronAPI
+  const api = window.electronAPI as TitleEditingAPI
   const savedTheme = loadSavedTheme()
+  let appSettings = createDefaultSettings()
   let sidebarState: SidebarState | null = null
   let lastDocumentViewportKey: string | null = null
   let managingDrafts = false
   let managingRecentFiles = false
   let pendingBlankMaterialization = false
+  let titleEditActive = false
+  let titleEditValue = ''
+  let titleSyncPromptState:
+    | {
+        currentTitle: string
+        nextTitle: string
+        currentFilePath: string
+        suggestedFilePath: string
+      }
+    | null = null
+  let sidebarInlineTitleEdit:
+    | { kind: 'draft'; draftId: string; value: string }
+    | { kind: 'file'; filePath: string; source: 'recent' | 'workdir'; value: string }
+    | null = null
+  let pendingTitleEditRequest:
+    | {
+        kind: 'draft'
+        draftId: string
+      }
+    | {
+        kind: 'file'
+        filePath: string
+      }
+    | null = null
   const savedViewportOffsets = new Map<string, number>()
   let drawerOpenedByHover = false
   let drawerHoverOpenTimer: ReturnType<typeof setTimeout> | null = null
@@ -147,8 +245,42 @@ async function init(): Promise<void> {
       state.currentDraftId,
     )
     sidebarState = state
+    titleEditValue = state.currentDisplayTitle
+    if (sidebarInlineTitleEdit) {
+      if (sidebarInlineTitleEdit.kind === 'draft') {
+        const updatedDraft = state.draftEntries.find((entry) => entry.id === sidebarInlineTitleEdit.draftId)
+        if (updatedDraft) {
+          sidebarInlineTitleEdit = {
+            ...sidebarInlineTitleEdit,
+            value: updatedDraft.displayTitle,
+          }
+        }
+      } else {
+        const nextValue = state.fileTitleOverrides[sidebarInlineTitleEdit.filePath]
+          ?? basename(sidebarInlineTitleEdit.filePath)
+        sidebarInlineTitleEdit = {
+          ...sidebarInlineTitleEdit,
+          value: nextValue,
+        }
+      }
+    }
+    if (pendingTitleEditRequest) {
+      const shouldActivateEdit = pendingTitleEditRequest.kind === 'draft'
+        ? state.currentDocumentKind === 'draft' && state.currentDraftId === pendingTitleEditRequest.draftId
+        : state.currentDocumentKind === 'file' && state.currentFilePath === pendingTitleEditRequest.filePath
+
+      if (shouldActivateEdit) {
+        titleEditActive = true
+        titleEditValue = state.currentDisplayTitle
+        pendingTitleEditRequest = null
+      }
+    }
     if (state.currentDocumentKind !== 'blank') {
       pendingBlankMaterialization = false
+    }
+    if (state.currentDocumentKind === 'blank') {
+      titleEditActive = false
+      closeTitleSyncPrompt()
     }
     if (state.draftEntries.length === 0) managingDrafts = false
     if (state.recentFiles.length === 0) managingRecentFiles = false
@@ -183,6 +315,12 @@ async function init(): Promise<void> {
   const editorShell = document.getElementById('editor-shell') as HTMLElement | null
   const editorStage = document.getElementById('editor-stage') as HTMLElement | null
   const editorPlaceholder = document.getElementById('editor-placeholder') as HTMLDivElement | null
+  const titleSyncOverlay = document.getElementById('title-sync-overlay') as HTMLDivElement | null
+  const titleSyncCurrentName = document.getElementById('title-sync-current-name') as HTMLSpanElement | null
+  const titleSyncNextName = document.getElementById('title-sync-next-name') as HTMLSpanElement | null
+  const titleSyncOnce = document.getElementById('title-sync-once') as HTMLButtonElement | null
+  const titleSyncAlways = document.getElementById('title-sync-always') as HTMLButtonElement | null
+  const titleSyncNever = document.getElementById('title-sync-never') as HTMLButtonElement | null
 
   const updateEditorPlaceholder = (content: string): void => {
     if (!editorPlaceholder) return
@@ -217,6 +355,18 @@ async function init(): Promise<void> {
   })
   updateEditorPlaceholder(getMarkdown())
   schedulePlaceholderLayoutSync()
+  appSettings = (await api.getSettings().catch(() => null)) ?? createDefaultSettings()
+  const settingsDialog = createSettingsDialogController({
+    api,
+    getAppSettings: () => appSettings,
+    getSidebarState: () => sidebarState,
+    onAppSettingsChange: (settings) => {
+      appSettings = settings
+    },
+    onSidebarStateChange: (state) => {
+      setSidebarState(state)
+    },
+  })
 
   let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
   let dirtyByUser = false
@@ -238,6 +388,38 @@ async function init(): Promise<void> {
   const resetLocalEchoState = (): void => {
     recentLocalEchoes.clear()
     deferredIncomingContent = null
+  }
+
+  const closeTitleSyncPrompt = (): void => {
+    titleSyncPromptState = null
+    if (!titleSyncOverlay) return
+    titleSyncOverlay.hidden = true
+    titleSyncOverlay.setAttribute('aria-hidden', 'true')
+  }
+
+  const openTitleSyncPrompt = (
+    currentTitle: string,
+    nextTitle: string,
+    currentFilePath: string,
+    suggestedFilePath: string,
+  ): void => {
+    titleSyncPromptState = {
+      currentTitle,
+      nextTitle,
+      currentFilePath,
+      suggestedFilePath,
+    }
+    if (titleSyncCurrentName) {
+      titleSyncCurrentName.textContent = basename(currentFilePath)
+      titleSyncCurrentName.title = currentFilePath
+    }
+    if (titleSyncNextName) {
+      titleSyncNextName.textContent = basename(suggestedFilePath)
+      titleSyncNextName.title = suggestedFilePath
+    }
+    if (!titleSyncOverlay) return
+    titleSyncOverlay.hidden = false
+    titleSyncOverlay.setAttribute('aria-hidden', 'false')
   }
 
   const clearPendingAutoSave = (): void => {
@@ -324,6 +506,148 @@ async function init(): Promise<void> {
     await (immediateSavePromise ?? Promise.resolve())
   }
 
+  const commitDocumentTitleChange = async (nextTitle: string): Promise<void> => {
+    if (!sidebarState) return
+
+    const trimmedTitle = nextTitle.trim()
+    if (!trimmedTitle) {
+      titleEditActive = false
+      titleEditValue = sidebarState.currentDisplayTitle
+      renderSidebar()
+      return
+    }
+
+    const currentTitle = sidebarState.currentDisplayTitle || basename(sidebarState.currentFilePath)
+
+    if (trimmedTitle === currentTitle) {
+      titleEditActive = false
+      renderSidebar()
+      return
+    }
+
+    titleEditActive = false
+    titleEditValue = trimmedTitle
+    closeTitleSyncPrompt()
+
+    if (sidebarState.currentDocumentKind === 'draft') {
+      const snapshot = await api.updateCurrentDraftTitle?.(trimmedTitle).catch(() => null)
+      if (snapshot) setSidebarState(snapshot)
+      return
+    }
+
+    if (sidebarState.currentDocumentKind === 'file' && sidebarState.currentFilePath) {
+      const snapshot = await api.updateCurrentFileTitle?.(trimmedTitle).catch(() => null)
+      if (snapshot) setSidebarState(snapshot)
+
+      if (appSettings.titleSyncMode === 'always') {
+        await api.renameCurrentFileFromTitle(trimmedTitle).catch(() => null)
+        syncSidebarState()
+        return
+      }
+
+      if (appSettings.titleSyncMode === 'ask') {
+        const suggestedFilePath = buildSuggestedTitleSyncPath(sidebarState.currentFilePath, trimmedTitle)
+        if (suggestedFilePath && suggestedFilePath !== sidebarState.currentFilePath) {
+          openTitleSyncPrompt(currentTitle, trimmedTitle, sidebarState.currentFilePath, suggestedFilePath)
+        }
+      }
+      return
+    }
+  }
+
+  const cancelSidebarInlineTitleEdit = (): void => {
+    sidebarInlineTitleEdit = null
+    renderSidebar()
+  }
+
+  const commitSidebarInlineTitleEdit = async (): Promise<void> => {
+    if (!sidebarInlineTitleEdit) return
+    const editTarget = sidebarInlineTitleEdit
+    const trimmedTitle = editTarget.value.trim()
+
+    if (!trimmedTitle) {
+      sidebarInlineTitleEdit = null
+      renderSidebar()
+      return
+    }
+
+    sidebarInlineTitleEdit = null
+
+    if (editTarget.kind === 'draft') {
+      const snapshot = await api.updateDraftTitleById?.(editTarget.draftId, trimmedTitle).catch(() => null)
+      if (snapshot) setSidebarState(snapshot)
+      else renderSidebar()
+      return
+    }
+
+    const snapshot = await api.updateFileTitleByPath?.(editTarget.filePath, trimmedTitle).catch(() => null)
+    if (snapshot) setSidebarState(snapshot)
+    else renderSidebar()
+  }
+
+  const startCurrentTitleEdit = (): void => {
+    if (!sidebarState || sidebarState.currentDocumentKind === 'blank' || titleEditActive) return
+    titleEditActive = true
+    titleEditValue = currentDocumentTitle(sidebarState)
+    renderSidebar()
+  }
+
+  const requestTitleEditForTarget = (request:
+    | { kind: 'draft'; draftId: string }
+    | { kind: 'file'; filePath: string }
+  ): void => {
+    if (!sidebarState || titleEditActive) return
+
+    const alreadyCurrent = request.kind === 'draft'
+      ? sidebarState.currentDocumentKind === 'draft' && sidebarState.currentDraftId === request.draftId
+      : sidebarState.currentDocumentKind === 'file' && sidebarState.currentFilePath === request.filePath
+
+    if (alreadyCurrent) {
+      startCurrentTitleEdit()
+      return
+    }
+
+    pendingTitleEditRequest = request
+    persistCurrentViewportOffset()
+    void flushAutoSave().then(() => {
+      const action = request.kind === 'draft'
+        ? api.openDraft(request.draftId)
+        : api.openSidebarFile(request.filePath)
+      action.catch(() => {
+        pendingTitleEditRequest = null
+      })
+    })
+  }
+
+  const applyAskModeTitleSync = async (mode: 'once' | 'always' | 'never'): Promise<void> => {
+    if (!titleSyncPromptState) return
+    const nextTitle = titleSyncPromptState.nextTitle
+
+    if (mode === 'never') {
+      appSettings = (await api.updateSettings({ titleSyncMode: 'never' }).catch(() => null)) ?? {
+        ...appSettings,
+        titleSyncMode: 'never',
+      }
+      closeTitleSyncPrompt()
+      return
+    }
+
+    if (mode === 'always') {
+      appSettings = (await api.updateSettings({ titleSyncMode: 'always' }).catch(() => null)) ?? {
+        ...appSettings,
+        titleSyncMode: 'always',
+      }
+      await api.renameCurrentFileFromTitle(nextTitle).catch(() => null)
+      syncSidebarState()
+      closeTitleSyncPrompt()
+      return
+    }
+
+    await api.renameCurrentFileFromTitle(nextTitle).catch(() => null)
+    syncSidebarState()
+    closeTitleSyncPrompt()
+  }
+
   const scheduleAutoSave = (): void => {
     if (autoSaveTimer) clearTimeout(autoSaveTimer)
     dirtyByUser = true
@@ -334,6 +658,7 @@ async function init(): Promise<void> {
 
   const appShell = document.getElementById('app-shell')
   const sidebarToggle = document.getElementById('sidebar-toggle') as HTMLButtonElement | null
+  const settingsToggle = document.getElementById('settings-toggle') as HTMLButtonElement | null
   const drawerBackdrop = document.getElementById('sidebar-drawer-backdrop') as HTMLDivElement | null
   const drawerEdgeTrigger = document.getElementById('drawer-edge-trigger') as HTMLDivElement | null
   const drawerShell = document.getElementById('sidebar-drawer-shell') as HTMLDivElement | null
@@ -663,18 +988,84 @@ async function init(): Promise<void> {
 
     clearElement(currentFile)
     currentFile.className = 'sidebar-list-item current-file-item'
-    currentFile.appendChild(createTextBlock('sidebar-title', currentDocumentTitle(sidebarState)))
-    currentFile.appendChild(createTextBlock(
-      'sidebar-meta',
-      currentDocumentMeta(sidebarState),
-    ))
+    const isEditableTitle = sidebarState.currentDocumentKind !== 'blank'
+    currentFile.classList.toggle('editable', isEditableTitle)
+    currentFile.classList.toggle('editing', titleEditActive)
+
+    if (titleEditActive && isEditableTitle) {
+      const input = document.createElement('input')
+      input.type = 'text'
+      input.className = 'current-file-title-input'
+      input.value = titleEditValue || currentDocumentTitle(sidebarState)
+      input.setAttribute('aria-label', '编辑当前文档标题')
+      input.addEventListener('click', (event) => {
+        event.stopPropagation()
+      })
+      input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault()
+          void commitDocumentTitleChange(input.value)
+        } else if (event.key === 'Escape') {
+          event.preventDefault()
+          titleEditActive = false
+          titleEditValue = ''
+          renderSidebar()
+        }
+      })
+      input.addEventListener('blur', () => {
+        void commitDocumentTitleChange(input.value)
+      })
+      currentFile.appendChild(input)
+
+      const editMeta = document.createElement('div')
+      editMeta.className = 'current-file-edit-meta'
+      editMeta.textContent = 'Enter 保存，Esc 取消'
+      currentFile.appendChild(editMeta)
+
+      queueMicrotask(() => {
+        input.focus()
+        input.select()
+      })
+    } else {
+      const titleRow = document.createElement('div')
+      titleRow.className = 'current-file-title-row'
+      titleRow.appendChild(createTextBlock('sidebar-title', currentDocumentTitle(sidebarState)))
+      if (isEditableTitle) {
+        const hint = document.createElement('span')
+        hint.className = 'current-file-edit-hint'
+        hint.textContent = '双击改标题'
+        titleRow.appendChild(hint)
+      }
+      currentFile.appendChild(titleRow)
+      currentFile.appendChild(createTextBlock(
+        'sidebar-meta',
+        currentDocumentMeta(sidebarState),
+      ))
+    }
 
     clearElement(draftsList)
     if (sidebarState.draftEntries.length === 0) {
       draftsList.appendChild(createTextBlock('sidebar-empty', '未命名草稿会在开始输入后出现在这里'))
     } else {
       for (const draft of sidebarState.draftEntries) {
-        const item = createDraftItem(draft.id, draft.displayTitle, sidebarState.currentDraftId)
+        let item: HTMLElement = createDraftItem(draft.id, draft.displayTitle, sidebarState.currentDraftId)
+        const isInlineEditing = sidebarInlineTitleEdit?.kind === 'draft' && sidebarInlineTitleEdit.draftId === draft.id
+        if (isInlineEditing) {
+          item = createSidebarInlineEditor(
+            `编辑 ${draft.displayTitle} 的标题`,
+            sidebarInlineTitleEdit?.value ?? draft.displayTitle,
+            (nextValue) => {
+              if (!sidebarInlineTitleEdit || sidebarInlineTitleEdit.kind !== 'draft') return
+              sidebarInlineTitleEdit.value = nextValue
+            },
+            () => {
+              void commitSidebarInlineTitleEdit()
+            },
+            () => {
+              cancelSidebarInlineTitleEdit()
+            },
+          )
+        }
         if (!managingDrafts) {
           draftsList.appendChild(item)
           continue
@@ -702,12 +1093,33 @@ async function init(): Promise<void> {
         recentFiles.appendChild(createTextBlock('sidebar-empty', '还没有最近文件'))
       } else {
         for (const filePath of sidebarState.recentFiles) {
-          const item = createFileItem(
+          let item: HTMLElement = createFileItem(
             filePath,
-            basename(filePath),
+            sidebarState.fileTitleOverrides[filePath] ?? basename(filePath),
             null,
             sidebarState.currentFilePath,
+            '',
+            'recent',
           )
+          const isInlineEditing = sidebarInlineTitleEdit?.kind === 'file'
+            && sidebarInlineTitleEdit.filePath === filePath
+            && sidebarInlineTitleEdit.source === 'recent'
+          if (isInlineEditing) {
+            item = createSidebarInlineEditor(
+              `编辑 ${basename(filePath)} 的标题`,
+              sidebarInlineTitleEdit?.value ?? sidebarState.fileTitleOverrides[filePath] ?? basename(filePath),
+              (nextValue) => {
+                if (!sidebarInlineTitleEdit || sidebarInlineTitleEdit.kind !== 'file') return
+                sidebarInlineTitleEdit.value = nextValue
+              },
+              () => {
+                void commitSidebarInlineTitleEdit()
+              },
+              () => {
+                cancelSidebarInlineTitleEdit()
+              },
+            )
+          }
 
           if (!managingRecentFiles) {
             recentFiles.appendChild(item)
@@ -771,13 +1183,34 @@ async function init(): Promise<void> {
     const workdirList = document.createElement('div')
     workdirList.className = 'sidebar-list'
     for (const entry of sidebarState.workdirEntries) {
-      workdirList.appendChild(createFileItem(
+      let item: HTMLElement = createFileItem(
         entry.absolutePath,
-        basename(entry.relativePath),
+        sidebarState.fileTitleOverrides[entry.absolutePath] ?? basename(entry.relativePath),
         null,
         sidebarState.currentFilePath,
         'workdir-item',
-      ))
+        'workdir',
+      )
+      const isInlineEditing = sidebarInlineTitleEdit?.kind === 'file'
+        && sidebarInlineTitleEdit.filePath === entry.absolutePath
+        && sidebarInlineTitleEdit.source === 'workdir'
+      if (isInlineEditing) {
+        item = createSidebarInlineEditor(
+          `编辑 ${basename(entry.relativePath)} 的标题`,
+          sidebarInlineTitleEdit?.value ?? sidebarState.fileTitleOverrides[entry.absolutePath] ?? basename(entry.relativePath),
+          (nextValue) => {
+            if (!sidebarInlineTitleEdit || sidebarInlineTitleEdit.kind !== 'file') return
+            sidebarInlineTitleEdit.value = nextValue
+          },
+          () => {
+            void commitSidebarInlineTitleEdit()
+          },
+          () => {
+            cancelSidebarInlineTitleEdit()
+          },
+        )
+      }
+      workdirList.appendChild(item)
     }
     workdirBody.appendChild(workdirList)
   }
@@ -802,8 +1235,12 @@ async function init(): Promise<void> {
     void flushAutoSave().then(() => {
       const markdown = getMarkdown()
       recordRecentLocalEcho(markdown)
-      api.saveFileAs(markdown).catch(() => {})
+      api.saveFileAs(markdown, appSettings.saveAsMode).catch(() => {})
     })
+  })
+  api.onMenuSettings?.(() => {
+    closeTitleSyncPrompt()
+    settingsDialog.toggle()
   })
   api.onMenuExportPDF(() => api.exportPDF())
   api.onMenuExportHTML(() => {
@@ -864,6 +1301,8 @@ img{max-width:100%}
   })
   api.onFileOpened((data) => {
     resetLocalEchoState()
+    titleEditActive = false
+    closeTitleSyncPrompt()
     applyProgrammaticDocumentContent(data.content)
   })
   api.onFileChanged((content) => {
@@ -888,12 +1327,18 @@ img{max-width:100%}
 
   api.onSidebarState((state) => {
     setSidebarState(state)
+    settingsDialog.refresh()
   })
 
   sidebarToggle?.addEventListener('click', () => {
     clearDrawerHoverTimers()
     drawerOpenedByHover = false
     api.toggleSidebar().catch(() => {})
+  })
+
+  settingsToggle?.addEventListener('click', () => {
+    closeTitleSyncPrompt()
+    settingsDialog.toggle()
   })
 
   drawerBackdrop?.addEventListener('click', () => {
@@ -953,6 +1398,11 @@ img{max-width:100%}
     beginBlankDocumentFromSidebar()
   })
 
+  currentFile?.addEventListener('dblclick', (event) => {
+    event.preventDefault()
+    startCurrentTitleEdit()
+  })
+
   draftsToggle?.addEventListener('click', () => {
     api.toggleDraftsExpanded().catch(() => {})
   })
@@ -989,6 +1439,18 @@ img{max-width:100%}
     api.skipDraftOnboarding().then((state) => {
       if (state) setSidebarState(state)
     }).catch(() => {})
+  })
+
+  titleSyncOnce?.addEventListener('click', () => {
+    void applyAskModeTitleSync('once')
+  })
+
+  titleSyncAlways?.addEventListener('click', () => {
+    void applyAskModeTitleSync('always')
+  })
+
+  titleSyncNever?.addEventListener('click', () => {
+    void applyAskModeTitleSync('never')
   })
 
   searchInput?.addEventListener('input', () => {
@@ -1052,6 +1514,18 @@ img{max-width:100%}
       event.preventDefault()
       closeSearchPanel()
       focusEditorAtLastSelection()
+      return
+    }
+
+    if (event.key === 'Escape' && settingsDialog.isOpen()) {
+      event.preventDefault()
+      settingsDialog.close()
+      return
+    }
+
+    if (event.key === 'Escape' && titleSyncPromptState) {
+      event.preventDefault()
+      closeTitleSyncPrompt()
     }
   })
 
@@ -1087,6 +1561,7 @@ img{max-width:100%}
 
     const draftButton = target?.closest('[data-draft-id]') as HTMLElement | null
     if (draftButton) {
+      if (event.detail > 1) return
       if (managingDrafts) return
       const draftId = draftButton.dataset.draftId
       if (draftId) {
@@ -1100,6 +1575,7 @@ img{max-width:100%}
 
     const fileButton = target?.closest('[data-file-path]') as HTMLElement | null
     if (fileButton) {
+      if (event.detail > 1) return
       if (managingRecentFiles) return
       const filePath = fileButton.dataset.filePath
       if (filePath) {
@@ -1124,6 +1600,40 @@ img{max-width:100%}
         refreshSearchPanel()
         focusEditorPreservingSelection()
       }
+    }
+  })
+
+  document.addEventListener('dblclick', (event) => {
+    const target = event.target as HTMLElement | null
+
+    const draftButton = target?.closest('[data-draft-id]') as HTMLElement | null
+    if (draftButton && !managingDrafts) {
+      const draftId = draftButton.dataset.draftId
+      if (!draftId) return
+      event.preventDefault()
+      const draft = sidebarState?.draftEntries.find((entry) => entry.id === draftId)
+      sidebarInlineTitleEdit = {
+        kind: 'draft',
+        draftId,
+        value: draft?.displayTitle ?? '',
+      }
+      renderSidebar()
+      return
+    }
+
+    const fileButton = target?.closest('[data-file-path]') as HTMLElement | null
+    if (fileButton && !managingRecentFiles) {
+      const filePath = fileButton.dataset.filePath
+      const source = fileButton.dataset.sidebarSource === 'workdir' ? 'workdir' : 'recent'
+      if (!filePath) return
+      event.preventDefault()
+      sidebarInlineTitleEdit = {
+        kind: 'file',
+        filePath,
+        source,
+        value: sidebarState?.fileTitleOverrides[filePath] ?? basename(filePath),
+      }
+      renderSidebar()
     }
   })
 

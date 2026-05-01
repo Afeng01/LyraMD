@@ -14,6 +14,7 @@ export interface PersistedSidebarState {
   draftOnboardingCompleted: boolean
   draftEntries: DraftEntryRecord[]
   recentFiles: string[]
+  fileTitleOverrides: Record<string, string>
 }
 
 export interface DraftEntryRecord {
@@ -22,6 +23,7 @@ export interface DraftEntryRecord {
   createdAt: number
   updatedAt: number
   displayTitle: string
+  manualTitle?: string | null
 }
 
 export const DEFAULT_SIDEBAR_STATE: PersistedSidebarState = {
@@ -35,6 +37,7 @@ export const DEFAULT_SIDEBAR_STATE: PersistedSidebarState = {
   draftOnboardingCompleted: false,
   draftEntries: [],
   recentFiles: [],
+  fileTitleOverrides: {},
 }
 
 export function getSidebarOpenForWindow(
@@ -67,6 +70,15 @@ function isDraftEntryRecord(value: unknown): value is DraftEntryRecord {
     && typeof candidate.updatedAt === 'number'
     && Number.isFinite(candidate.updatedAt)
     && typeof candidate.displayTitle === 'string'
+    && (candidate.manualTitle == null || typeof candidate.manualTitle === 'string')
+}
+
+function normalizeFileTitleOverrides(value: unknown): Record<string, string> {
+  if (!value || typeof value !== 'object') return {}
+
+  return Object.fromEntries(
+    Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string' && entry[1].trim().length > 0),
+  )
 }
 
 export function clampSidebarWidth(width: number): number {
@@ -115,5 +127,6 @@ export function normalizeSidebarState(value: unknown): PersistedSidebarState {
     recentFiles: Array.isArray(candidate.recentFiles)
       ? candidate.recentFiles.filter((entry): entry is string => typeof entry === 'string').slice(0, DEFAULT_MAX_RECENT_FILES)
       : [],
+    fileTitleOverrides: normalizeFileTitleOverrides(candidate.fileTitleOverrides),
   }
 }

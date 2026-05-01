@@ -1,6 +1,19 @@
+import { watch, type FSWatcher } from 'fs'
+import { basename, dirname } from 'path'
+
 export interface WatchedContentDecision {
   nextSyncedContent: string
   shouldPropagate: boolean
+}
+
+export interface WatchEventDecision {
+  shouldReadFile: boolean
+}
+
+export function normalizeChangedName(changedName: string | Buffer | null | undefined): string | null {
+  if (typeof changedName === 'string') return changedName
+  if (changedName && Buffer.isBuffer(changedName)) return changedName.toString()
+  return null
 }
 
 export function recordIgnoredWatchedContent(
@@ -32,4 +45,43 @@ export function reconcileWatchedContent(
     nextSyncedContent: nextContent,
     shouldPropagate: lastSyncedContent !== nextContent,
   }
+}
+
+export function decideWatchEvent(eventType: string): WatchEventDecision {
+  if (eventType === 'rename') {
+    return {
+      shouldReadFile: true,
+    }
+  }
+
+  if (eventType === 'change') {
+    return {
+      shouldReadFile: true,
+    }
+  }
+
+  return {
+    shouldReadFile: false,
+  }
+}
+
+export function watchTargetFile(
+  filePath: string,
+  onEvent: (eventType: string) => void,
+): FSWatcher {
+  const parentDir = dirname(filePath)
+  const targetName = basename(filePath)
+
+  return watch(parentDir, (eventType, changedName) => {
+    const normalizedChangedName = normalizeChangedName(changedName)
+    if (normalizedChangedName && normalizedChangedName !== targetName) {
+      return
+    }
+
+    if (!normalizedChangedName && eventType !== 'rename') {
+      return
+    }
+
+    onEvent(eventType)
+  })
 }

@@ -11,9 +11,23 @@ export interface DraftEntry {
   createdAt: number
   updatedAt: number
   displayTitle: string
+  manualTitle?: string | null
 }
 
 export type DocumentKind = 'blank' | 'draft' | 'file'
+export type TitleSyncMode = 'ask' | 'always' | 'never'
+export type SaveAsMode = 'switch' | 'move'
+
+export interface AppSettings {
+  titleSyncMode: TitleSyncMode
+  saveAsMode: SaveAsMode
+}
+
+export interface TitleSyncPromptPayload {
+  filePath: string
+  currentTitle: string
+  suggestedFilePath: string
+}
 
 export interface SidebarState {
   sidebarOpen: boolean
@@ -29,8 +43,10 @@ export interface SidebarState {
   currentDocumentKind: DocumentKind
   currentFilePath: string | null
   currentDraftId: string | null
+  currentDisplayTitle: string
   isDrawerMode: boolean
   workdirEntries: WorkdirEntry[]
+  fileTitleOverrides: Record<string, string>
 }
 
 export interface ElectronAPI {
@@ -39,11 +55,18 @@ export interface ElectronAPI {
   beginBlankDocument: () => Promise<SidebarState | null>
   autosaveDocument: (content: string) => Promise<{ kind: DocumentKind; path: string | null }>
   saveFile: (content: string) => Promise<boolean>
-  saveFileAs: (content: string) => Promise<boolean>
+  saveFileAs: (content: string, mode?: SaveAsMode) => Promise<boolean>
   exportPDF: () => Promise<boolean>
   exportHTML: (html: string) => Promise<boolean>
   loadCustomTheme: () => Promise<{ name: string; css: string } | null>
   loadThemeCSS: (fileName: string) => Promise<string | null>
+  getSettings: () => Promise<AppSettings | null>
+  updateSettings: (patch: Partial<AppSettings>) => Promise<AppSettings | null>
+  updateCurrentDraftTitle: (nextTitle: string) => Promise<SidebarState | null>
+  updateCurrentFileTitle: (nextTitle: string) => Promise<SidebarState | null>
+  updateDraftTitleById: (draftId: string, nextTitle: string) => Promise<SidebarState | null>
+  updateFileTitleByPath: (filePath: string, nextTitle: string) => Promise<SidebarState | null>
+  renameCurrentFileFromTitle: (nextTitle: string) => Promise<{ path: string | null } | null>
   getSidebarState: () => Promise<SidebarState | null>
   toggleSidebar: () => Promise<boolean>
   toggleDraftsExpanded: () => Promise<boolean>
@@ -67,6 +90,7 @@ export interface ElectronAPI {
   onMenuOpen: (callback: () => void) => void
   onMenuSave: (callback: () => void) => void
   onMenuSaveAs: (callback: () => void) => void
+  onMenuSettings: (callback: () => void) => void
   onMenuExportPDF: (callback: () => void) => void
   onMenuExportHTML: (callback: () => void) => void
   onSetTheme: (callback: (theme: string) => void) => void
@@ -83,11 +107,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   beginBlankDocument: () => ipcRenderer.invoke('begin-blank-document'),
   autosaveDocument: (content: string) => ipcRenderer.invoke('autosave-document', content),
   saveFile: (content: string) => ipcRenderer.invoke('save-file', content),
-  saveFileAs: (content: string) => ipcRenderer.invoke('save-file-as', content),
+  saveFileAs: (content: string, mode?: SaveAsMode) => ipcRenderer.invoke('save-file-as', content, mode),
   exportPDF: () => ipcRenderer.invoke('export-pdf'),
   exportHTML: (html: string) => ipcRenderer.invoke('export-html', html),
   loadCustomTheme: () => ipcRenderer.invoke('load-custom-theme'),
   loadThemeCSS: (fileName: string) => ipcRenderer.invoke('load-theme-css', fileName),
+  getSettings: () => ipcRenderer.invoke('get-settings'),
+  updateSettings: (patch: Partial<AppSettings>) => ipcRenderer.invoke('update-settings', patch),
+  updateCurrentDraftTitle: (nextTitle: string) => ipcRenderer.invoke('update-current-draft-title', nextTitle),
+  updateCurrentFileTitle: (nextTitle: string) => ipcRenderer.invoke('update-current-file-title', nextTitle),
+  updateDraftTitleById: (draftId: string, nextTitle: string) => ipcRenderer.invoke('update-draft-title-by-id', draftId, nextTitle),
+  updateFileTitleByPath: (filePath: string, nextTitle: string) => ipcRenderer.invoke('update-file-title-by-path', filePath, nextTitle),
+  renameCurrentFileFromTitle: (nextTitle: string) => ipcRenderer.invoke('rename-current-file-from-title', nextTitle),
   getSidebarState: () => ipcRenderer.invoke('get-sidebar-state'),
   toggleSidebar: () => ipcRenderer.invoke('toggle-sidebar'),
   toggleDraftsExpanded: () => ipcRenderer.invoke('toggle-drafts-expanded'),
@@ -124,6 +155,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onMenuSaveAs: (callback: () => void) => {
     ipcRenderer.on('menu-save-as', () => callback())
+  },
+  onMenuSettings: (callback: () => void) => {
+    ipcRenderer.on('menu-settings', () => callback())
   },
   onMenuExportPDF: (callback: () => void) => {
     ipcRenderer.on('menu-export-pdf', () => callback())

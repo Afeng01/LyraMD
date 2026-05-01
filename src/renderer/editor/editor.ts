@@ -1,4 +1,5 @@
 import { Editor, rootCtx, defaultValueCtx, editorViewCtx, serializerCtx, remarkPluginsCtx } from '@milkdown/kit/core'
+import { editorViewOptionsCtx } from '@milkdown/core'
 import { DOMSerializer, type Node as ProseNode } from '@milkdown/kit/prose/model'
 import { TextSelection } from '@milkdown/kit/prose/state'
 import remarkBreaks from 'remark-breaks'
@@ -9,6 +10,10 @@ import { listener, listenerCtx } from '@milkdown/kit/plugin/listener'
 import { clipboard } from '@milkdown/kit/plugin/clipboard'
 import { replaceAll } from '@milkdown/kit/utils'
 import { htmlView } from './html-view'
+import {
+  sanitizeClipboardHtml,
+  serializeClipboardPlainText,
+} from './clipboard'
 import {
   createSearchState,
   getActiveSearchMatch,
@@ -54,7 +59,7 @@ function enhanceClipboard(e: ClipboardEvent): void {
   const html = e.clipboardData?.getData('text/html')
   if (!html) return
 
-  const doc = new DOMParser().parseFromString(html, 'text/html')
+  const doc = new DOMParser().parseFromString(sanitizeClipboardHtml(html), 'text/html')
 
   for (const [tag, style] of Object.entries(inlineStyles)) {
     doc.querySelectorAll(tag).forEach((el) => {
@@ -67,7 +72,7 @@ function enhanceClipboard(e: ClipboardEvent): void {
     ;(el as HTMLElement).setAttribute('style', 'background:none;padding:0;font-size:.875em;line-height:1.6;font-family:Menlo,Monaco,monospace;')
   })
 
-  e.clipboardData?.setData('text/html', doc.body.innerHTML)
+  e.clipboardData?.setData('text/html', sanitizeClipboardHtml(doc.body.innerHTML))
 }
 
 const defaultContent = ''
@@ -84,6 +89,9 @@ export async function createEditor(
       ctx.set(rootCtx, root)
       ctx.set(defaultValueCtx, defaultContent)
       ctx.set(remarkPluginsCtx, [{ plugin: remarkBreaks, options: undefined }])
+      ctx.set(editorViewOptionsCtx, {
+        clipboardTextSerializer: (content) => serializeClipboardPlainText(content),
+      })
       ctx.get(listenerCtx).markdownUpdated((_ctx, markdown) => {
         if (onChange) onChange(markdown)
         if (!isProgrammaticChange && onUserEditCallback) onUserEditCallback()

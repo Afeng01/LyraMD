@@ -1,5 +1,5 @@
 import { Editor, rootCtx, defaultValueCtx, editorViewCtx, serializerCtx, remarkPluginsCtx } from '@milkdown/kit/core'
-import { editorViewOptionsCtx } from '@milkdown/core'
+import { editorViewOptionsCtx, prosePluginsCtx } from '@milkdown/core'
 import { DOMSerializer, type Node as ProseNode } from '@milkdown/kit/prose/model'
 import { TextSelection } from '@milkdown/kit/prose/state'
 import remarkBreaks from 'remark-breaks'
@@ -9,26 +9,42 @@ import { history } from '@milkdown/kit/plugin/history'
 import { listener, listenerCtx } from '@milkdown/kit/plugin/listener'
 import { clipboard } from '@milkdown/kit/plugin/clipboard'
 import { replaceAll } from '@milkdown/kit/utils'
+import {
+  SearchQuery,
+  findNext as findNextMatch,
+  findPrev as findPreviousMatch,
+  getSearchState as getProsemirrorSearchState,
+  search as createProsemirrorSearchPlugin,
+  setSearchState as setProsemirrorSearchState,
+  type SearchResult,
+} from 'prosemirror-search'
 import { htmlView } from './html-view'
 import {
   sanitizeClipboardHtml,
   serializeClipboardPlainText,
 } from './clipboard'
 import {
-  createSearchState,
-  getActiveSearchMatch,
-  getNextSearchMatchIndex,
-  getPreviousSearchMatchIndex,
-  setActiveSearchMatchIndex,
+  buildSearchMatchPreview,
+  normalizeSearchQuery,
   type SearchState,
+  type SearchMatchPreview,
 } from './search'
+import { resolveActiveMatchAfterRefresh } from './search-memory'
 
 import '@milkdown/kit/prose/view/style/prosemirror.css'
 
 let editorInstance: Editor | null = null
 let isProgrammaticChange = false
 let onUserEditCallback: (() => void) | null = null
-let searchState: SearchState = createSearchState('', '')
+let searchState: SearchState = {
+  scope: 'current-file',
+  query: '',
+  normalizedQuery: '',
+  sourceText: '',
+  matches: [],
+  activeIndex: -1,
+  totalMatches: 0,
+}
 let lastEditorSelection: { anchor: number; head: number } | null = null
 let isManagedSelectionChange = false
 
@@ -89,6 +105,7 @@ export async function createEditor(
       ctx.set(rootCtx, root)
       ctx.set(defaultValueCtx, defaultContent)
       ctx.set(remarkPluginsCtx, [{ plugin: remarkBreaks, options: undefined }])
+      ctx.update(prosePluginsCtx, (plugins) => plugins.concat(createProsemirrorSearchPlugin()))
       ctx.set(editorViewOptionsCtx, {
         clipboardTextSerializer: (content) => serializeClipboardPlainText(content),
       })
@@ -136,6 +153,7 @@ export async function createEditor(
   searchState = createSearchState(getCurrentSearchSourceText(), searchState.query, {
     previousActiveIndex: searchState.activeIndex,
   })
+  searchState = readSearchStateFromEditor(searchState.query)
   rememberCurrentSelection()
 
   return editorInstance
@@ -171,14 +189,37 @@ export function setMarkdown(content: string): void {
   if (currentContent === content) return
 
   const selectionBeforeReplace = lastEditorSelection
+  const previousActiveFrom = withEditorView((view) => {
+    const search = getProsemirrorSearchState(view.state)
+    if (!search?.query.valid) return null
+
+    const activeResult = collectSearchResults(view.state, search.query, search.range).find((result) => {
+      return result.from === view.state.selection.from && result.to === view.state.selection.to
+    })
+    return activeResult?.from ?? null
+  }) ?? null
   isProgrammaticChange = true
   editorInstance.action(replaceAll(content, true))
   if (selectionBeforeReplace) {
     restoreSelection(selectionBeforeReplace)
   }
-  searchState = createSearchState(getCurrentSearchSourceText(), searchState.query, {
-    previousActiveIndex: searchState.activeIndex,
+  withEditorView((view) => {
+    const search = getProsemirrorSearchState(view.state)
+    if (!search?.query.valid || !normalizeSearchQuery(search.query.search)) return
+
+    const nextMatches = collectSearchResults(view.state, search.query, search.range)
+    const nextActiveIndex = resolveActiveMatchAfterRefresh(
+      previousActiveFrom ?? view.state.selection.from,
+      nextMatches.map((match, index) => ({ index, from: match.from, to: match.to })),
+    )
+
+    if (nextActiveIndex < 0) return
+
+    const nextActiveMatch = nextMatches[nextActiveIndex]
+    if (!nextActiveMatch) return
+    selectSearchResult(view, nextActiveMatch, true)
   })
+  searchState = readSearchStateFromEditor(searchState.query)
   rememberCurrentSelection()
 }
 
@@ -187,43 +228,69 @@ export function onUserEdit(cb: () => void): void {
 }
 
 export function setSearchQuery(query: string): SearchState {
-  searchState = createSearchState(getCurrentSearchSourceText(), query, {
-    previousActiveIndex: searchState.query === query ? searchState.activeIndex : undefined,
+  const normalizedQuery = normalizeSearchQuery(query)
+
+  withEditorView((view) => {
+    const nextQuery = new SearchQuery({
+      search: normalizedQuery,
+      caseSensitive: false,
+      regexp: false,
+      wholeWord: false,
+      literal: true,
+    })
+
+    view.dispatch(setProsemirrorSearchState(view.state.tr, nextQuery, null))
+
+    if (!nextQuery.valid || !normalizedQuery) return
+
+    const search = getProsemirrorSearchState(view.state)
+    if (!search) return
+
+    const currentSelectionMatches = collectSearchResults(view.state, search.query, search.range).some((result) => {
+      return result.from === view.state.selection.from && result.to === view.state.selection.to
+    })
+
+    if (!currentSelectionMatches) {
+      findNextMatch(view.state, view.dispatch)
+    }
   })
-  revealActiveSearchMatch()
+
+  searchState = readSearchStateFromEditor(query)
   return searchState
 }
 
 export function getSearchState(): SearchState {
-  searchState = createSearchState(getCurrentSearchSourceText(), searchState.query, {
-    previousActiveIndex: searchState.activeIndex,
-  })
+  searchState = readSearchStateFromEditor(searchState.query)
   return searchState
 }
 
 export function nextSearchMatch(): SearchState {
-  searchState = createSearchState(getCurrentSearchSourceText(), searchState.query, {
-    previousActiveIndex: searchState.activeIndex,
+  withEditorView((view) => {
+    findNextMatch(view.state, view.dispatch)
   })
-  searchState = setActiveSearchMatchIndex(searchState, getNextSearchMatchIndex(searchState))
-  revealActiveSearchMatch()
+  searchState = readSearchStateFromEditor(searchState.query)
   return searchState
 }
 
 export function previousSearchMatch(): SearchState {
-  searchState = createSearchState(getCurrentSearchSourceText(), searchState.query, {
-    previousActiveIndex: searchState.activeIndex,
+  withEditorView((view) => {
+    findPreviousMatch(view.state, view.dispatch)
   })
-  searchState = setActiveSearchMatchIndex(searchState, getPreviousSearchMatchIndex(searchState))
-  revealActiveSearchMatch()
+  searchState = readSearchStateFromEditor(searchState.query)
   return searchState
 }
 
 export function activateSearchMatch(index: number): SearchState {
-  searchState = createSearchState(getCurrentSearchSourceText(), searchState.query, {
-    previousActiveIndex: index,
+  withEditorView((view) => {
+    const search = getProsemirrorSearchState(view.state)
+    if (!search?.query.valid) return
+
+    const result = collectSearchResults(view.state, search.query, search.range)[index]
+    if (!result) return
+    selectSearchResult(view, result, true)
   })
-  revealActiveSearchMatch()
+
+  searchState = readSearchStateFromEditor(searchState.query)
   return searchState
 }
 
@@ -257,23 +324,6 @@ export function isEditorTextFocused(): boolean {
   return activeElement === root || (!!activeElement && root.contains(activeElement))
 }
 
-function revealActiveSearchMatch(): void {
-  const activeMatch = getActiveSearchMatch(searchState)
-  if (!activeMatch) return
-
-  withEditorView((view) => {
-    const textIndex = buildTextIndex(view.state.doc)
-    const range = resolveDocRangeFromOffsets(textIndex.segments, activeMatch.from, activeMatch.to)
-    if (!range) return
-
-    const selection = createSafeTextSelection(view.state.doc, range.from, range.to)
-    if (!selection) return
-
-    isManagedSelectionChange = true
-    view.dispatch(view.state.tr.setSelection(selection).scrollIntoView())
-  })
-}
-
 function rememberCurrentSelection(): void {
   withEditorView((view) => {
     lastEditorSelection = {
@@ -297,8 +347,9 @@ function restoreSelection(selectionSnapshot: { anchor: number; head: number }): 
   })
 }
 
-function getCurrentSearchSourceText(): string {
-  return withEditorView((view) => buildTextIndex(view.state.doc).text) ?? ''
+function readSearchStateFromEditor(fallbackQuery = ''): SearchState {
+  return withEditorView((view) => buildEditorSearchState(view, fallbackQuery))
+    ?? createEmptySearchState(fallbackQuery)
 }
 
 function withEditorView<T>(callback: (view: ReturnType<typeof getEditorView>) => T): T | null {
@@ -314,6 +365,67 @@ function getEditorView() {
     view = ctx.get(editorViewCtx)
   })
   return view
+}
+
+function createEmptySearchState(query = '', sourceText = ''): SearchState {
+  return {
+    scope: 'current-file',
+    query,
+    normalizedQuery: normalizeSearchQuery(query),
+    sourceText,
+    matches: [],
+    activeIndex: -1,
+    totalMatches: 0,
+  }
+}
+
+function buildEditorSearchState(
+  view: NonNullable<ReturnType<typeof getEditorView>>,
+  fallbackQuery = '',
+): SearchState {
+  const textIndex = buildTextIndex(view.state.doc)
+  const search = getProsemirrorSearchState(view.state)
+  const query = search?.query.search ?? fallbackQuery
+  const normalizedQuery = normalizeSearchQuery(query)
+
+  if (!search?.query.valid || !normalizedQuery) {
+    return createEmptySearchState(query, textIndex.text)
+  }
+
+  const rawMatches = collectSearchResults(view.state, search.query, search.range)
+  const matches: SearchMatchPreview[] = []
+  let activeIndex = -1
+
+  for (const result of rawMatches) {
+    const offsets = resolveOffsetsFromDocRange(textIndex.segments, result.from, result.to)
+    if (!offsets) continue
+
+    const preview = buildSearchMatchPreview(textIndex.text, {
+      index: matches.length,
+      from: offsets.from,
+      to: offsets.to,
+    })
+
+    if (result.from === view.state.selection.from && result.to === view.state.selection.to) {
+      activeIndex = matches.length
+    }
+
+    matches.push(preview)
+  }
+
+  if (activeIndex < 0 && matches.length > 0) {
+    activeIndex = 0
+  }
+
+  return {
+    scope: 'current-file',
+    query,
+    normalizedQuery,
+    sourceText: textIndex.text,
+    matches,
+    activeIndex,
+    totalMatches: matches.length,
+  }
 }
 
 function buildTextIndex(doc: ProseNode): {
@@ -358,6 +470,63 @@ function buildTextIndex(doc: ProseNode): {
   })
 
   return { text, segments }
+}
+
+function resolveOffsetsFromDocRange(
+  segments: Array<{ from: number; to: number; startOffset: number; endOffset: number }>,
+  from: number,
+  to: number,
+): { from: number; to: number } | null {
+  let fromOffset: number | null = null
+  let toOffset: number | null = null
+
+  for (const segment of segments) {
+    if (fromOffset == null && from >= segment.from && from <= segment.to) {
+      fromOffset = segment.startOffset + (from - segment.from)
+    }
+
+    if (toOffset == null && to >= segment.from && to <= segment.to) {
+      toOffset = segment.startOffset + (to - segment.from)
+    }
+
+    if (fromOffset != null && toOffset != null) break
+  }
+
+  if (fromOffset == null || toOffset == null) return null
+  return { from: fromOffset, to: Math.max(fromOffset, toOffset) }
+}
+
+function collectSearchResults(
+  state: NonNullable<ReturnType<typeof getEditorView>>['state'],
+  query: SearchQuery,
+  range: { from: number; to: number } | null,
+): SearchResult[] {
+  const results: SearchResult[] = []
+  const from = range?.from ?? 0
+  const to = range?.to ?? state.doc.content.size
+
+  for (let cursor = from; cursor <= to;) {
+    const next = query.findNext(state, cursor, to)
+    if (!next) break
+
+    results.push(next)
+    cursor = next.to > cursor ? next.to : cursor + 1
+  }
+
+  return results
+}
+
+function selectSearchResult(
+  view: NonNullable<ReturnType<typeof getEditorView>>,
+  result: SearchResult,
+  scrollIntoView = false,
+): void {
+  const selection = createSafeTextSelection(view.state.doc, result.from, result.to)
+  if (!selection) return
+
+  isManagedSelectionChange = true
+  const tr = view.state.tr.setSelection(selection)
+  view.dispatch(scrollIntoView ? tr.scrollIntoView() : tr)
 }
 
 function resolveDocRangeFromOffsets(

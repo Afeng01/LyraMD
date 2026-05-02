@@ -422,8 +422,6 @@ async function init(): Promise<void> {
     },
   })
 
-  let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
-  let dirtyByUser = false
   let immediateSaveInFlight = false
   let pendingImmediateSaveContent: string | null = null
   let immediateSavePromise: Promise<void> | null = null
@@ -474,14 +472,6 @@ async function init(): Promise<void> {
     if (!titleSyncOverlay) return
     titleSyncOverlay.hidden = false
     titleSyncOverlay.setAttribute('aria-hidden', 'false')
-  }
-
-  const clearPendingAutoSave = (): void => {
-    if (autoSaveTimer) {
-      clearTimeout(autoSaveTimer)
-      autoSaveTimer = null
-    }
-    dirtyByUser = false
   }
 
   const processIncomingDocumentContent = (
@@ -548,15 +538,6 @@ async function init(): Promise<void> {
   }
 
   const flushAutoSave = async (): Promise<void> => {
-    if (autoSaveTimer) {
-      clearTimeout(autoSaveTimer)
-      autoSaveTimer = null
-    }
-    if (dirtyByUser) {
-      dirtyByUser = false
-      await api.autosaveDocument(getMarkdown()).catch(() => null)
-      syncSidebarState()
-    }
     await (immediateSavePromise ?? Promise.resolve())
   }
 
@@ -718,14 +699,6 @@ async function init(): Promise<void> {
     closeTitleSyncPrompt()
   }
 
-  const scheduleAutoSave = (): void => {
-    if (autoSaveTimer) clearTimeout(autoSaveTimer)
-    dirtyByUser = true
-    autoSaveTimer = setTimeout(() => {
-      void flushAutoSave()
-    }, 3000)
-  }
-
   const persistCurrentViewportOffset = (): void => {
     if (!editorShell || !sidebarState) return
     const currentKey = getDocumentViewportKey(
@@ -739,7 +712,6 @@ async function init(): Promise<void> {
 
   const applyProgrammaticDocumentContent = (content: string, nextScrollTop?: number): void => {
     const shouldRestoreFocus = isEditorTextFocused()
-    clearPendingAutoSave()
     pendingBlankMaterialization = false
     setMarkdown(content)
     updateEditorPlaceholder(content)
@@ -786,13 +758,8 @@ async function init(): Promise<void> {
       markdown,
     )
 
-    if (decision.clearPending) {
-      clearPendingAutoSave()
-    }
-
     if (decision.materializeDraftImmediately) {
       pendingBlankMaterialization = true
-      dirtyByUser = false
       void saveImmediately(markdown).catch(() => {
         pendingBlankMaterialization = false
       })
@@ -800,13 +767,8 @@ async function init(): Promise<void> {
     }
 
     if (decision.persistImmediately) {
-      clearPendingAutoSave()
       void saveImmediately(markdown)
       return
-    }
-
-    if (decision.scheduleDebouncedSave) {
-      scheduleAutoSave()
     }
   })
 

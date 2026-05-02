@@ -1,10 +1,8 @@
 import type { DocumentKind } from '../../preload'
 
 export interface AutosaveDecision {
-  clearPending: boolean
   materializeDraftImmediately: boolean
   persistImmediately: boolean
-  scheduleDebouncedSave: boolean
 }
 
 export type SearchNavigationSource = 'input' | 'button' | 'editor'
@@ -25,45 +23,35 @@ export function decideAutosaveBehavior(
 
   if (origin === 'programmatic') {
     return {
-      clearPending: true,
       materializeDraftImmediately: false,
       persistImmediately: false,
-      scheduleDebouncedSave: false,
     }
   }
 
   if (documentKind === 'draft') {
     return {
-      clearPending: false,
       materializeDraftImmediately: false,
       persistImmediately: true,
-      scheduleDebouncedSave: false,
     }
   }
 
   if (!hasMeaningfulContent) {
     if (documentKind === 'file') {
       return {
-        clearPending: false,
         materializeDraftImmediately: false,
         persistImmediately: true,
-        scheduleDebouncedSave: false,
       }
     }
 
     return {
-      clearPending: false,
       materializeDraftImmediately: false,
       persistImmediately: false,
-      scheduleDebouncedSave: false,
     }
   }
 
   return {
-    clearPending: false,
     materializeDraftImmediately: documentKind === 'blank',
     persistImmediately: documentKind === 'file',
-    scheduleDebouncedSave: false,
   }
 }
 

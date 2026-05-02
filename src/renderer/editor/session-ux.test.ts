@@ -11,64 +11,50 @@ import {
 describe('decideAutosaveBehavior', () => {
   it('materializes a blank document immediately on the first real user edit', () => {
     expect(decideAutosaveBehavior('user', 'blank', 'Hello')).toEqual({
-      clearPending: false,
       materializeDraftImmediately: true,
       persistImmediately: false,
-      scheduleDebouncedSave: false,
     })
   })
 
   it('does not autosave blank whitespace-only user input', () => {
     expect(decideAutosaveBehavior('user', 'blank', ' \n\t')).toEqual({
-      clearPending: false,
       materializeDraftImmediately: false,
       persistImmediately: false,
-      scheduleDebouncedSave: false,
     })
   })
 
   it('still persists clearing an existing file immediately', () => {
     expect(decideAutosaveBehavior('user', 'file', ' \n\t')).toEqual({
-      clearPending: false,
       materializeDraftImmediately: false,
       persistImmediately: true,
-      scheduleDebouncedSave: false,
     })
   })
 
   it('clears pending autosave state on programmatic updates', () => {
     expect(decideAutosaveBehavior('programmatic', 'file', 'Incoming update')).toEqual({
-      clearPending: true,
       materializeDraftImmediately: false,
       persistImmediately: false,
-      scheduleDebouncedSave: false,
     })
   })
 
   it('persists regular file edits immediately', () => {
     expect(decideAutosaveBehavior('user', 'file', 'Updated text')).toEqual({
-      clearPending: false,
       materializeDraftImmediately: false,
       persistImmediately: true,
-      scheduleDebouncedSave: false,
     })
   })
 
   it('persists draft edits immediately instead of waiting for debounce', () => {
     expect(decideAutosaveBehavior('user', 'draft', 'Updated draft text')).toEqual({
-      clearPending: false,
       materializeDraftImmediately: false,
       persistImmediately: true,
-      scheduleDebouncedSave: false,
     })
   })
 
   it('still persists clearing a draft immediately so switching never loses the latest state', () => {
     expect(decideAutosaveBehavior('user', 'draft', ' \n\t')).toEqual({
-      clearPending: false,
       materializeDraftImmediately: false,
       persistImmediately: true,
-      scheduleDebouncedSave: false,
     })
   })
 })

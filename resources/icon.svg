@@ -1,35 +1,80 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="card-fill" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#faf6ef"/>
-      <stop offset="100%" stop-color="#f7f1e7"/>
+    <!-- 背景乳白色 -->
+    <radialGradient id="bgGradient" cx="50%" cy="45%" r="75%">
+      <stop offset="0%" stop-color="#FFFDF6"/>
+      <stop offset="100%" stop-color="#FFF8EA"/>
+    </radialGradient>
+
+    <!-- 呼吸灯光晕 -->
+    <radialGradient id="breathGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FF7A1A" stop-opacity="0.38"/>
+      <stop offset="42%" stop-color="#FF8A2A" stop-opacity="0.20"/>
+      <stop offset="100%" stop-color="#FF8A2A" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- 呼吸灯本体 -->
+    <linearGradient id="breathDot" x1="330" y1="250" x2="375" y2="305" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FF9A36"/>
+      <stop offset="100%" stop-color="#FF6A00"/>
     </linearGradient>
 
-    <filter id="sun-glow" x="-80%" y="-80%" width="260%" height="260%">
-      <feGaussianBlur stdDeviation="20"/>
+    <!-- 线条橙色 -->
+    <linearGradient id="orangeStroke" x1="300" y1="760" x2="760" y2="260" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FF6500"/>
+      <stop offset="100%" stop-color="#F04E00"/>
+    </linearGradient>
+
+    <!-- 轻微柔化阴影 -->
+    <filter id="softBlur" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="22"/>
     </filter>
   </defs>
 
+  <!-- 外层背景 -->
+  <rect width="1024" height="1024" fill="url(#bgGradient)"/>
+
+  <!-- 主圆角图标底 -->
   <rect
-    x="100"
+    x="112"
     y="100"
-    width="824"
-    height="824"
-    rx="114"
-    fill="url(#card-fill)"
-    stroke="#e7dfd2"
-    stroke-width="6"
+    width="800"
+    height="820"
+    rx="142"
+    fill="#FFFDF7"
+    stroke="#DDD5C7"
+    stroke-width="7"
   />
 
-  <circle cx="258" cy="243" r="42" fill="#ff8a1c" opacity="0.26" filter="url(#sun-glow)"/>
-  <circle cx="258" cy="243" r="33" fill="#ff8a1c"/>
+  <!-- 呼吸灯光晕 -->
+  <circle
+    cx="280"
+    cy="255"
+    r="92"
+    fill="url(#breathGlow)"
+    filter="url(#softBlur)"
+  />
 
-  <g fill="none" stroke="#ff6412" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M234 884 C228 792 290 744 390 670 C469 611 514 560 533 538"/>
-    <path d="M320 884 C314 791 370 733 450 650 C544 554 594 500 614 458"/>
-    <path d="M407 884 C401 792 455 724 528 632 C622 514 659 433 672 378"/>
-    <path d="M495 884 C489 790 536 710 600 606 C683 474 709 360 718 298"/>
-    <path d="M583 884 C578 791 615 693 665 574 C731 419 750 311 756 258"/>
-    <path d="M671 884 C667 786 695 664 736 523 C781 369 789 250 790 180"/>
+  <!-- 呼吸灯主体 -->
+  <circle
+    cx="280"
+    cy="255"
+    r="38"
+    fill="url(#breathDot)"
+  />
+
+  <!-- 右侧橙色曲线组 -->
+  <g
+    stroke="url(#orangeStroke)"
+    stroke-width="9"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path d="M238 865 C238 775 302 738 392 677 C465 628 513 579 548 518" />
+    <path d="M324 865 C324 778 384 735 472 660 C535 607 589 532 626 445" />
+    <path d="M413 865 C413 781 467 738 547 646 C612 572 661 493 692 374" />
+    <path d="M502 865 C502 785 554 736 617 630 C677 529 710 444 734 306" />
+    <path d="M594 865 C594 785 643 734 693 612 C745 486 769 376 778 230" />
+    <path d="M683 865 C683 785 735 720 770 583 C807 438 822 310 823 160" />
   </g>
 </svg>

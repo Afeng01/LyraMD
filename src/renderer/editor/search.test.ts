@@ -4,6 +4,7 @@ import {
   buildSearchMatchPreview,
   createSearchState,
   getNearbySearchMatchPreviews,
+  normalizeSearchQuery,
 } from './search'
 
 describe('buildSearchMatchPreview', () => {
@@ -19,6 +20,12 @@ describe('buildSearchMatchPreview', () => {
       after: 'line',
       nextLine: 'gamma line',
     })
+  })
+})
+
+describe('normalizeSearchQuery', () => {
+  it('normalizes multi-line input into a single-line search query', () => {
+    expect(normalizeSearchQuery('  alpha\n\n beta \n gamma  ')).toBe('alpha beta gamma')
   })
 })
 

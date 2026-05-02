@@ -31,7 +31,7 @@ export interface SearchOptions {
 }
 
 export function normalizeSearchQuery(query: string): string {
-  return query.trim()
+  return query.replace(/\s*\n+\s*/g, ' ').replace(/\s+/g, ' ').trim()
 }
 
 export function findCurrentFileMatches(

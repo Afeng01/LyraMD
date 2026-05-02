@@ -68,6 +68,16 @@ describe('resolveSearchCount', () => {
 })
 
 describe('resolveActiveMatchAfterRefresh', () => {
+  it('keeps the exact active match when it still exists after refresh', () => {
+    const nextMatches: SearchRangeLike[] = [
+      { index: 0, from: 5, to: 8 },
+      { index: 1, from: 18, to: 21 },
+      { index: 2, from: 28, to: 31 },
+    ]
+
+    expect(resolveActiveMatchAfterRefresh(18, nextMatches)).toBe(1)
+  })
+
   it('prefers the nearest not-later successor when the original match disappears', () => {
     const nextMatches: SearchRangeLike[] = [
       { index: 0, from: 5, to: 8 },

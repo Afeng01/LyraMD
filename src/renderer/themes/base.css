@@ -547,7 +547,7 @@ html, body {
 
 #search-panel {
   position: absolute;
-  top: 18px;
+  top: var(--search-panel-top, 18px);
   right: 18px;
   z-index: 10;
   width: min(360px, calc(100% - 36px));
@@ -569,6 +569,46 @@ html, body {
 
 .search-panel-actions {
   margin-top: 10px;
+}
+
+.search-context {
+  margin-top: 10px;
+  padding: 10px 11px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent 18%);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg-color) 93%, var(--border-color) 7%);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.search-context-line {
+  min-height: 18px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.search-context-line.muted {
+  color: var(--text-muted);
+}
+
+.search-context-line.current {
+  font-weight: 500;
+}
+
+.search-context-line.empty {
+  color: var(--text-muted);
+}
+
+.search-context-current-match {
+  padding: 0 2px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--selection-bg) 78%, transparent 22%);
+  color: var(--text-color);
 }
 
 .search-meta {

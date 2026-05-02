@@ -1,3 +1,5 @@
+import { normalizeSearchQuery } from './search'
+
 export interface SearchMemoryState {
   [documentKey: string]: string
 }
@@ -15,7 +17,7 @@ export function rememberQueryForDocument(
 ): SearchMemoryState {
   if (!documentKey) return state
 
-  const normalizedQuery = query.trim()
+  const normalizedQuery = normalizeSearchQuery(query)
   if (!normalizedQuery) {
     const { [documentKey]: _removed, ...rest } = state
     return rest

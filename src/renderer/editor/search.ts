@@ -24,6 +24,22 @@ export interface SearchState {
   totalMatches: number
 }
 
+export type SearchPanelPreview =
+  | {
+    status: 'idle' | 'empty' | 'fallback'
+    previousLine: string
+    currentLine: string
+    nextLine: string
+  }
+  | {
+    status: 'ready'
+    previousLine: string
+    currentLineBefore: string
+    currentLineMatch: string
+    currentLineAfter: string
+    nextLine: string
+  }
+
 export interface SearchOptions {
   caseSensitive?: boolean
   previousActiveIndex?: number
@@ -163,4 +179,34 @@ export function getNearbySearchMatchPreviews(
   const start = Math.max(0, state.activeIndex - radius)
   const end = Math.min(state.matches.length, state.activeIndex + radius + 1)
   return state.matches.slice(start, end)
+}
+
+export function resolveSearchPanelPreview(state: SearchState): SearchPanelPreview {
+  if (!state.normalizedQuery) {
+    return {
+      status: 'idle',
+      previousLine: '',
+      currentLine: '输入关键词开始搜索',
+      nextLine: '',
+    }
+  }
+
+  const activeMatch = getActiveSearchMatch(state)
+  if (!activeMatch) {
+    return {
+      status: 'empty',
+      previousLine: '',
+      currentLine: '未找到匹配内容',
+      nextLine: '',
+    }
+  }
+
+  return {
+    status: 'ready',
+    previousLine: activeMatch.previousLine,
+    currentLineBefore: activeMatch.before,
+    currentLineMatch: activeMatch.match,
+    currentLineAfter: activeMatch.after,
+    nextLine: activeMatch.nextLine,
+  }
 }

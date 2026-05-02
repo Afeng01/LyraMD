@@ -21,6 +21,12 @@ describe('rememberQueryForDocument', () => {
     })
   })
 
+  it('stores the remembered query in its normalized single-line form', () => {
+    expect(rememberQueryForDocument({}, '/a.md', 'alpha\n\n beta')).toEqual({
+      '/a.md': 'alpha beta',
+    })
+  })
+
   it('removes the remembered query when the next query is empty', () => {
     const state: SearchMemoryState = {
       '/a.md': 'alpha',

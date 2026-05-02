@@ -1,7 +1,6 @@
 import {
   activateSearchMatch,
   createEditor,
-  focusEditorPreservingSelection,
   focusEditorAtLastSelection,
   getHTML,
   getMarkdown,
@@ -13,7 +12,7 @@ import {
   setMarkdown,
   setSearchQuery,
 } from './editor/editor'
-import type { SearchState } from './editor/search'
+import { resolveSearchPanelPreview, type SearchState } from './editor/search'
 import {
   rememberQueryForDocument,
   resolveRememberedQuery,
@@ -706,6 +705,9 @@ async function init(): Promise<void> {
   const searchClose = document.getElementById('search-close') as HTMLButtonElement | null
   const searchPrev = document.getElementById('search-prev') as HTMLButtonElement | null
   const searchNext = document.getElementById('search-next') as HTMLButtonElement | null
+  const searchContextPrev = document.getElementById('search-context-prev') as HTMLDivElement | null
+  const searchContextCurrent = document.getElementById('search-context-current') as HTMLDivElement | null
+  const searchContextNext = document.getElementById('search-context-next') as HTMLDivElement | null
 
   const persistCurrentViewportOffset = (): void => {
     if (!editorShell || !sidebarState) return
@@ -799,6 +801,55 @@ async function init(): Promise<void> {
   let searchInputComposing = false
   let searchQueryMemory: SearchMemoryState = {}
 
+  const syncSearchPanelAnchor = (): void => {
+    if (!searchPanel || !editorShell) return
+    const nextTop = `${editorShell.scrollTop + 18}px`
+    searchPanel.style.setProperty('--search-panel-top', nextTop)
+  }
+
+  const renderSearchPreviewText = (
+    target: HTMLDivElement | null,
+    text: string,
+    emptyClass = false,
+  ): void => {
+    if (!target) return
+    target.textContent = text
+    target.classList.toggle('empty', emptyClass)
+  }
+
+  const renderSearchPreviewCurrent = (state: SearchState): void => {
+    if (!searchContextCurrent) return
+
+    const preview = resolveSearchPanelPreview(state)
+    if (preview.status !== 'ready') {
+      searchContextCurrent.textContent = preview.currentLine
+      searchContextCurrent.classList.add('empty')
+      renderSearchPreviewText(searchContextPrev, preview.previousLine, true)
+      renderSearchPreviewText(searchContextNext, preview.nextLine, true)
+      return
+    }
+
+    searchContextCurrent.classList.remove('empty')
+    searchContextCurrent.textContent = ''
+
+    if (preview.currentLineBefore) {
+      searchContextCurrent.appendChild(document.createTextNode(preview.currentLineBefore))
+      searchContextCurrent.appendChild(document.createTextNode(' '))
+    }
+
+    const match = document.createElement('span')
+    match.className = 'search-context-current-match'
+    match.textContent = preview.currentLineMatch
+    searchContextCurrent.appendChild(match)
+
+    if (preview.currentLineAfter) {
+      searchContextCurrent.appendChild(document.createTextNode(` ${preview.currentLineAfter}`))
+    }
+
+    renderSearchPreviewText(searchContextPrev, preview.previousLine, preview.previousLine.length === 0)
+    renderSearchPreviewText(searchContextNext, preview.nextLine, preview.nextLine.length === 0)
+  }
+
   const getCurrentSearchDocumentKey = (): string | null => {
     if (!sidebarState) return null
     return getDocumentViewportKey(
@@ -815,6 +866,8 @@ async function init(): Promise<void> {
     searchCount.textContent = `${count.activeNumber} / ${count.totalMatches}`
     searchPrev.disabled = state.totalMatches === 0
     searchNext.disabled = state.totalMatches === 0
+    renderSearchPreviewCurrent(state)
+    syncSearchPanelAnchor()
   }
 
   const refreshSearchPanel = (): void => {
@@ -834,8 +887,11 @@ async function init(): Promise<void> {
     if (searchInput) {
       searchInput.value = nextQuery
     }
-    setSearchQuery(nextQuery)
-    refreshSearchPanel()
+    const nextState = setSearchQuery(nextQuery)
+    if (searchInput) {
+      searchInput.value = nextState.normalizedQuery
+    }
+    renderSearchPanel(nextState)
     searchInput?.focus()
     searchInput?.select()
   }
@@ -1389,10 +1445,11 @@ img{max-width:100%}
 
   searchInput?.addEventListener('input', () => {
     const nextQuery = searchInput.value
+    const nextState = setSearchQuery(nextQuery)
     const documentKey = getCurrentSearchDocumentKey()
-    searchQueryMemory = rememberQueryForDocument(searchQueryMemory, documentKey, nextQuery)
-    setSearchQuery(nextQuery)
-    refreshSearchPanel()
+    searchQueryMemory = rememberQueryForDocument(searchQueryMemory, documentKey, nextState.normalizedQuery)
+    searchInput.value = nextState.normalizedQuery
+    renderSearchPanel(nextState)
   })
 
   searchInput?.addEventListener('compositionstart', () => {
@@ -1424,16 +1481,24 @@ img{max-width:100%}
     refreshSearchPanel()
   })
 
+  searchPrev?.addEventListener('mousedown', (event) => {
+    event.preventDefault()
+  })
+
+  searchNext?.addEventListener('mousedown', (event) => {
+    event.preventDefault()
+  })
+
   searchPrev?.addEventListener('click', () => {
     previousSearchMatch()
     refreshSearchPanel()
-    focusEditorPreservingSelection()
+    searchInput?.focus()
   })
 
   searchNext?.addEventListener('click', () => {
     nextSearchMatch()
     refreshSearchPanel()
-    focusEditorPreservingSelection()
+    searchInput?.focus()
   })
 
   searchClose?.addEventListener('click', () => {
@@ -1473,6 +1538,10 @@ img{max-width:100%}
       closeTitleSyncPrompt()
     }
   })
+
+  editorShell?.addEventListener('scroll', () => {
+    syncSearchPanelAnchor()
+  }, { passive: true })
 
   document.addEventListener('click', (event) => {
     const target = event.target as HTMLElement | null

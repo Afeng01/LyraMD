@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   decideAutosaveBehavior,
   getDocumentViewportKey,
+  resolveCenteredViewportScrollTop,
   resolveSearchNavigationFocusMode,
   shouldShowEmptyEditorPlaceholder,
 } from './session-ux'
@@ -95,10 +96,30 @@ describe('shouldShowEmptyEditorPlaceholder', () => {
 })
 
 describe('resolveSearchNavigationFocusMode', () => {
-  it('keeps focus in the panel only for modified input navigation', () => {
+  it('keeps focus in the panel for search input and button navigation', () => {
     expect(resolveSearchNavigationFocusMode('input', true)).toBe('panel')
-    expect(resolveSearchNavigationFocusMode('input', false)).toBe('editor')
-    expect(resolveSearchNavigationFocusMode('button', false)).toBe('editor')
+    expect(resolveSearchNavigationFocusMode('input', false)).toBe('panel')
+    expect(resolveSearchNavigationFocusMode('button', false)).toBe('panel')
     expect(resolveSearchNavigationFocusMode('editor', false)).toBe('editor')
+  })
+})
+
+describe('resolveCenteredViewportScrollTop', () => {
+  it('centers the target block using its current viewport offset when possible', () => {
+    expect(resolveCenteredViewportScrollTop({
+      currentScrollTop: 120,
+      viewportHeight: 400,
+      targetTop: 520,
+      targetHeight: 40,
+    })).toBe(460)
+  })
+
+  it('clamps negative centered offsets back to the top of the document', () => {
+    expect(resolveCenteredViewportScrollTop({
+      currentScrollTop: 40,
+      viewportHeight: 400,
+      targetTop: 80,
+      targetHeight: 40,
+    })).toBe(0)
   })
 })

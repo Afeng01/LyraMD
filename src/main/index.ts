@@ -368,7 +368,7 @@ function createWindow(initialDocument?: { filePath: string; documentKind?: Exclu
     minWidth: 560,
     minHeight: 400,
     titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 16, y: 16 },
+    trafficLightPosition: { x: 14, y: 14 },
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,

@@ -9,6 +9,12 @@ export interface AutosaveDecision {
 
 export type SearchNavigationSource = 'input' | 'button' | 'editor'
 export type SearchNavigationFocusMode = 'panel' | 'editor'
+export interface CenteredViewportScrollTarget {
+  currentScrollTop: number
+  viewportHeight: number
+  targetTop: number
+  targetHeight: number
+}
 
 export function decideAutosaveBehavior(
   origin: 'user' | 'programmatic',
@@ -79,6 +85,13 @@ export function resolveSearchNavigationFocusMode(
   source: SearchNavigationSource,
   withModifier: boolean,
 ): SearchNavigationFocusMode {
-  if (source === 'input' && withModifier) return 'panel'
-  return 'editor'
+  if (source === 'editor') return 'editor'
+  return 'panel'
+}
+
+export function resolveCenteredViewportScrollTop(
+  target: CenteredViewportScrollTarget,
+): number {
+  const centeredTop = target.currentScrollTop + target.targetTop - ((target.viewportHeight - target.targetHeight) / 2)
+  return Math.max(0, Math.round(centeredTop))
 }

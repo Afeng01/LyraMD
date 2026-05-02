@@ -29,4 +29,30 @@ describe('search panel regression', () => {
     expect(main).toContain('resolveSearchNavigationFocusMode(')
     expect(main).toContain('search-context-current-match')
   })
+
+  it('does not restore the stale editor selection before advancing search navigation', () => {
+    const main = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+    const navigateStart = main.indexOf("const navigateSearchMatches = (direction: 'next' | 'previous'): void => {")
+    const navigateEnd = main.indexOf('\n  }\n\n  const openSearchPanel', navigateStart)
+    const navigateBody = main.slice(navigateStart, navigateEnd)
+
+    expect(navigateBody).not.toContain('focusEditorAtLastSelection()')
+  })
+
+  it('ships visible in-editor highlight styles for normal and active search matches', () => {
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+
+    expect(css).toContain('.ProseMirror-search-match')
+    expect(css).toContain('.ProseMirror-active-search-match')
+  })
+
+  it('syncs empty-editor placeholder typography from the live editor anchor instead of only copying box offsets', () => {
+    const main = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+
+    expect(main).toContain('const anchorStyle = window.getComputedStyle(anchor)')
+    expect(main).toContain('editorPlaceholder.style.fontFamily = anchorStyle.fontFamily')
+    expect(main).toContain('editorPlaceholder.style.fontSize = anchorStyle.fontSize')
+    expect(main).toContain('editorPlaceholder.style.lineHeight = anchorStyle.lineHeight')
+    expect(main).toContain('editorPlaceholder.style.letterSpacing = anchorStyle.letterSpacing')
+  })
 })

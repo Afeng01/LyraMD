@@ -7,11 +7,13 @@ export type SaveAsMode = 'switch' | 'move'
 export interface AppSettings {
   titleSyncMode: TitleSyncMode
   saveAsMode: SaveAsMode
+  themeName: string
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   titleSyncMode: 'ask',
   saveAsMode: 'switch',
+  themeName: 'elegant',
 }
 
 type PersistedAppSettings = Partial<Record<keyof AppSettings, unknown>>
@@ -25,6 +27,10 @@ function isSaveAsMode(value: unknown): value is SaveAsMode {
   return value === 'switch' || value === 'move'
 }
 
+function isThemeName(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0
+}
+
 export function normalizeAppSettings(input: PersistedAppSettings | null | undefined): AppSettings {
   return {
     titleSyncMode: isTitleSyncMode(input?.titleSyncMode)
@@ -33,6 +39,9 @@ export function normalizeAppSettings(input: PersistedAppSettings | null | undefi
     saveAsMode: isSaveAsMode(input?.saveAsMode)
       ? input.saveAsMode
       : DEFAULT_APP_SETTINGS.saveAsMode,
+    themeName: isThemeName(input?.themeName)
+      ? input.themeName
+      : DEFAULT_APP_SETTINGS.themeName,
   }
 }
 
@@ -65,6 +74,9 @@ export async function updateAppSettings(
     saveAsMode: isSaveAsMode(patch.saveAsMode)
       ? patch.saveAsMode
       : currentSettings.saveAsMode,
+    themeName: isThemeName(patch.themeName)
+      ? patch.themeName
+      : currentSettings.themeName,
   }
 
   await persistAppSettings(settingsPath, nextSettings)

@@ -44,6 +44,25 @@ describe('loadAppSettings', () => {
     expect(settings).toEqual(settingsModule.DEFAULT_APP_SETTINGS)
     expect(JSON.parse(await readFile(settingsPath, 'utf-8'))).toEqual(settingsModule.DEFAULT_APP_SETTINGS)
   })
+
+  it('preserves a persisted theme name alongside other app settings', async () => {
+    const settingsModule = await loadSettingsModule()
+    const tempDir = await createTempDir()
+    const settingsPath = join(tempDir, 'settings.json')
+    await writeFile(settingsPath, JSON.stringify({
+      titleSyncMode: 'always',
+      saveAsMode: 'move',
+      themeName: 'newsprint',
+    }), 'utf-8')
+
+    const settings = await settingsModule.loadAppSettings(settingsPath)
+
+    expect(settings).toEqual({
+      titleSyncMode: 'always',
+      saveAsMode: 'move',
+      themeName: 'newsprint',
+    })
+  })
 })
 
 describe('updateAppSettings', () => {
@@ -58,8 +77,8 @@ describe('updateAppSettings', () => {
       { titleSyncMode: 'always', saveAsMode: 'move' },
     )
 
-    expect(updated).toEqual({ titleSyncMode: 'always', saveAsMode: 'move' })
-    expect(JSON.parse(await readFile(settingsPath, 'utf-8'))).toEqual({ titleSyncMode: 'always', saveAsMode: 'move' })
+    expect(updated).toEqual({ titleSyncMode: 'always', saveAsMode: 'move', themeName: 'elegant' })
+    expect(JSON.parse(await readFile(settingsPath, 'utf-8'))).toEqual({ titleSyncMode: 'always', saveAsMode: 'move', themeName: 'elegant' })
   })
 
   it('ignores unsupported app settings updates', async () => {
@@ -69,14 +88,35 @@ describe('updateAppSettings', () => {
 
     const updated = await settingsModule.updateAppSettings(
       settingsPath,
-      { titleSyncMode: 'never', saveAsMode: 'switch' },
+      { titleSyncMode: 'never', saveAsMode: 'switch', themeName: 'elegant' },
       {
         titleSyncMode: 'unsupported' as 'ask',
         saveAsMode: 'unsupported' as 'switch',
       },
     )
 
-    expect(updated).toEqual({ titleSyncMode: 'never', saveAsMode: 'switch' })
-    expect(JSON.parse(await readFile(settingsPath, 'utf-8'))).toEqual({ titleSyncMode: 'never', saveAsMode: 'switch' })
+    expect(updated).toEqual({ titleSyncMode: 'never', saveAsMode: 'switch', themeName: 'elegant' })
+    expect(JSON.parse(await readFile(settingsPath, 'utf-8'))).toEqual({ titleSyncMode: 'never', saveAsMode: 'switch', themeName: 'elegant' })
+  })
+
+  it('persists theme name updates', async () => {
+    const settingsModule = await loadSettingsModule()
+    const tempDir = await createTempDir()
+    const settingsPath = join(tempDir, 'settings.json')
+
+    const updated = await settingsModule.updateAppSettings(
+      settingsPath,
+      settingsModule.DEFAULT_APP_SETTINGS,
+      { themeName: 'dark' },
+    )
+
+    expect(updated).toEqual({
+      ...settingsModule.DEFAULT_APP_SETTINGS,
+      themeName: 'dark',
+    })
+    expect(JSON.parse(await readFile(settingsPath, 'utf-8'))).toEqual({
+      ...settingsModule.DEFAULT_APP_SETTINGS,
+      themeName: 'dark',
+    })
   })
 })

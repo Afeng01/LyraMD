@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 import { buildTitleSyncPath, decideTitleSync, sanitizeTitleToFileStem } from './title-sync'
 
@@ -81,5 +83,13 @@ describe('buildTitleSyncPath', () => {
 
   it('returns null when the title becomes empty after sanitization', () => {
     expect(buildTitleSyncPath('/tmp/old.md', '////')).toBeNull()
+  })
+})
+
+describe('macOS window chrome', () => {
+  it('uses a tighter traffic light offset so the hidden inset title bar does not feel oversized', () => {
+    const file = readFileSync(join(process.cwd(), 'src/main/index.ts'), 'utf8')
+
+    expect(file).toContain("trafficLightPosition: { x: 14, y: 14 }")
   })
 })

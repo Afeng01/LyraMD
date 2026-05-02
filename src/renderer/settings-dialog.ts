@@ -1,5 +1,5 @@
 import type { AppSettings, ElectronAPI, SaveAsMode, SidebarState, TitleSyncMode } from '../preload/index'
-import { applyTheme, loadSavedTheme } from './themes/theme-manager'
+import { applyTheme } from './themes/theme-manager'
 
 const BUILT_IN_THEMES = [
   { id: 'elegant', label: 'Elegant' },
@@ -15,6 +15,10 @@ function getThemeSummary(themeName: string): string {
 
   const builtin = BUILT_IN_THEMES.find((theme) => theme.id === themeName)
   return builtin ? `当前主题 · ${builtin.label}` : `当前主题 · ${themeName}`
+}
+
+function isMacPlatform(): boolean {
+  return navigator.platform.toLowerCase().includes('mac')
 }
 
 export interface SettingsDialogController {
@@ -125,7 +129,7 @@ export function createSettingsDialogController({
   const formatKeyCombo = (event: KeyboardEvent): string => {
     const parts: string[] = []
     if (event.metaKey || (event.ctrlKey && !parts.includes('Ctrl'))) {
-      parts.push(window.process.platform === 'darwin' ? '⌘' : 'Ctrl')
+      parts.push(isMacPlatform() && event.metaKey ? '⌘' : 'Ctrl')
     }
     if (event.shiftKey) parts.push('Shift')
     if (event.altKey) parts.push('Alt')
@@ -142,7 +146,7 @@ export function createSettingsDialogController({
   const render = (): void => {
     const appSettings = getAppSettings()
     const sidebarState = getSidebarState()
-    const activeTheme = loadSavedTheme()
+    const activeTheme = appSettings.themeName
 
     for (const input of titleSyncInputs) {
       input.checked = input.value === appSettings.titleSyncMode
@@ -288,18 +292,29 @@ export function createSettingsDialogController({
   })
 
   for (const button of themeButtons) {
-    button.addEventListener('click', () => {
+    button.addEventListener('click', async () => {
       const themeName = button.dataset.settingsTheme
       if (!themeName) return
       applyTheme(themeName)
+      const next = (await api.updateSettings({ themeName }).catch(() => null)) ?? {
+        ...getAppSettings(),
+        themeName,
+      }
+      onAppSettingsChange(next)
       render()
     })
   }
 
   importThemeButton?.addEventListener('click', () => {
-    api.loadCustomTheme().then((result) => {
+    api.loadCustomTheme().then(async (result) => {
       if (!result) return
-      applyTheme(`custom:${result.name}`, result.css)
+      const themeName = `custom:${result.name}`
+      applyTheme(themeName, result.css)
+      const next = (await api.updateSettings({ themeName }).catch(() => null)) ?? {
+        ...getAppSettings(),
+        themeName,
+      }
+      onAppSettingsChange(next)
       render()
     }).catch(() => {})
   })

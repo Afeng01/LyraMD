@@ -21,6 +21,7 @@ export type SaveAsMode = 'switch' | 'move'
 export interface AppSettings {
   titleSyncMode: TitleSyncMode
   saveAsMode: SaveAsMode
+  themeName: string
 }
 
 export interface TitleSyncPromptPayload {

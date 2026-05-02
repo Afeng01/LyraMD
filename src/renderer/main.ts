@@ -2,6 +2,7 @@ import {
   activateSearchMatch,
   createEditor,
   focusEditorAtLastSelection,
+  focusEditorPreservingSelection,
   getHTML,
   getMarkdown,
   isEditorTextFocused,
@@ -28,6 +29,7 @@ import {
 import {
   decideAutosaveBehavior,
   getDocumentViewportKey,
+  resolveCenteredViewportScrollTop,
   resolveSearchNavigationFocusMode,
   shouldShowEmptyEditorPlaceholder,
 } from './editor/session-ux'
@@ -150,7 +152,7 @@ function currentDocumentMeta(state: SidebarState): string {
 }
 
 function createDefaultSettings(): AppSettings {
-  return { titleSyncMode: 'ask', saveAsMode: 'switch' }
+  return { titleSyncMode: 'ask', saveAsMode: 'switch', themeName: 'elegant' }
 }
 
 function createFileItem(
@@ -205,7 +207,6 @@ function renderEmpty(element: Element, text: string): void {
 
 async function init(): Promise<void> {
   const api = window.electronAPI as TitleEditingAPI
-  const savedTheme = loadSavedTheme()
   let appSettings = createDefaultSettings()
   let sidebarState: SidebarState | null = null
   let lastDocumentViewportKey: string | null = null
@@ -306,6 +307,8 @@ async function init(): Promise<void> {
     lastDocumentViewportKey = nextViewportKey
   }
   activeSidebarStateSetter = setSidebarState
+  appSettings = (await api.getSettings().catch(() => null)) ?? createDefaultSettings()
+  const savedTheme = appSettings.themeName || loadSavedTheme()
   applyTheme(savedTheme)
 
   if (savedTheme.startsWith('custom:')) {
@@ -323,6 +326,41 @@ async function init(): Promise<void> {
   const titleSyncOnce = document.getElementById('title-sync-once') as HTMLButtonElement | null
   const titleSyncAlways = document.getElementById('title-sync-always') as HTMLButtonElement | null
   const titleSyncNever = document.getElementById('title-sync-never') as HTMLButtonElement | null
+  const appShell = document.getElementById('app-shell')
+  const sidebarToggle = document.getElementById('sidebar-toggle') as HTMLButtonElement | null
+  const settingsToggle = document.getElementById('settings-toggle') as HTMLButtonElement | null
+  const drawerBackdrop = document.getElementById('sidebar-drawer-backdrop') as HTMLDivElement | null
+  const drawerEdgeTrigger = document.getElementById('drawer-edge-trigger') as HTMLDivElement | null
+  const drawerShell = document.getElementById('sidebar-drawer-shell') as HTMLDivElement | null
+  const onboardingOverlay = document.getElementById('onboarding-overlay') as HTMLDivElement | null
+  const onboardingChoose = document.getElementById('onboarding-choose') as HTMLButtonElement | null
+  const onboardingSkip = document.getElementById('onboarding-skip') as HTMLButtonElement | null
+  const onboardingDirectoryPreview = document.getElementById('onboarding-directory-preview') as HTMLDivElement | null
+  const currentFileNew = document.getElementById('current-file-new') as HTMLButtonElement | null
+  const draftsToggle = document.getElementById('drafts-toggle') as HTMLButtonElement | null
+  const draftsClear = document.getElementById('drafts-clear') as HTMLButtonElement | null
+  const recentFilesToggle = document.getElementById('recent-files-toggle') as HTMLButtonElement | null
+  const recentFilesClear = document.getElementById('recent-files-clear') as HTMLButtonElement | null
+  const workdirToggle = document.getElementById('workdir-toggle') as HTMLButtonElement | null
+  const workdirChange = document.getElementById('workdir-change') as HTMLButtonElement | null
+  const currentFile = document.getElementById('current-file')
+  const draftsList = document.getElementById('drafts-list')
+  const draftsSection = document.getElementById('drafts-section')
+  const recentFiles = document.getElementById('recent-files')
+  const recentFilesSection = document.getElementById('recent-files-section')
+  const workdirName = document.getElementById('workdir-name')
+  const workdirBody = document.getElementById('workdir-body')
+  const workdirSection = document.getElementById('workdir-section')
+  const sidebarResizer = document.getElementById('sidebar-resizer')
+  const searchPanel = document.getElementById('search-panel') as HTMLDivElement | null
+  const searchInput = document.getElementById('search-input') as HTMLInputElement | null
+  const searchCount = document.getElementById('search-count') as HTMLDivElement | null
+  const searchClose = document.getElementById('search-close') as HTMLButtonElement | null
+  const searchPrev = document.getElementById('search-prev') as HTMLButtonElement | null
+  const searchNext = document.getElementById('search-next') as HTMLButtonElement | null
+  const searchContextPrev = document.getElementById('search-context-prev') as HTMLDivElement | null
+  const searchContextCurrent = document.getElementById('search-context-current') as HTMLDivElement | null
+  const searchContextNext = document.getElementById('search-context-next') as HTMLDivElement | null
 
   const updateEditorPlaceholder = (content: string): void => {
     if (!editorPlaceholder) return
@@ -339,10 +377,17 @@ async function init(): Promise<void> {
     const stageRect = editorStage.getBoundingClientRect()
     const anchorRect = anchor.getBoundingClientRect()
     const proseRect = proseMirror.getBoundingClientRect()
+    const anchorStyle = window.getComputedStyle(anchor)
 
     editorPlaceholder.style.top = `${Math.max(0, anchorRect.top - stageRect.top)}px`
-    editorPlaceholder.style.left = `${Math.max(0, proseRect.left - stageRect.left)}px`
+    editorPlaceholder.style.left = `${Math.max(0, anchorRect.left - stageRect.left)}px`
     editorPlaceholder.style.width = `${proseRect.width}px`
+    editorPlaceholder.style.fontFamily = anchorStyle.fontFamily
+    editorPlaceholder.style.fontSize = anchorStyle.fontSize
+    editorPlaceholder.style.fontWeight = anchorStyle.fontWeight
+    editorPlaceholder.style.lineHeight = anchorStyle.lineHeight
+    editorPlaceholder.style.letterSpacing = anchorStyle.letterSpacing
+    editorPlaceholder.style.textIndent = anchorStyle.textIndent
   }
 
   const schedulePlaceholderLayoutSync = (): void => {
@@ -351,13 +396,20 @@ async function init(): Promise<void> {
     })
   }
 
+  if (typeof ResizeObserver !== 'undefined') {
+    const placeholderLayoutObserver = new ResizeObserver(() => {
+      schedulePlaceholderLayoutSync()
+    })
+    if (editorShell) placeholderLayoutObserver.observe(editorShell)
+    if (appShell) placeholderLayoutObserver.observe(appShell)
+  }
+
   await createEditor('editor', (markdown) => {
     updateEditorPlaceholder(markdown)
     schedulePlaceholderLayoutSync()
   })
   updateEditorPlaceholder(getMarkdown())
   schedulePlaceholderLayoutSync()
-  appSettings = (await api.getSettings().catch(() => null)) ?? createDefaultSettings()
   const settingsDialog = createSettingsDialogController({
     api,
     getAppSettings: () => appSettings,
@@ -674,42 +726,6 @@ async function init(): Promise<void> {
     }, 3000)
   }
 
-  const appShell = document.getElementById('app-shell')
-  const sidebarToggle = document.getElementById('sidebar-toggle') as HTMLButtonElement | null
-  const settingsToggle = document.getElementById('settings-toggle') as HTMLButtonElement | null
-  const drawerBackdrop = document.getElementById('sidebar-drawer-backdrop') as HTMLDivElement | null
-  const drawerEdgeTrigger = document.getElementById('drawer-edge-trigger') as HTMLDivElement | null
-  const drawerShell = document.getElementById('sidebar-drawer-shell') as HTMLDivElement | null
-  const onboardingOverlay = document.getElementById('onboarding-overlay') as HTMLDivElement | null
-  const onboardingChoose = document.getElementById('onboarding-choose') as HTMLButtonElement | null
-  const onboardingSkip = document.getElementById('onboarding-skip') as HTMLButtonElement | null
-  const onboardingDirectoryPreview = document.getElementById('onboarding-directory-preview') as HTMLDivElement | null
-  const currentFileNew = document.getElementById('current-file-new') as HTMLButtonElement | null
-  const draftsToggle = document.getElementById('drafts-toggle') as HTMLButtonElement | null
-  const draftsClear = document.getElementById('drafts-clear') as HTMLButtonElement | null
-  const recentFilesToggle = document.getElementById('recent-files-toggle') as HTMLButtonElement | null
-  const recentFilesClear = document.getElementById('recent-files-clear') as HTMLButtonElement | null
-  const workdirToggle = document.getElementById('workdir-toggle') as HTMLButtonElement | null
-  const workdirChange = document.getElementById('workdir-change') as HTMLButtonElement | null
-  const currentFile = document.getElementById('current-file')
-  const draftsList = document.getElementById('drafts-list')
-  const draftsSection = document.getElementById('drafts-section')
-  const recentFiles = document.getElementById('recent-files')
-  const recentFilesSection = document.getElementById('recent-files-section')
-  const workdirName = document.getElementById('workdir-name')
-  const workdirBody = document.getElementById('workdir-body')
-  const workdirSection = document.getElementById('workdir-section')
-  const sidebarResizer = document.getElementById('sidebar-resizer')
-  const searchPanel = document.getElementById('search-panel') as HTMLDivElement | null
-  const searchInput = document.getElementById('search-input') as HTMLInputElement | null
-  const searchCount = document.getElementById('search-count') as HTMLDivElement | null
-  const searchClose = document.getElementById('search-close') as HTMLButtonElement | null
-  const searchPrev = document.getElementById('search-prev') as HTMLButtonElement | null
-  const searchNext = document.getElementById('search-next') as HTMLButtonElement | null
-  const searchContextPrev = document.getElementById('search-context-prev') as HTMLDivElement | null
-  const searchContextCurrent = document.getElementById('search-context-current') as HTMLDivElement | null
-  const searchContextNext = document.getElementById('search-context-next') as HTMLDivElement | null
-
   const persistCurrentViewportOffset = (): void => {
     if (!editorShell || !sidebarState) return
     const currentKey = getDocumentViewportKey(
@@ -857,8 +873,18 @@ async function init(): Promise<void> {
   const renderSearchPanel = (state: SearchState): void => {
     if (!searchCount || !searchPrev || !searchNext) return
 
-    const count = resolveSearchCount(state.query, state.totalMatches, state.activeIndex)
-    searchCount.textContent = `${count.activeNumber} / ${count.totalMatches}`
+    const hasQuery = !!state.normalizedQuery
+    searchPanel?.classList.toggle('search-has-query', hasQuery)
+    searchPanel?.classList.toggle('search-no-matches', hasQuery && state.totalMatches === 0)
+
+    if (!hasQuery) {
+      searchCount.textContent = ''
+    } else if (state.totalMatches === 0) {
+      searchCount.textContent = '无结果'
+    } else {
+      const count = resolveSearchCount(state.query, state.totalMatches, state.activeIndex)
+      searchCount.textContent = `${count.activeNumber} / ${count.totalMatches}`
+    }
     searchPrev.disabled = state.totalMatches === 0
     searchNext.disabled = state.totalMatches === 0
     renderSearchPreviewCurrent(state)
@@ -866,6 +892,47 @@ async function init(): Promise<void> {
 
   const refreshSearchPanel = (): void => {
     renderSearchPanel(getSearchState())
+  }
+
+  const focusSearchInputWithoutSelecting = (): void => {
+    if (!searchInput) return
+    searchInput.focus()
+    const caret = searchInput.value.length
+    searchInput.setSelectionRange(caret, caret)
+  }
+
+  const centerActiveSearchResultInViewport = (): void => {
+    if (!editorShell) return
+
+    const selection = document.getSelection()
+    if (!selection || selection.rangeCount === 0) return
+
+    const range = selection.getRangeAt(0)
+    const rects = range.getClientRects()
+    const targetRect = rects[0] ?? range.getBoundingClientRect()
+    if (!targetRect || targetRect.height === 0) return
+
+    const shellRect = editorShell.getBoundingClientRect()
+    const nextScrollTop = resolveCenteredViewportScrollTop({
+      currentScrollTop: editorShell.scrollTop,
+      viewportHeight: editorShell.clientHeight,
+      targetTop: targetRect.top - shellRect.top,
+      targetHeight: targetRect.height,
+    })
+
+    editorShell.scrollTop = nextScrollTop
+    persistCurrentViewportOffset()
+  }
+
+  const navigateSearchMatches = (direction: 'next' | 'previous'): void => {
+    focusEditorPreservingSelection()
+    if (direction === 'previous') {
+      previousSearchMatch()
+    } else {
+      nextSearchMatch()
+    }
+    refreshSearchPanel()
+    centerActiveSearchResultInViewport()
   }
 
   const openSearchPanel = (): void => {
@@ -892,6 +959,7 @@ async function init(): Promise<void> {
 
   const closeSearchPanel = (): void => {
     searchPanelOpen = false
+    searchPanel?.classList.remove('search-has-query', 'search-no-matches')
     if (searchPanel) {
       searchPanel.hidden = true
       searchPanel.setAttribute('aria-hidden', 'true')
@@ -1293,15 +1361,29 @@ img{max-width:100%}
     const currentScrollTop = editorShell?.scrollTop ?? 0
     processIncomingDocumentContent(content, currentScrollTop, { allowDefer: true })
   })
-  api.onSetTheme((theme) => applyTheme(theme))
+  api.onSetTheme(async (theme) => {
+    applyTheme(theme)
+    appSettings = (await api.updateSettings({ themeName: theme }).catch(() => null)) ?? {
+      ...appSettings,
+      themeName: theme,
+    }
+    settingsDialog.refresh()
+  })
   api.onSetCustomCSS((css) => {
-    const theme = loadSavedTheme()
+    const theme = appSettings.themeName || loadSavedTheme()
     applyTheme(theme, css)
   })
 
   api.onMenuImportTheme(async () => {
     const result = await api.loadCustomTheme()
-    if (result) applyTheme(`custom:${result.name}`, result.css)
+    if (!result) return
+    const themeName = `custom:${result.name}`
+    applyTheme(themeName, result.css)
+    appSettings = (await api.updateSettings({ themeName }).catch(() => null)) ?? {
+      ...appSettings,
+      themeName,
+    }
+    settingsDialog.refresh()
   })
 
   const agentDot = document.getElementById('agent-dot')
@@ -1468,17 +1550,15 @@ img{max-width:100%}
 
     event.preventDefault()
     if (event.shiftKey) {
-      previousSearchMatch()
+      navigateSearchMatches('previous')
     } else {
-      nextSearchMatch()
+      navigateSearchMatches('next')
     }
-    refreshSearchPanel()
     if (resolveSearchNavigationFocusMode('input', event.ctrlKey || event.metaKey) === 'editor') {
       focusEditorAtLastSelection()
       return
     }
-    searchInput?.focus()
-    searchInput?.select()
+    focusSearchInputWithoutSelecting()
   })
 
   searchPrev?.addEventListener('mousedown', (event) => {
@@ -1490,23 +1570,21 @@ img{max-width:100%}
   })
 
   searchPrev?.addEventListener('click', () => {
-    previousSearchMatch()
-    refreshSearchPanel()
+    navigateSearchMatches('previous')
     if (resolveSearchNavigationFocusMode('button', false) === 'editor') {
       focusEditorAtLastSelection()
       return
     }
-    searchInput?.focus()
+    focusSearchInputWithoutSelecting()
   })
 
   searchNext?.addEventListener('click', () => {
-    nextSearchMatch()
-    refreshSearchPanel()
+    navigateSearchMatches('next')
     if (resolveSearchNavigationFocusMode('button', false) === 'editor') {
       focusEditorAtLastSelection()
       return
     }
-    searchInput?.focus()
+    focusSearchInputWithoutSelecting()
   })
 
   searchClose?.addEventListener('click', () => {

@@ -51,12 +51,6 @@ html, body {
   transition: all 0.18s ease;
 }
 
-#sidebar-toggle:hover {
-  opacity: 1;
-  background: color-mix(in srgb, var(--text-muted) 10%, transparent 90%);
-  border-color: color-mix(in srgb, var(--border-color) 40%, transparent 60%);
-}
-
 #settings-toggle {
   position: absolute;
   top: 12px;
@@ -76,11 +70,11 @@ html, body {
   transition: all 0.18s ease;
 }
 
+#sidebar-toggle:hover,
 #settings-toggle:hover {
   opacity: 1;
   background: color-mix(in srgb, var(--text-muted) 10%, transparent 90%);
   border-color: color-mix(in srgb, var(--border-color) 40%, transparent 60%);
-  transform: translateY(-0.5px);
 }
 
 #sidebar-toggle svg,

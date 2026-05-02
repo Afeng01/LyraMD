@@ -150,9 +150,6 @@ export async function createEditor(
     }
   })
 
-  searchState = createSearchState(getCurrentSearchSourceText(), searchState.query, {
-    previousActiveIndex: searchState.activeIndex,
-  })
   searchState = readSearchStateFromEditor(searchState.query)
   rememberCurrentSelection()
 
@@ -527,30 +524,6 @@ function selectSearchResult(
   isManagedSelectionChange = true
   const tr = view.state.tr.setSelection(selection)
   view.dispatch(scrollIntoView ? tr.scrollIntoView() : tr)
-}
-
-function resolveDocRangeFromOffsets(
-  segments: Array<{ from: number; to: number; startOffset: number; endOffset: number }>,
-  fromOffset: number,
-  toOffset: number,
-): { from: number; to: number } | null {
-  let from: number | null = null
-  let to: number | null = null
-
-  for (const segment of segments) {
-    if (from == null && fromOffset < segment.endOffset) {
-      from = segment.from + Math.max(0, fromOffset - segment.startOffset)
-    }
-
-    if (to == null && toOffset <= segment.endOffset) {
-      to = segment.from + Math.max(0, toOffset - segment.startOffset)
-    }
-
-    if (from != null && to != null) break
-  }
-
-  if (from == null || to == null) return null
-  return { from, to: Math.max(from, to) }
 }
 
 function createSafeTextSelection(doc: ProseNode, anchor: number, head: number): TextSelection | null {

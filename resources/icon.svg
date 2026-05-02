@@ -1,23 +1,35 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect x="4" y="4" width="504" height="504" rx="106" fill="#f0edea"/>
-
-  <!-- Paper lines -->
-  <line x1="40" y1="140" x2="472" y2="140" stroke="#d8d3ce" stroke-width="1"/>
-  <line x1="40" y1="180" x2="472" y2="180" stroke="#d8d3ce" stroke-width="1"/>
-  <line x1="40" y1="220" x2="472" y2="220" stroke="#d8d3ce" stroke-width="1"/>
-  <line x1="40" y1="260" x2="472" y2="260" stroke="#d8d3ce" stroke-width="1"/>
-  <line x1="40" y1="300" x2="472" y2="300" stroke="#d8d3ce" stroke-width="1"/>
-  <line x1="40" y1="340" x2="472" y2="340" stroke="#d8d3ce" stroke-width="1"/>
-  <line x1="40" y1="380" x2="472" y2="380" stroke="#d8d3ce" stroke-width="1"/>
-
-  <!-- Can body - 1.85:1 ratio, height 340, width 184 -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
   <defs>
-    <clipPath id="can">
-      <rect x="164" y="86" width="184" height="340"/>
-    </clipPath>
-  </defs>
-  <rect x="164" y="86" width="184" height="340" fill="#c44b2b"/>
+    <linearGradient id="card-fill" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#faf6ef"/>
+      <stop offset="100%" stop-color="#f7f1e7"/>
+    </linearGradient>
 
-  <!-- Wave clipped to can, extended past edges to fill fully -->
-  <path d="M130,256 C175,220 215,220 256,256 C297,292 337,292 382,256" fill="none" stroke="#f0edea" stroke-width="10" stroke-linecap="butt" clip-path="url(#can)"/>
+    <filter id="sun-glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="20"/>
+    </filter>
+  </defs>
+
+  <rect
+    x="100"
+    y="100"
+    width="824"
+    height="824"
+    rx="114"
+    fill="url(#card-fill)"
+    stroke="#e7dfd2"
+    stroke-width="6"
+  />
+
+  <circle cx="258" cy="243" r="42" fill="#ff8a1c" opacity="0.26" filter="url(#sun-glow)"/>
+  <circle cx="258" cy="243" r="33" fill="#ff8a1c"/>
+
+  <g fill="none" stroke="#ff6412" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M234 884 C228 792 290 744 390 670 C469 611 514 560 533 538"/>
+    <path d="M320 884 C314 791 370 733 450 650 C544 554 594 500 614 458"/>
+    <path d="M407 884 C401 792 455 724 528 632 C622 514 659 433 672 378"/>
+    <path d="M495 884 C489 790 536 710 600 606 C683 474 709 360 718 298"/>
+    <path d="M583 884 C578 791 615 693 665 574 C731 419 750 311 756 258"/>
+    <path d="M671 884 C667 786 695 664 736 523 C781 369 789 250 790 180"/>
+  </g>
 </svg>

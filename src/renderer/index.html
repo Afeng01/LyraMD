@@ -78,23 +78,25 @@
       </div>
 
       <main id="editor-shell">
-        <div id="search-panel" hidden aria-hidden="true">
-          <div class="search-panel-row">
-            <label class="sr-only" for="search-input">搜索当前文档</label>
-            <input id="search-input" type="search" placeholder="搜索当前文档" autocomplete="off" spellcheck="false">
-            <div class="search-meta">
-              <div id="search-count" class="search-count">0 / 0</div>
-              <button id="search-close" type="button" class="search-inline-button compact" aria-label="关闭搜索">关闭</button>
+        <div id="search-panel-anchor" aria-hidden="true">
+          <div id="search-panel" hidden aria-hidden="true">
+            <div class="search-panel-row">
+              <label class="sr-only" for="search-input">搜索当前文档</label>
+              <input id="search-input" type="search" placeholder="搜索当前文档" autocomplete="off" spellcheck="false">
+              <div class="search-meta">
+                <div id="search-count" class="search-count">0 / 0</div>
+                <button id="search-close" type="button" class="search-inline-button compact" aria-label="关闭搜索">关闭</button>
+              </div>
             </div>
-          </div>
-          <div id="search-context" class="search-context" aria-live="polite">
-            <div id="search-context-prev" class="search-context-line muted"></div>
-            <div id="search-context-current" class="search-context-line current"></div>
-            <div id="search-context-next" class="search-context-line muted"></div>
-          </div>
-          <div class="search-panel-actions">
-            <button id="search-prev" type="button" class="search-nav-button" disabled>上一个</button>
-            <button id="search-next" type="button" class="search-nav-button" disabled>下一个</button>
+            <div id="search-context" class="search-context" aria-live="polite">
+              <div id="search-context-prev" class="search-context-line muted"></div>
+              <div id="search-context-current" class="search-context-line current"></div>
+              <div id="search-context-next" class="search-context-line muted"></div>
+            </div>
+            <div class="search-panel-actions">
+              <button id="search-prev" type="button" class="search-nav-button" disabled>上一个</button>
+              <button id="search-next" type="button" class="search-nav-button" disabled>下一个</button>
+            </div>
           </div>
         </div>
         <div id="editor-stage">

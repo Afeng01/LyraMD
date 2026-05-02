@@ -28,6 +28,7 @@ import {
 import {
   decideAutosaveBehavior,
   getDocumentViewportKey,
+  resolveSearchNavigationFocusMode,
   shouldShowEmptyEditorPlaceholder,
 } from './editor/session-ux'
 import { createSettingsDialogController } from './settings-dialog'
@@ -801,12 +802,6 @@ async function init(): Promise<void> {
   let searchInputComposing = false
   let searchQueryMemory: SearchMemoryState = {}
 
-  const syncSearchPanelAnchor = (): void => {
-    if (!searchPanel || !editorShell) return
-    const nextTop = `${editorShell.scrollTop + 18}px`
-    searchPanel.style.setProperty('--search-panel-top', nextTop)
-  }
-
   const renderSearchPreviewText = (
     target: HTMLDivElement | null,
     text: string,
@@ -867,7 +862,6 @@ async function init(): Promise<void> {
     searchPrev.disabled = state.totalMatches === 0
     searchNext.disabled = state.totalMatches === 0
     renderSearchPreviewCurrent(state)
-    syncSearchPanelAnchor()
   }
 
   const refreshSearchPanel = (): void => {
@@ -1479,6 +1473,12 @@ img{max-width:100%}
       nextSearchMatch()
     }
     refreshSearchPanel()
+    if (resolveSearchNavigationFocusMode('input', event.ctrlKey || event.metaKey) === 'editor') {
+      focusEditorAtLastSelection()
+      return
+    }
+    searchInput?.focus()
+    searchInput?.select()
   })
 
   searchPrev?.addEventListener('mousedown', (event) => {
@@ -1492,12 +1492,20 @@ img{max-width:100%}
   searchPrev?.addEventListener('click', () => {
     previousSearchMatch()
     refreshSearchPanel()
+    if (resolveSearchNavigationFocusMode('button', false) === 'editor') {
+      focusEditorAtLastSelection()
+      return
+    }
     searchInput?.focus()
   })
 
   searchNext?.addEventListener('click', () => {
     nextSearchMatch()
     refreshSearchPanel()
+    if (resolveSearchNavigationFocusMode('button', false) === 'editor') {
+      focusEditorAtLastSelection()
+      return
+    }
     searchInput?.focus()
   })
 
@@ -1538,10 +1546,6 @@ img{max-width:100%}
       closeTitleSyncPrompt()
     }
   })
-
-  editorShell?.addEventListener('scroll', () => {
-    syncSearchPanelAnchor()
-  }, { passive: true })
 
   document.addEventListener('click', (event) => {
     const target = event.target as HTMLElement | null

@@ -545,19 +545,26 @@ html, body {
   -webkit-app-region: no-drag;
 }
 
-#search-panel {
-  position: absolute;
-  top: var(--search-panel-top, 18px);
-  right: 18px;
+#search-panel-anchor {
+  position: sticky;
+  top: 18px;
   z-index: 10;
+  height: 0;
+  padding: 0 18px;
+  pointer-events: none;
+}
+
+#search-panel {
+  position: relative;
   width: min(360px, calc(100% - 36px));
-  margin: 0;
+  margin: 0 0 0 auto;
   padding: 12px;
   border: 1px solid color-mix(in srgb, var(--border-color) 84%, transparent 16%);
   border-radius: 14px;
   background: color-mix(in srgb, var(--bg-color) 97%, var(--border-color) 3%);
   box-shadow: 0 14px 36px rgba(15, 23, 42, 0.1);
   backdrop-filter: blur(14px);
+  pointer-events: auto;
 }
 
 .search-panel-row,

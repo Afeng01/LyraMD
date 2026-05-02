@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   decideAutosaveBehavior,
   getDocumentViewportKey,
+  resolveSearchNavigationFocusMode,
   shouldShowEmptyEditorPlaceholder,
 } from './session-ux'
 
@@ -90,5 +91,14 @@ describe('shouldShowEmptyEditorPlaceholder', () => {
     expect(shouldShowEmptyEditorPlaceholder('')).toBe(true)
     expect(shouldShowEmptyEditorPlaceholder(' \n')).toBe(true)
     expect(shouldShowEmptyEditorPlaceholder('# Title')).toBe(false)
+  })
+})
+
+describe('resolveSearchNavigationFocusMode', () => {
+  it('keeps focus in the panel only for modified input navigation', () => {
+    expect(resolveSearchNavigationFocusMode('input', true)).toBe('panel')
+    expect(resolveSearchNavigationFocusMode('input', false)).toBe('editor')
+    expect(resolveSearchNavigationFocusMode('button', false)).toBe('editor')
+    expect(resolveSearchNavigationFocusMode('editor', false)).toBe('editor')
   })
 })

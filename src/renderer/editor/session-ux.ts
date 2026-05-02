@@ -7,6 +7,9 @@ export interface AutosaveDecision {
   scheduleDebouncedSave: boolean
 }
 
+export type SearchNavigationSource = 'input' | 'button' | 'editor'
+export type SearchNavigationFocusMode = 'panel' | 'editor'
+
 export function decideAutosaveBehavior(
   origin: 'user' | 'programmatic',
   documentKind: DocumentKind,
@@ -70,4 +73,12 @@ export function getDocumentViewportKey(
 
 export function shouldShowEmptyEditorPlaceholder(content: string): boolean {
   return content.trim().length === 0
+}
+
+export function resolveSearchNavigationFocusMode(
+  source: SearchNavigationSource,
+  withModifier: boolean,
+): SearchNavigationFocusMode {
+  if (source === 'input' && withModifier) return 'panel'
+  return 'editor'
 }

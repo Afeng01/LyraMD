@@ -87,9 +87,13 @@ export function createSettingsDialogController({
   const saveAsInputs = Array.from(
     document.querySelectorAll<HTMLInputElement>('input[name="settings-save-as-mode"]'),
   )
+  const shortcutKeys = Array.from(
+    document.querySelectorAll<HTMLElement>('.settings-shortcut-key'),
+  )
 
   let dialogOpen = false
   let activePane: SettingsPaneId = 'general'
+  let recordingShortcut: HTMLElement | null = null
 
   const renderPane = (): void => {
     const meta = SETTINGS_PANE_META[activePane]
@@ -109,6 +113,30 @@ export function createSettingsDialogController({
       panel.hidden = !isActive
       panel.classList.toggle('active', isActive)
     }
+  }
+
+  const stopRecording = (): void => {
+    if (recordingShortcut) {
+      recordingShortcut.classList.remove('recording')
+      recordingShortcut = null
+    }
+  }
+
+  const formatKeyCombo = (event: KeyboardEvent): string => {
+    const parts: string[] = []
+    if (event.metaKey || (event.ctrlKey && !parts.includes('Ctrl'))) {
+      parts.push(window.process.platform === 'darwin' ? '⌘' : 'Ctrl')
+    }
+    if (event.shiftKey) parts.push('Shift')
+    if (event.altKey) parts.push('Alt')
+    
+    let key = event.key
+    if (key === ' ') key = 'Space'
+    if (key.length === 1) key = key.toUpperCase()
+    if (!['Control', 'Shift', 'Alt', 'Meta'].includes(key)) {
+      parts.push(key)
+    }
+    return parts.join('+')
   }
 
   const render = (): void => {
@@ -152,6 +180,7 @@ export function createSettingsDialogController({
 
   const close = (): void => {
     dialogOpen = false
+    stopRecording()
     if (!overlay) return
     overlay.hidden = true
     overlay.setAttribute('aria-hidden', 'true')
@@ -192,6 +221,40 @@ export function createSettingsDialogController({
   closeButton?.addEventListener('click', () => {
     close()
   })
+
+  window.addEventListener('keydown', (event) => {
+    if (!dialogOpen || !recordingShortcut) return
+
+    event.preventDefault()
+    event.stopPropagation()
+
+    if (event.key === 'Escape') {
+      stopRecording()
+      return
+    }
+
+    const combo = formatKeyCombo(event)
+    // Only save if a non-modifier key was pressed
+    if (!['Control', 'Shift', 'Alt', 'Meta'].includes(event.key)) {
+      recordingShortcut.textContent = combo
+      // Here you would typically call api.updateShortcut(...)
+      stopRecording()
+    }
+  }, true)
+
+  for (const key of shortcutKeys) {
+    key.addEventListener('click', (event) => {
+      event.stopPropagation()
+      if (recordingShortcut === key) {
+        stopRecording()
+      } else {
+        stopRecording()
+        recordingShortcut = key
+        key.classList.add('recording')
+        key.textContent = '录制中...'
+      }
+    })
+  }
 
   for (const input of titleSyncInputs) {
     input.addEventListener('change', () => {

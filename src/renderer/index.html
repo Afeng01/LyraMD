@@ -16,9 +16,16 @@
         </svg>
       </button>
       <button id="settings-toggle" type="button" aria-label="打开设置">
-        <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="10" cy="10" r="2.5" />
-          <path d="M10 2.2l1.15 1.03 1.55-.3.78 1.38 1.55.39.08 1.58 1.2 1.03-.45 1.52.8 1.37-1 1.22.26 1.57-1.4.73-.55 1.48-1.57-.05-1.26.95-1.26-.95-1.57.05-.55-1.48-1.4-.73.26-1.57-1-1.22.8-1.37-.45-1.52 1.2-1.03.08-1.58 1.55-.39.78-1.38 1.55.3z" />
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="4" y1="21" x2="4" y2="14"></line>
+          <line x1="4" y1="10" x2="4" y2="3"></line>
+          <line x1="12" y1="21" x2="12" y2="12"></line>
+          <line x1="12" y1="8" x2="12" y2="3"></line>
+          <line x1="20" y1="21" x2="20" y2="16"></line>
+          <line x1="20" y1="12" x2="20" y2="3"></line>
+          <line x1="1" y1="14" x2="7" y2="14"></line>
+          <line x1="9" y1="8" x2="15" y2="8"></line>
+          <line x1="17" y1="16" x2="23" y2="16"></line>
         </svg>
       </button>
       <div id="agent-dot"></div>
@@ -80,22 +87,31 @@
       <main id="editor-shell">
         <div id="search-panel-anchor" aria-hidden="true">
           <div id="search-panel" hidden aria-hidden="true">
-            <div class="search-panel-row">
+            <div class="search-bar">
+              <svg class="search-icon" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="6.5" cy="6.5" r="4.5"/>
+                <line x1="10.2" y1="10.2" x2="14" y2="14"/>
+              </svg>
               <label class="sr-only" for="search-input">搜索当前文档</label>
-              <input id="search-input" type="search" placeholder="搜索当前文档" autocomplete="off" spellcheck="false">
-              <div class="search-meta">
-                <div id="search-count" class="search-count">0 / 0</div>
-                <button id="search-close" type="button" class="search-inline-button compact" aria-label="关闭搜索">关闭</button>
+              <input id="search-input" type="search" placeholder="搜索文档…" autocomplete="off" spellcheck="false">
+              <div id="search-count" class="search-count"></div>
+              <div class="search-nav-group">
+                <button id="search-prev" type="button" class="search-nav" disabled aria-label="上一个">
+                  <svg viewBox="0 0 10 10" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2,7 5,3 8,7"/></svg>
+                </button>
+                <button id="search-next" type="button" class="search-nav" disabled aria-label="下一个">
+                  <svg viewBox="0 0 10 10" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2,3 5,7 8,3"/></svg>
+                </button>
               </div>
+              <button id="search-close" type="button" class="search-close" aria-label="关闭搜索">
+                <svg viewBox="0 0 10 10" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><line x1="2" y1="2" x2="8" y2="8"/><line x1="8" y1="2" x2="2" y2="8"/></svg>
+              </button>
             </div>
-            <div id="search-context" class="search-context" aria-live="polite">
+            <!-- kept for JS compatibility -->
+            <div id="search-context" class="search-context" aria-live="polite" hidden aria-hidden="true">
               <div id="search-context-prev" class="search-context-line muted"></div>
               <div id="search-context-current" class="search-context-line current"></div>
               <div id="search-context-next" class="search-context-line muted"></div>
-            </div>
-            <div class="search-panel-actions">
-              <button id="search-prev" type="button" class="search-nav-button" disabled>上一个</button>
-              <button id="search-next" type="button" class="search-nav-button" disabled>下一个</button>
             </div>
           </div>
         </div>
@@ -110,11 +126,16 @@
 
     <div id="onboarding-overlay" hidden aria-hidden="true">
       <div id="onboarding-dialog" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
-        <p class="overlay-kicker">草稿</p>
-        <h2 id="onboarding-title">选择默认草稿位置</h2>
-        <p id="onboarding-copy">
-          未命名文档在开始输入后会自动进入草稿体系，避免切换或关闭时丢失内容。
-        </p>
+        <div class="onboarding-brand-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><line x1="10" y1="9" x2="8" y2="9"></line></svg>
+        </div>
+        <div class="onboarding-content">
+          <p class="overlay-kicker">欢迎使用 ColaMD</p>
+          <h2 id="onboarding-title">选择默认草稿位置</h2>
+          <p id="onboarding-copy">
+            未命名文档在开始输入后会自动进入草稿体系，避免切换或关闭时丢失内容。
+          </p>
+        </div>
         <div id="onboarding-directory-preview">Documents/LyraMD Drafts</div>
         <div id="onboarding-actions">
           <button id="onboarding-choose" type="button" class="overlay-button primary">选择位置</button>
@@ -150,44 +171,40 @@
 
     <div id="settings-overlay" hidden aria-hidden="true">
       <div id="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+        <header class="settings-top-bar">
+          <h2 id="settings-pane-title">通用设置</h2>
+          <button id="settings-close" type="button" class="settings-close-x" aria-label="关闭设置">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </header>
+
         <aside class="settings-nav" aria-label="设置分组">
-          <div class="settings-nav-header">
-            <p class="overlay-kicker">设置</p>
-            <h2 id="settings-title">编辑器偏好</h2>
-            <p class="settings-nav-copy">围绕写作现场调整 LyraMD 的行为与氛围。</p>
-          </div>
           <nav class="settings-nav-list">
             <button type="button" class="settings-nav-item active" data-settings-pane="general">
-              <span class="settings-nav-label">通用</span>
-              <span class="settings-nav-meta">标题同步、另存为</span>
+              <span class="settings-nav-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              </span>
+              <span class="settings-nav-label">通用设置</span>
             </button>
             <button type="button" class="settings-nav-item" data-settings-pane="workspace">
-              <span class="settings-nav-label">工作区</span>
-              <span class="settings-nav-meta">草稿位置、主题</span>
+              <span class="settings-nav-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+              </span>
+              <span class="settings-nav-label">外观与文件</span>
             </button>
             <button type="button" class="settings-nav-item" data-settings-pane="shortcuts">
-              <span class="settings-nav-label">快捷键</span>
-              <span class="settings-nav-meta">核心操作速查</span>
+              <span class="settings-nav-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><line x1="6" y1="8" x2="6" y2="8"></line><line x1="10" y1="8" x2="10" y2="8"></line><line x1="14" y1="8" x2="14" y2="8"></line><line x1="18" y1="8" x2="18" y2="8"></line><line x1="6" y1="12" x2="6" y2="12"></line><line x1="10" y1="12" x2="10" y2="12"></line><line x1="14" y1="12" x2="14" y2="12"></line><line x1="18" y1="12" x2="18" y2="12"></line><line x1="7" y1="16" x2="17" y2="16"></line></svg>
+              </span>
+              <span class="settings-nav-label">快捷键管理</span>
             </button>
           </nav>
-          <div class="settings-nav-footer">
-            <div class="settings-nav-note">Cmd 会在 macOS 显示为 Command，Windows / Linux 对应 Ctrl。</div>
-          </div>
         </aside>
 
         <div class="settings-pane-shell">
-          <div class="settings-header">
-            <div class="settings-header-copy">
-              <p id="settings-pane-kicker" class="overlay-kicker">通用</p>
-              <h3 id="settings-pane-title">编辑器行为</h3>
-              <p id="settings-pane-description" class="settings-pane-description">决定标题和文件名如何一起工作，以及另存为后的切换方式。</p>
-            </div>
-            <button id="settings-close" type="button" class="settings-close-button" aria-label="关闭设置">关闭</button>
-          </div>
-
           <div class="settings-pane-content">
             <section class="settings-pane active" data-settings-panel="general">
-              <section class="settings-group settings-card">
+              <section class="settings-group">
                 <div class="settings-group-heading">
                   <h4 class="settings-group-title">标题同步</h4>
                   <p class="settings-group-copy">当文档标题变化时，决定文件名是否跟随。</p>
@@ -206,7 +223,7 @@
                 </label>
               </section>
 
-              <section class="settings-group settings-card">
+              <section class="settings-group">
                 <div class="settings-group-heading">
                   <h4 class="settings-group-title">另存为行为</h4>
                   <p class="settings-group-copy">决定生成新文件后，旧路径是保留还是被迁移。</p>
@@ -223,7 +240,7 @@
             </section>
 
             <section class="settings-pane" data-settings-panel="workspace" hidden>
-              <section class="settings-group settings-card">
+              <section class="settings-group">
                 <div class="settings-group-heading">
                   <h4 class="settings-group-title">草稿位置</h4>
                   <p class="settings-group-copy">未命名草稿会默认进入这个目录，方便和 Agent 协作时持续落盘。</p>
@@ -232,7 +249,7 @@
                 <button id="settings-draft-choose" type="button" class="overlay-button">重新选择位置</button>
               </section>
 
-              <section class="settings-group settings-card">
+              <section class="settings-group">
                 <div class="settings-group-heading">
                   <h4 class="settings-group-title">主题</h4>
                   <p class="settings-group-copy">切换当前写作氛围，或导入自己的 CSS 主题。</p>
@@ -249,12 +266,11 @@
             </section>
 
             <section class="settings-pane" data-settings-panel="shortcuts" hidden>
-              <section class="settings-group settings-card">
-                <div class="settings-group-heading">
-                  <h4 class="settings-group-title">快捷键</h4>
-                  <p class="settings-group-copy">写作时最常用的操作都在这里，保持手不离键盘。</p>
-                </div>
-                <div class="settings-shortcut-list">
+              <div class="settings-group-heading">
+                <h4 class="settings-group-title">快捷键</h4>
+                <p class="settings-group-copy">点击快捷键可自定义，按 Esc 取消录制。</p>
+              </div>
+              <div class="settings-shortcut-list">
                   <div class="settings-shortcut-item">
                     <span class="settings-shortcut-label">保存</span>
                     <kbd class="settings-shortcut-key">Cmd/Ctrl+S</kbd>

@@ -28,13 +28,22 @@ export interface PinControl {
 export interface RemoveControl {
   title: string
   ariaLabel: string
-  icon: 'trash'
+  icon: 'trash' | 'check'
+  tone: 'normal' | 'danger'
 }
 
 export type RemoveActionPlan =
   | { kind: 'draft'; draftId: string; flushAutosaveFirst: false }
   | { kind: 'recent'; filePath: string; flushAutosaveFirst: false }
   | { kind: 'workdir'; filePath: string; flushAutosaveFirst: true }
+
+export type SidebarInlineTitleEditTarget =
+  | { kind: 'draft'; draftId: string }
+  | { kind: 'file'; filePath: string; source: FileSidebarItem['source'] }
+
+export type SidebarInlineTitleCommitAction =
+  | { kind: 'update-draft-title'; draftId: string }
+  | { kind: 'rename-file-title'; filePath: string }
 
 export function resolveWorkspaceLabel(workspacePath: string | null): string {
   if (!workspacePath) return '选择目录'
@@ -62,11 +71,13 @@ export function resolvePinControl(pinned: boolean, title: string): PinControl {
   }
 }
 
-export function resolveRemoveControl(title: string): RemoveControl {
+export function resolveRemoveControl(title: string, confirming = false): RemoveControl {
+  const action = confirming ? '确认删除' : '删除'
   return {
-    title: `删除 ${title}`,
-    ariaLabel: `删除 ${title}`,
-    icon: 'trash',
+    title: `${action} ${title}`,
+    ariaLabel: `${action} ${title}`,
+    icon: confirming ? 'check' : 'trash',
+    tone: confirming ? 'danger' : 'normal',
   }
 }
 
@@ -84,6 +95,21 @@ export function resolveRemoveActionPlan(item: SidebarItem): RemoveActionPlan | n
   }
 
   return null
+}
+
+export function resolveRemoveActionKey(plan: RemoveActionPlan): string {
+  if (plan.kind === 'draft') return `draft:${plan.draftId}`
+  return `${plan.kind}:${plan.filePath}`
+}
+
+export function resolveSidebarInlineTitleCommitAction(
+  target: SidebarInlineTitleEditTarget,
+): SidebarInlineTitleCommitAction {
+  if (target.kind === 'draft') {
+    return { kind: 'update-draft-title', draftId: target.draftId }
+  }
+
+  return { kind: 'rename-file-title', filePath: target.filePath }
 }
 
 export function resolvePinnedItems(state: SidebarState): SidebarItem[] {

@@ -75,6 +75,7 @@ export interface ElectronAPI {
   updateCurrentFileTitle: (nextTitle: string) => Promise<SidebarState | null>
   updateDraftTitleById: (draftId: string, nextTitle: string) => Promise<SidebarState | null>
   updateFileTitleByPath: (filePath: string, nextTitle: string) => Promise<SidebarState | null>
+  renameFileByPathFromTitle: (filePath: string, nextTitle: string) => Promise<SidebarState | null>
   renameCurrentFileFromTitle: (nextTitle: string) => Promise<{ path: string | null } | null>
   getSidebarState: () => Promise<SidebarState | null>
   toggleSidebar: () => Promise<boolean>
@@ -135,6 +136,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   updateCurrentFileTitle: (nextTitle: string) => ipcRenderer.invoke('update-current-file-title', nextTitle),
   updateDraftTitleById: (draftId: string, nextTitle: string) => ipcRenderer.invoke('update-draft-title-by-id', draftId, nextTitle),
   updateFileTitleByPath: (filePath: string, nextTitle: string) => ipcRenderer.invoke('update-file-title-by-path', filePath, nextTitle),
+  renameFileByPathFromTitle: (filePath: string, nextTitle: string) => ipcRenderer.invoke('rename-file-by-path-from-title', filePath, nextTitle),
   renameCurrentFileFromTitle: (nextTitle: string) => ipcRenderer.invoke('rename-current-file-from-title', nextTitle),
   getSidebarState: () => ipcRenderer.invoke('get-sidebar-state'),
   toggleSidebar: () => ipcRenderer.invoke('toggle-sidebar'),

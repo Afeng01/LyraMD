@@ -647,6 +647,13 @@ html, body {
   background: color-mix(in srgb, var(--selection-bg) 34%, transparent 66%);
 }
 
+.remove-action-button.confirm-delete,
+.remove-action-button.confirm-delete:hover {
+  color: #c62828;
+  background: color-mix(in srgb, #c62828 14%, transparent 86%);
+  border-color: color-mix(in srgb, #c62828 30%, transparent 70%);
+}
+
 #pinned-section.collapsed #pinned-list {
   display: none;
 }

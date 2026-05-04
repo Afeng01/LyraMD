@@ -6,8 +6,10 @@ import {
   isPinnedFile,
   resolvePinnedItems,
   resolvePinControl,
+  resolveRemoveActionKey,
   resolveRemoveControl,
   resolveRemoveActionPlan,
+  resolveSidebarInlineTitleCommitAction,
   resolveVisibleTabItems,
   resolveWorkspaceLabel,
   shouldScrollWorkspaces,
@@ -88,21 +90,45 @@ describe('pinned view helpers', () => {
       title: '删除 数字一的对话',
       ariaLabel: '删除 数字一的对话',
       icon: 'trash',
+      tone: 'normal',
+    })
+  })
+
+  it('resolves confirmed remove controls as a dangerous check action', () => {
+    expect(resolveRemoveControl('数字一的对话', true)).toEqual({
+      title: '确认删除 数字一的对话',
+      ariaLabel: '确认删除 数字一的对话',
+      icon: 'check',
+      tone: 'danger',
     })
   })
 
   it('requires autosave flush before removing a workdir file', () => {
-    expect(resolveRemoveActionPlan({
+    const plan = resolveRemoveActionPlan({
       kind: 'file',
       filePath: '/workspace/a.md',
       title: 'a.md',
       active: true,
       pinned: false,
       source: 'workdir',
-    })).toEqual({
+    })
+
+    expect(plan).toEqual({
       kind: 'workdir',
       filePath: '/workspace/a.md',
       flushAutosaveFirst: true,
+    })
+    expect(plan ? resolveRemoveActionKey(plan) : null).toBe('workdir:/workspace/a.md')
+  })
+
+  it('commits file list title edits as real file renames', () => {
+    expect(resolveSidebarInlineTitleCommitAction({
+      kind: 'file',
+      filePath: '/workspace/a.md',
+      source: 'workdir',
+    })).toEqual({
+      kind: 'rename-file-title',
+      filePath: '/workspace/a.md',
     })
   })
 

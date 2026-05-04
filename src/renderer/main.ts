@@ -39,8 +39,10 @@ import { createSettingsDialogController } from './settings-dialog'
 import {
   resolvePinnedItems,
   resolvePinControl,
+  resolveRemoveActionKey,
   resolveRemoveActionPlan,
   resolveRemoveControl,
+  resolveSidebarInlineTitleCommitAction,
   resolveVisibleTabItems,
   resolveWorkspaceLabel,
   shouldScrollWorkspaces,
@@ -55,6 +57,7 @@ type TitleEditingAPI = typeof window.electronAPI & {
   updateCurrentFileTitle?: (nextTitle: string) => Promise<SidebarState | null>
   updateDraftTitleById?: (draftId: string, nextTitle: string) => Promise<SidebarState | null>
   updateFileTitleByPath?: (filePath: string, nextTitle: string) => Promise<SidebarState | null>
+  renameFileByPathFromTitle?: (filePath: string, nextTitle: string) => Promise<SidebarState | null>
   onMenuSettings?: (callback: () => void) => void
 }
 
@@ -247,6 +250,8 @@ async function init(): Promise<void> {
         filePath: string
       }
     | null = null
+  let pendingRemoveActionKey: string | null = null
+  let pendingRemoveActionTimer: ReturnType<typeof setTimeout> | null = null
   const savedViewportOffsets = new Map<string, number>()
   let drawerOpenedByHover = false
   let drawerHoverOpenTimer: ReturnType<typeof setTimeout> | null = null
@@ -626,12 +631,14 @@ async function init(): Promise<void> {
 
     sidebarInlineTitleEdit = null
 
-    if (editTarget.kind === 'draft') {
+    const action = resolveSidebarInlineTitleCommitAction(editTarget)
+
+    if (action.kind === 'update-draft-title') {
       const snapshot = api.updateDraftTitleById
-        ? await api.updateDraftTitleById(editTarget.draftId, trimmedTitle).catch(() => null)
+        ? await api.updateDraftTitleById(action.draftId, trimmedTitle).catch(() => null)
         : (
             sidebarState?.currentDocumentKind === 'draft'
-            && sidebarState.currentDraftId === editTarget.draftId
+            && sidebarState.currentDraftId === action.draftId
             && api.updateCurrentDraftTitle
               ? await api.updateCurrentDraftTitle(trimmedTitle).catch(() => null)
               : null
@@ -641,11 +648,12 @@ async function init(): Promise<void> {
       return
     }
 
-    const snapshot = api.updateFileTitleByPath
-      ? await api.updateFileTitleByPath(editTarget.filePath, trimmedTitle).catch(() => null)
+    await flushAutoSave()
+    const snapshot = api.renameFileByPathFromTitle
+      ? await api.renameFileByPathFromTitle(action.filePath, trimmedTitle).catch(() => null)
       : (
           sidebarState?.currentDocumentKind === 'file'
-          && sidebarState.currentFilePath === editTarget.filePath
+          && sidebarState.currentFilePath === action.filePath
           && api.updateCurrentFileTitle
             ? await api.updateCurrentFileTitle(trimmedTitle).catch(() => null)
             : null
@@ -1066,14 +1074,40 @@ async function init(): Promise<void> {
     return button
   }
 
+  const clearPendingRemoveConfirmation = (): void => {
+    if (pendingRemoveActionTimer) {
+      clearTimeout(pendingRemoveActionTimer)
+      pendingRemoveActionTimer = null
+    }
+    pendingRemoveActionKey = null
+  }
+
+  const requestRemoveConfirmation = (actionKey: string): boolean => {
+    if (pendingRemoveActionKey === actionKey) {
+      clearPendingRemoveConfirmation()
+      return true
+    }
+
+    clearPendingRemoveConfirmation()
+    pendingRemoveActionKey = actionKey
+    pendingRemoveActionTimer = setTimeout(() => {
+      pendingRemoveActionKey = null
+      pendingRemoveActionTimer = null
+      renderSidebar()
+    }, 3500)
+    renderSidebar()
+    return false
+  }
+
   const createRemoveButton = (item: SidebarItem): HTMLButtonElement | null => {
     const plan = resolveRemoveActionPlan(item)
     if (!plan) return null
 
-    const control = resolveRemoveControl(item.title)
+    const actionKey = resolveRemoveActionKey(plan)
+    const control = resolveRemoveControl(item.title, pendingRemoveActionKey === actionKey)
     const button = document.createElement('button')
     button.type = 'button'
-    button.className = 'row-action-button remove-action-button'
+    button.className = `row-action-button remove-action-button${control.tone === 'danger' ? ' confirm-delete' : ''}`
     button.title = control.title
 
     if (plan.kind === 'draft') {
@@ -1084,11 +1118,13 @@ async function init(): Promise<void> {
       button.dataset.removeWorkdirPath = plan.filePath
     }
     button.setAttribute('aria-label', control.ariaLabel)
-    button.appendChild(createIconSvg([
-      'M5 6h8',
-      'M7 6V4.5h4V6',
-      'M6 6l.5 8h5L12 6',
-    ]))
+    button.appendChild(control.icon === 'check'
+      ? createIconSvg(['M4 9.5 7.3 12.8 14 5.8'])
+      : createIconSvg([
+          'M5 6h8',
+          'M7 6V4.5h4V6',
+          'M6 6l.5 8h5L12 6',
+        ]))
     return button
   }
 
@@ -1729,6 +1765,7 @@ img{max-width:100%}
       event.stopPropagation()
       const draftId = removeDraftButton.dataset.removeDraftId
       if (!draftId || !sidebarState) return
+      if (!requestRemoveConfirmation(`draft:${draftId}`)) return
       sidebarState = {
         ...sidebarState,
         draftEntries: sidebarState.draftEntries.filter((entry) => entry.id !== draftId),
@@ -1750,6 +1787,7 @@ img{max-width:100%}
       event.stopPropagation()
       const filePath = removeRecentButton.dataset.removeRecentPath
       if (!filePath || !sidebarState) return
+      if (!requestRemoveConfirmation(`recent:${filePath}`)) return
       sidebarState = {
         ...sidebarState,
         recentFiles: sidebarState.recentFiles.filter((entry) => entry !== filePath),
@@ -1767,6 +1805,7 @@ img{max-width:100%}
       event.stopPropagation()
       const filePath = removeWorkdirButton.dataset.removeWorkdirPath
       if (!filePath) return
+      if (!requestRemoveConfirmation(`workdir:${filePath}`)) return
       flushAutoSave().then(() => api.removeWorkdirFile(filePath)).then((state) => {
         if (state) {
           setSidebarState(state)
@@ -1775,6 +1814,11 @@ img{max-width:100%}
         syncSidebarState()
       }).catch(() => syncSidebarState())
       return
+    }
+
+    if (pendingRemoveActionKey) {
+      clearPendingRemoveConfirmation()
+      renderSidebar()
     }
 
     if (searchPanelOpen && searchPanel && !target?.closest('#search-panel')) {

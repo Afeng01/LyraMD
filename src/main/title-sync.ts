@@ -18,6 +18,13 @@ export function sanitizeTitleToFileStem(title: string): string {
   return title.trim().replace(/[/\\:*?"<>|]/g, '').slice(0, 60)
 }
 
+function stripExistingExtension(stem: string, extension: string): string {
+  if (!extension) return stem
+  return stem.toLowerCase().endsWith(extension.toLowerCase())
+    ? stem.slice(0, -extension.length)
+    : stem
+}
+
 export function decideTitleSync({
   mode,
   filePath,
@@ -28,7 +35,10 @@ export function decideTitleSync({
     return { shouldRename: false, nextPath: null }
   }
 
-  const sanitizedStem = sanitizeTitleToFileStem(nextTitle)
+  const sanitizedStem = stripExistingExtension(
+    sanitizeTitleToFileStem(nextTitle),
+    extname(filePath),
+  )
   if (!sanitizedStem) {
     return { shouldRename: false, nextPath: null }
   }
@@ -53,7 +63,8 @@ export function decideTitleSync({
 }
 
 export function buildTitleSyncPath(filePath: string, nextTitle: string): string | null {
-  const sanitizedStem = sanitizeTitleToFileStem(nextTitle)
+  const extension = extname(filePath) || '.md'
+  const sanitizedStem = stripExistingExtension(sanitizeTitleToFileStem(nextTitle), extension)
   if (!sanitizedStem) return null
-  return join(dirname(filePath), `${sanitizedStem}${extname(filePath) || '.md'}`)
+  return join(dirname(filePath), `${sanitizedStem}${extension}`)
 }

@@ -1,5 +1,5 @@
 import { app, BrowserWindow, ipcMain, dialog, Menu, shell } from 'electron'
-import { join, basename, dirname, relative } from 'path'
+import { join, basename, dirname, extname, relative } from 'path'
 import { readFile, writeFile, readdir, copyFile, mkdir, rename, unlink } from 'fs/promises'
 import { FSWatcher, existsSync, readdirSync, watch } from 'fs'
 import {
@@ -397,6 +397,57 @@ async function renameCurrentFileToPath(win: BrowserWindow, nextPath: string): Pr
   }
   broadcastSidebarState()
   return { path: nextPath }
+}
+
+async function renameFormalFileByTitleForAllWindows(
+  triggerWin: BrowserWindow,
+  previousPath: string,
+  nextTitle: string,
+): Promise<SidebarSnapshot> {
+  const trimmedTitle = nextTitle.trim()
+  const nextPath = buildTitleSyncPath(previousPath, trimmedTitle)
+  if (!trimmedTitle || !nextPath || previousPath === nextPath || !existsSync(previousPath) || existsSync(nextPath)) {
+    return createSidebarSnapshot(triggerWin)
+  }
+
+  const draftEntry = sidebarState.draftEntries.find((entry) => entry.path === previousPath)
+  if (draftEntry) {
+    try {
+      await applyManualDraftTitle(draftEntry, trimmedTitle)
+      broadcastSidebarState()
+    } catch {
+      return createSidebarSnapshot(triggerWin)
+    }
+    return createSidebarSnapshot(triggerWin)
+  }
+
+  const displayTitle = basename(nextPath, extname(nextPath))
+  try {
+    await rename(previousPath, nextPath)
+  } catch {
+    return createSidebarSnapshot(triggerWin)
+  }
+
+  delete sidebarState.fileTitleOverrides[previousPath]
+  sidebarState.fileTitleOverrides[nextPath] = displayTitle
+  sidebarState.pinnedItems = replacePinnedFilePath(sidebarState.pinnedItems, previousPath, nextPath)
+  replaceRecentFilePath(previousPath, nextPath)
+  await persistSidebarState()
+
+  for (const window of BrowserWindow.getAllWindows()) {
+    const state = getState(window)
+    if (state.documentKind !== 'file' || state.filePath !== previousPath) continue
+    setFileDocumentState(window, nextPath, 'file', null)
+    state.displayTitle = displayTitle
+    updateTitle(window)
+  }
+
+  if (isPathInsideWorkdir(previousPath) || isPathInsideWorkdir(nextPath)) {
+    await refreshWorkdirEntries()
+  }
+
+  broadcastSidebarState()
+  return createSidebarSnapshot(triggerWin)
 }
 
 function updateDraftEntry(entry: DraftEntry): void {
@@ -1044,20 +1095,6 @@ async function removeWorkdirFileForAllWindows(triggerWin: BrowserWindow, filePat
     return createSidebarSnapshot(triggerWin)
   }
 
-  const result = await dialog.showMessageBox(triggerWin, {
-    type: 'warning',
-    buttons: ['移到废纸篓', '取消'],
-    defaultId: 1,
-    cancelId: 1,
-    title: '删除工作目录文件',
-    message: `删除 ${basename(filePath)}？`,
-    detail: '这个文件会从当前工作区文件夹移动到系统废纸篓。',
-  })
-
-  if (result.response !== 0) {
-    return createSidebarSnapshot(triggerWin)
-  }
-
   const didRemove = await moveFileToTrashAndVerify(filePath, {
     trashItem: (targetPath) => shell.trashItem(targetPath),
     exists: (targetPath) => existsSync(targetPath),
@@ -1228,6 +1265,16 @@ ipcMain.handle('update-file-title-by-path', async (event, filePath: string, next
 
   broadcastSidebarState()
   return createSidebarSnapshot(win)
+})
+
+ipcMain.handle('rename-file-by-path-from-title', async (event, filePath: string, nextTitle: string) => {
+  const win = getWinFromEvent(event)
+  if (!win) return null
+  if (typeof filePath !== 'string' || typeof nextTitle !== 'string') {
+    return createSidebarSnapshot(win)
+  }
+
+  return renameFormalFileByTitleForAllWindows(win, filePath, nextTitle)
 })
 
 ipcMain.handle('rename-current-file-from-title', async (event, nextTitle: string) => {

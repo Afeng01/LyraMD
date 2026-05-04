@@ -46,14 +46,17 @@ export function reorderWorkspacePaths(paths: string[], sourcePath: string, targe
   if (sourcePath === targetPath) return paths
   if (!paths.includes(sourcePath) || !paths.includes(targetPath)) return paths
 
+  const sourceIndex = paths.indexOf(sourcePath)
+  const targetIndex = paths.indexOf(targetPath)
   const withoutSource = paths.filter((path) => path !== sourcePath)
-  const targetIndex = withoutSource.indexOf(targetPath)
-  if (targetIndex === -1) return paths
+  const insertionIndex = withoutSource.indexOf(targetPath)
+  if (insertionIndex === -1) return paths
+  const nextIndex = sourceIndex < targetIndex ? insertionIndex + 1 : insertionIndex
 
   return [
-    ...withoutSource.slice(0, targetIndex),
+    ...withoutSource.slice(0, nextIndex),
     sourcePath,
-    ...withoutSource.slice(targetIndex),
+    ...withoutSource.slice(nextIndex),
   ]
 }
 
@@ -136,4 +139,12 @@ export function migratePinnedDraftToFile(
 
 export function removePinnedFile(items: PinnedItem[], filePath: string): PinnedItem[] {
   return items.filter((item) => item.kind !== 'file' || item.filePath !== filePath)
+}
+
+export function replacePinnedFilePath(items: PinnedItem[], previousPath: string, nextPath: string): PinnedItem[] {
+  return normalizePinnedItems(items.map((item): PinnedItem => (
+    item.kind === 'file' && item.filePath === previousPath
+      ? { kind: 'file', filePath: nextPath }
+      : item
+  )))
 }

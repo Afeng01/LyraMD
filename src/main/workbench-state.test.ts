@@ -8,6 +8,7 @@ import {
   normalizeSidebarTab,
   normalizeWorkspacePaths,
   removePinnedFile,
+  replacePinnedFilePath,
   reorderWorkspacePaths,
   samePinnedItem,
   togglePinnedItem,
@@ -44,7 +45,8 @@ describe('workspace path helpers', () => {
 
   it('reorders workspace paths by drag source and target', () => {
     expect(reorderWorkspacePaths(['/a', '/b', '/c'], '/c', '/a')).toEqual(['/c', '/a', '/b'])
-    expect(reorderWorkspacePaths(['/a', '/b', '/c'], '/a', '/c')).toEqual(['/b', '/a', '/c'])
+    expect(reorderWorkspacePaths(['/a', '/b', '/c'], '/a', '/b')).toEqual(['/b', '/a', '/c'])
+    expect(reorderWorkspacePaths(['/a', '/b', '/c'], '/a', '/c')).toEqual(['/b', '/c', '/a'])
   })
 })
 
@@ -105,6 +107,17 @@ describe('pinned item helpers', () => {
     ], '/workspace/a.md')).toEqual([
       { kind: 'draft', draftId: 'd1' },
       { kind: 'file', filePath: '/workspace/b.md' },
+    ])
+  })
+
+  it('migrates pinned file paths after a formal file rename without creating duplicates', () => {
+    expect(replacePinnedFilePath([
+      { kind: 'draft', draftId: 'd1' },
+      { kind: 'file', filePath: '/workspace/old.md' },
+      { kind: 'file', filePath: '/workspace/new.md' },
+    ], '/workspace/old.md', '/workspace/new.md')).toEqual([
+      { kind: 'draft', draftId: 'd1' },
+      { kind: 'file', filePath: '/workspace/new.md' },
     ])
   })
 })

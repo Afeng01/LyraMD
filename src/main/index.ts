@@ -34,12 +34,14 @@ import { DEFAULT_APP_SETTINGS, loadAppSettings, updateAppSettings, type AppSetti
 import { shouldPromptForFormalSave, shouldRemoveSourceAfterSaveAs } from './save-as'
 import { buildTitleSyncPath, decideTitleSync } from './title-sync'
 import { scanWorkdir, shouldRefreshWorkdirForWatchEvent, type WorkdirEntry } from './workdir'
+import { moveFileToTrashAndVerify } from './file-removal'
 import {
   addWorkspacePath,
   canTogglePinnedFile,
   migratePinnedDraftToFile,
   normalizeSidebarTab,
   removePinnedFile,
+  replacePinnedFilePath,
   reorderWorkspacePaths,
   togglePinnedItem,
 } from './workbench-state'
@@ -81,16 +83,12 @@ let persistedSessionState: PersistedSessionState = {
 }
 let appSettings: AppSettings = DEFAULT_APP_SETTINGS
 
-function ensureAppDataDir(): void {
-  if (!existsSync(appDataDir)) {
-    mkdir(appDataDir, { recursive: true }).catch(() => {})
-  }
+async function ensureAppDataDir(): Promise<void> {
+  await mkdir(appDataDir, { recursive: true })
 }
 
-function ensureThemesDir(): void {
-  if (!existsSync(themesDir)) {
-    mkdir(themesDir, { recursive: true }).catch(() => {})
-  }
+async function ensureThemesDir(): Promise<void> {
+  await mkdir(themesDir, { recursive: true })
 }
 
 async function scanCustomThemes(): Promise<string[]> {
@@ -165,7 +163,7 @@ async function refreshWorkdirEntries(): Promise<void> {
     sidebarState.workdirPath = null
     workdirEntries = []
     watchWorkdirPath(null)
-    persistSidebarState()
+    await persistSidebarState()
     return
   }
 
@@ -178,9 +176,14 @@ async function refreshWorkdirEntries(): Promise<void> {
   }
 }
 
-function persistSidebarState(): void {
+let sidebarPersistQueue: Promise<void> = Promise.resolve()
+
+function persistSidebarState(): Promise<void> {
   const payload = JSON.stringify(sidebarState, null, 2)
-  writeFile(sidebarStatePath, payload, 'utf-8').catch(() => {})
+  sidebarPersistQueue = sidebarPersistQueue
+    .catch(() => {})
+    .then(() => writeFile(sidebarStatePath, payload, 'utf-8'))
+  return sidebarPersistQueue
 }
 
 function persistSessionState(): void {
@@ -199,7 +202,7 @@ async function loadSidebarState(): Promise<void> {
   sidebarState.recentFiles = filterMissingRecentFiles(sidebarState.recentFiles, (filePath) => existsSync(filePath))
   sidebarState.draftEntries = sidebarState.draftEntries.filter((entry) => existsSync(entry.path))
   sidebarState.workspacePaths = sidebarState.workspacePaths.filter((workspacePath) => existsSync(workspacePath))
-  persistSidebarState()
+  await persistSidebarState()
   await refreshWorkdirEntries()
 }
 
@@ -382,10 +385,13 @@ async function renameCurrentFileToPath(win: BrowserWindow, nextPath: string): Pr
   const currentDisplayTitle = state.displayTitle
   await rename(previousPath, nextPath)
   moveFileTitleOverride(previousPath, nextPath)
+  sidebarState.pinnedItems = replacePinnedFilePath(sidebarState.pinnedItems, previousPath, nextPath)
+  await persistSidebarState()
   setFileDocumentState(win, nextPath, 'file', null)
   state.displayTitle = currentDisplayTitle
   updateTitle(win)
   replaceRecentFilePath(previousPath, nextPath)
+  await persistSidebarState()
   if (isPathInsideWorkdir(previousPath) || isPathInsideWorkdir(nextPath)) {
     await refreshWorkdirEntries()
   }
@@ -821,7 +827,7 @@ async function saveFileAsForWindow(win: BrowserWindow, nextPath: string, content
 
       removeDraftEntry({ draftId: sourceDraftId, draftPath: sourcePath })
       sidebarState.pinnedItems = migratePinnedDraftToFile(sidebarState.pinnedItems, sourceDraftId, nextPath)
-      persistSidebarState()
+      await persistSidebarState()
       recordIgnoredWatchedContent(state.ignoredWatchedContents, content)
       setFileDocumentState(win, nextPath, 'file', null)
       state.lastSyncedContent = content
@@ -946,18 +952,28 @@ function beginBlankDocumentSession(win: BrowserWindow): SidebarSnapshot {
 
 async function clearDraftsForAllWindows(triggerWin: BrowserWindow): Promise<SidebarSnapshot> {
   const draftEntries = [...sidebarState.draftEntries]
+  const removedEntries: DraftEntry[] = []
 
   for (const entry of draftEntries) {
-    if (!existsSync(entry.path)) continue
-    await shell.trashItem(entry.path)
+    if (!existsSync(entry.path)) {
+      removedEntries.push(entry)
+      continue
+    }
+    const didRemove = await moveFileToTrashAndVerify(entry.path, {
+      trashItem: (targetPath) => shell.trashItem(targetPath),
+      exists: (targetPath) => existsSync(targetPath),
+    })
+    if (didRemove) removedEntries.push(entry)
   }
 
-  sidebarState.draftEntries = []
-  persistSidebarState()
+  sidebarState.draftEntries = sidebarState.draftEntries.filter((entry) => (
+    !removedEntries.some((removedEntry) => removedEntry.id === entry.id)
+  ))
+  await persistSidebarState()
 
   for (const win of BrowserWindow.getAllWindows()) {
     const state = getState(win)
-    if (!state.filePath || !draftEntries.some((entry) => entry.path === state.filePath)) continue
+    if (!state.filePath || !removedEntries.some((entry) => entry.path === state.filePath)) continue
     setBlankDocumentState(win)
     if (!win.isDestroyed()) {
       win.webContents.send('new-file')
@@ -979,7 +995,15 @@ async function removeDraftForAllWindows(triggerWin: BrowserWindow, draftId: stri
   }
 
   if (existsSync(draftEntry.path)) {
-    await shell.trashItem(draftEntry.path)
+    const didRemove = await moveFileToTrashAndVerify(draftEntry.path, {
+      trashItem: (targetPath) => shell.trashItem(targetPath),
+      exists: (targetPath) => existsSync(targetPath),
+    })
+    if (!didRemove) {
+      await refreshWorkdirEntries()
+      broadcastSidebarState()
+      return createSidebarSnapshot(triggerWin)
+    }
   }
 
   removeDraftEntry({ draftId: draftEntry.id, draftPath: draftEntry.path })
@@ -1001,11 +1025,11 @@ async function removeDraftForAllWindows(triggerWin: BrowserWindow, draftId: stri
   return createSidebarSnapshot(triggerWin)
 }
 
-function removeFormalFileReferences(filePath: string): void {
+async function removeFormalFileReferences(filePath: string): Promise<void> {
   sidebarState.recentFiles = removeRecentFile(sidebarState.recentFiles, filePath)
   sidebarState.pinnedItems = removePinnedFile(sidebarState.pinnedItems, filePath)
   delete sidebarState.fileTitleOverrides[filePath]
-  persistSidebarState()
+  await persistSidebarState()
 }
 
 async function removeWorkdirFileForAllWindows(triggerWin: BrowserWindow, filePath: string): Promise<SidebarSnapshot> {
@@ -1014,7 +1038,7 @@ async function removeWorkdirFileForAllWindows(triggerWin: BrowserWindow, filePat
   }
 
   if (!existsSync(filePath)) {
-    removeFormalFileReferences(filePath)
+    await removeFormalFileReferences(filePath)
     await refreshWorkdirEntries()
     broadcastSidebarState()
     return createSidebarSnapshot(triggerWin)
@@ -1034,13 +1058,18 @@ async function removeWorkdirFileForAllWindows(triggerWin: BrowserWindow, filePat
     return createSidebarSnapshot(triggerWin)
   }
 
-  try {
-    await shell.trashItem(filePath)
-  } catch {
+  const didRemove = await moveFileToTrashAndVerify(filePath, {
+    trashItem: (targetPath) => shell.trashItem(targetPath),
+    exists: (targetPath) => existsSync(targetPath),
+  })
+
+  if (!didRemove) {
+    await refreshWorkdirEntries()
+    broadcastSidebarState()
     return createSidebarSnapshot(triggerWin)
   }
 
-  removeFormalFileReferences(filePath)
+  await removeFormalFileReferences(filePath)
 
   for (const win of BrowserWindow.getAllWindows()) {
     const state = getState(win)
@@ -1333,7 +1362,7 @@ ipcMain.handle('toggle-pinned-draft', async (event, draftId: string) => {
   }
 
   sidebarState.pinnedItems = togglePinnedItem(sidebarState.pinnedItems, { kind: 'draft', draftId })
-  persistSidebarState()
+  await persistSidebarState()
   broadcastSidebarState()
   return createSidebarSnapshot(win)
 })
@@ -1353,7 +1382,7 @@ ipcMain.handle('toggle-pinned-file', async (event, filePath: string) => {
   }
 
   sidebarState.pinnedItems = togglePinnedItem(sidebarState.pinnedItems, { kind: 'file', filePath })
-  persistSidebarState()
+  await persistSidebarState()
   broadcastSidebarState()
   return createSidebarSnapshot(win)
 })
@@ -1736,9 +1765,8 @@ function buildMenu(): void {
 // App lifecycle
 
 app.whenReady().then(() => {
-  ensureAppDataDir()
-  ensureThemesDir()
-  Promise.all([loadSidebarState(), loadSessionState(), loadSettingsState()])
+  Promise.all([ensureAppDataDir(), ensureThemesDir()])
+    .then(() => Promise.all([loadSidebarState(), loadSessionState(), loadSettingsState()]))
     .catch(() => {})
     .finally(() => {
       buildMenu()

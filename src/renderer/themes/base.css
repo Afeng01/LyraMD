@@ -253,7 +253,7 @@ html, body {
 .sidebar-list-item,
 #workdir-body,
 .sidebar-empty-action,
-.recent-remove-button {
+.row-action-button {
   -webkit-app-region: no-drag;
 }
 
@@ -519,7 +519,7 @@ html, body {
 
 .sidebar-library-header {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 6px;
   margin-bottom: 8px;
@@ -560,17 +560,24 @@ html, body {
 }
 
 .sidebar-item-row .sidebar-list-item {
-  padding-right: 38px;
+  padding-right: 42px;
 }
 
 .sidebar-item-row.with-remove .sidebar-list-item {
-  padding-right: 64px;
+  padding-right: 70px;
 }
 
-.pin-toggle-button {
+.sidebar-row-actions {
   position: absolute;
   top: 50%;
   right: 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  transform: translateY(-50%);
+}
+
+.row-action-button {
   width: 24px;
   height: 24px;
   padding: 0;
@@ -583,23 +590,23 @@ html, body {
   align-items: center;
   justify-content: center;
   -webkit-app-region: no-drag;
-  transform: translateY(-50%);
   transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
 }
 
-.pin-toggle-button:hover,
-.pin-toggle-button.active {
+.row-action-button:hover,
+.row-action-button.active {
   color: var(--link-color);
   background: color-mix(in srgb, var(--selection-bg) 30%, transparent 70%);
   border-color: color-mix(in srgb, var(--link-color) 20%, transparent 80%);
 }
 
-.pin-toggle-button svg {
+.row-action-button svg {
   display: block;
 }
 
-.sidebar-item-row.with-remove .pin-toggle-button {
-  right: 34px;
+.remove-action-button:hover {
+  color: var(--link-color);
+  background: color-mix(in srgb, var(--selection-bg) 34%, transparent 66%);
 }
 
 #pinned-section.collapsed #pinned-list {
@@ -658,27 +665,6 @@ html, body {
 
 .sidebar-empty-action:hover {
   background: color-mix(in srgb, var(--bg-color) 90%, var(--border-color) 10%);
-}
-
-.recent-remove-button {
-  position: absolute;
-  top: 50%;
-  right: 8px;
-  width: 18px;
-  height: 18px;
-  border: 1px solid color-mix(in srgb, #d45a4f 48%, transparent 52%);
-  border-radius: 50%;
-  background: color-mix(in srgb, #d45a4f 10%, transparent 90%);
-  color: #d45a4f;
-  font-size: 14px;
-  line-height: 1;
-  cursor: pointer;
-  transform: translateY(-50%);
-}
-
-.recent-remove-button:hover {
-  color: #fff;
-  background: #d45a4f;
 }
 
 #editor-shell {

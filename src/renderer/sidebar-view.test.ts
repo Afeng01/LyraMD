@@ -6,6 +6,7 @@ import {
   isPinnedFile,
   resolvePinnedItems,
   resolvePinControl,
+  resolveRemoveControl,
   resolveVisibleTabItems,
   resolveWorkspaceLabel,
   shouldScrollWorkspaces,
@@ -78,6 +79,14 @@ describe('pinned view helpers', () => {
       title: '取消置顶 数字一的对话',
       ariaLabel: '取消置顶 数字一的对话',
       icon: 'pin-filled',
+    })
+  })
+
+  it('resolves remove controls as icon-only actions', () => {
+    expect(resolveRemoveControl('数字一的对话')).toEqual({
+      title: '删除 数字一的对话',
+      ariaLabel: '删除 数字一的对话',
+      icon: 'trash',
     })
   })
 

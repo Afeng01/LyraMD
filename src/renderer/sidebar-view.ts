@@ -25,6 +25,12 @@ export interface PinControl {
   icon: 'pin' | 'pin-filled'
 }
 
+export interface RemoveControl {
+  title: string
+  ariaLabel: string
+  icon: 'trash'
+}
+
 export function resolveWorkspaceLabel(workspacePath: string | null): string {
   if (!workspacePath) return '选择目录'
   return basename(workspacePath)
@@ -48,6 +54,14 @@ export function resolvePinControl(pinned: boolean, title: string): PinControl {
     title: `${action} ${title}`,
     ariaLabel: `${action} ${title}`,
     icon: pinned ? 'pin-filled' : 'pin',
+  }
+}
+
+export function resolveRemoveControl(title: string): RemoveControl {
+  return {
+    title: `删除 ${title}`,
+    ariaLabel: `删除 ${title}`,
+    icon: 'trash',
   }
 }
 

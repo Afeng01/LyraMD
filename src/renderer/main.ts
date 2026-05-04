@@ -39,6 +39,7 @@ import { createSettingsDialogController } from './settings-dialog'
 import {
   resolvePinnedItems,
   resolvePinControl,
+  resolveRemoveControl,
   resolveVisibleTabItems,
   resolveWorkspaceLabel,
   shouldScrollWorkspaces,
@@ -220,8 +221,6 @@ async function init(): Promise<void> {
   let appSettings = createDefaultSettings()
   let sidebarState: SidebarState | null = null
   let lastDocumentViewportKey: string | null = null
-  let managingDrafts = false
-  let managingRecentFiles = false
   let pendingBlankMaterialization = false
   let titleEditActive = false
   let titleEditValue = ''
@@ -295,8 +294,6 @@ async function init(): Promise<void> {
       titleEditActive = false
       closeTitleSyncPrompt()
     }
-    if (state.draftEntries.length === 0) managingDrafts = false
-    if (state.recentFiles.length === 0) managingRecentFiles = false
     if (!state.isDrawerMode || !state.sidebarOpen) drawerOpenedByHover = false
     renderSidebar()
     schedulePlaceholderLayoutSync()
@@ -349,9 +346,7 @@ async function init(): Promise<void> {
   const onboardingDirectoryPreview = document.getElementById('onboarding-directory-preview') as HTMLDivElement | null
   const currentFileNew = document.getElementById('current-file-new') as HTMLButtonElement | null
   const draftsToggle = document.getElementById('drafts-toggle') as HTMLButtonElement | null
-  const draftsClear = document.getElementById('drafts-clear') as HTMLButtonElement | null
   const recentFilesToggle = document.getElementById('recent-files-toggle') as HTMLButtonElement | null
-  const recentFilesClear = document.getElementById('recent-files-clear') as HTMLButtonElement | null
   const workdirToggle = document.getElementById('workdir-toggle') as HTMLButtonElement | null
   const workdirChange = document.getElementById('workdir-change') as HTMLButtonElement | null
   const workspaceAdd = document.getElementById('workspace-add') as HTMLButtonElement | null
@@ -1054,7 +1049,7 @@ async function init(): Promise<void> {
     const control = resolvePinControl(item.pinned, item.title)
     const button = document.createElement('button')
     button.type = 'button'
-    button.className = `pin-toggle-button icon-only${item.pinned ? ' active' : ''}`
+    button.className = `row-action-button pin-toggle-button${item.pinned ? ' active' : ''}`
     button.title = control.title
     if (item.kind === 'draft') {
       button.dataset.pinDraftId = item.id
@@ -1070,20 +1065,25 @@ async function init(): Promise<void> {
   }
 
   const createRemoveButton = (item: SidebarItem): HTMLButtonElement | null => {
+    const control = resolveRemoveControl(item.title)
     const button = document.createElement('button')
     button.type = 'button'
-    button.className = 'recent-remove-button'
-    button.textContent = '−'
+    button.className = 'row-action-button remove-action-button'
+    button.title = control.title
 
     if (item.kind === 'draft') {
       button.dataset.removeDraftId = item.id
-      button.setAttribute('aria-label', `删除 ${item.title}`)
-      return button
+    } else if (item.source === 'recent') {
+      button.dataset.removeRecentPath = item.filePath
+    } else {
+      return null
     }
-
-    if (item.source !== 'recent') return null
-    button.dataset.removeRecentPath = item.filePath
-    button.setAttribute('aria-label', `删除 ${item.title}`)
+    button.setAttribute('aria-label', control.ariaLabel)
+    button.appendChild(createIconSvg([
+      'M5 6h8',
+      'M7 6V4.5h4V6',
+      'M6 6l.5 8h5L12 6',
+    ]))
     return button
   }
 
@@ -1146,16 +1146,20 @@ async function init(): Promise<void> {
     const row = document.createElement('div')
     row.className = 'sidebar-item-row'
     row.appendChild(createWorkbenchItem(item, options.allowInlineEdit))
-    row.appendChild(createPinButton(item))
+
+    const actions = document.createElement('div')
+    actions.className = 'sidebar-row-actions'
+    actions.appendChild(createPinButton(item))
 
     if (options.showRemove) {
       const remove = createRemoveButton(item)
       if (remove) {
         row.classList.add('with-remove')
-        row.appendChild(remove)
+        actions.appendChild(remove)
       }
     }
 
+    row.appendChild(actions)
     container.appendChild(row)
   }
 
@@ -1229,23 +1233,6 @@ async function init(): Promise<void> {
       recentTab.setAttribute('aria-selected', activeTab === 'recent' ? 'true' : 'false')
     }
 
-    if (activeTab !== 'drafts') managingDrafts = false
-    if (activeTab !== 'recent') managingRecentFiles = false
-
-    if (draftsClear) {
-      draftsClear.hidden = activeTab !== 'drafts'
-      draftsClear.textContent = managingDrafts ? '完成' : '清除'
-      draftsClear.classList.toggle('active', managingDrafts)
-      draftsClear.disabled = sidebarState.draftEntries.length === 0
-    }
-
-    if (recentFilesClear) {
-      recentFilesClear.hidden = activeTab !== 'recent'
-      recentFilesClear.textContent = managingRecentFiles ? '完成' : '清除'
-      recentFilesClear.classList.toggle('active', managingRecentFiles)
-      recentFilesClear.disabled = sidebarState.recentFiles.length === 0
-    }
-
     clearElement(libraryList)
     const tabItems = resolveVisibleTabItems(sidebarState, activeTab)
     if (tabItems.length === 0) {
@@ -1259,7 +1246,7 @@ async function init(): Promise<void> {
     for (const item of tabItems) {
       appendWorkbenchRow(libraryList, item, {
         allowInlineEdit: true,
-        showRemove: (activeTab === 'drafts' && managingDrafts) || (activeTab === 'recent' && managingRecentFiles),
+        showRemove: true,
       })
     }
   }
@@ -1478,20 +1465,6 @@ img{max-width:100%}
     api.toggleDraftsExpanded().catch(() => {})
   })
 
-  draftsClear?.addEventListener('click', () => {
-    if (!sidebarState?.draftEntries.length) return
-    managingDrafts = !managingDrafts
-    if (!sidebarState.draftsExpanded) api.toggleDraftsExpanded().catch(() => {})
-    renderSidebar()
-  })
-
-  recentFilesClear?.addEventListener('click', () => {
-    if (!sidebarState?.recentFiles.length) return
-    managingRecentFiles = !managingRecentFiles
-    if (!sidebarState.recentFilesExpanded) api.toggleRecentFilesExpanded().catch(() => {})
-    renderSidebar()
-  })
-
   workdirToggle?.addEventListener('click', () => {
     api.toggleWorkdirExpanded().catch(() => {})
   })
@@ -1509,8 +1482,6 @@ img{max-width:100%}
   })
 
   const selectSidebarTab = (tab: SidebarTab): void => {
-    managingDrafts = false
-    managingRecentFiles = false
     api.setActiveSidebarTab(tab).then((state) => {
       if (state) setSidebarState(state)
     }).catch(() => syncSidebarState())
@@ -1696,7 +1667,6 @@ img{max-width:100%}
         ...sidebarState,
         draftEntries: sidebarState.draftEntries.filter((entry) => entry.id !== draftId),
       }
-      if (sidebarState.draftEntries.length === 0) managingDrafts = false
       renderSidebar()
       api.removeDraft(draftId).then((state) => {
         if (state) {
@@ -1718,7 +1688,6 @@ img{max-width:100%}
         ...sidebarState,
         recentFiles: sidebarState.recentFiles.filter((entry) => entry !== filePath),
       }
-      if (sidebarState.recentFiles.length === 0) managingRecentFiles = false
       renderSidebar()
       api.removeRecentFile(filePath).then((removed) => {
         if (!removed) syncSidebarState()
@@ -1746,7 +1715,6 @@ img{max-width:100%}
     const draftButton = target?.closest('[data-draft-id]') as HTMLElement | null
     if (draftButton) {
       if (event.detail > 1) return
-      if (managingDrafts) return
       const draftId = draftButton.dataset.draftId
       if (draftId) {
         persistCurrentViewportOffset()
@@ -1760,7 +1728,6 @@ img{max-width:100%}
     const fileButton = target?.closest('[data-file-path]') as HTMLElement | null
     if (fileButton) {
       if (event.detail > 1) return
-      if (managingRecentFiles) return
       const filePath = fileButton.dataset.filePath
       if (filePath) {
         persistCurrentViewportOffset()
@@ -1781,7 +1748,7 @@ img{max-width:100%}
     const target = event.target as HTMLElement | null
 
     const draftButton = target?.closest('[data-draft-id]') as HTMLElement | null
-    if (draftButton && !managingDrafts) {
+    if (draftButton) {
       const draftId = draftButton.dataset.draftId
       if (!draftId) return
       event.preventDefault()
@@ -1796,7 +1763,7 @@ img{max-width:100%}
     }
 
     const fileButton = target?.closest('[data-file-path]') as HTMLElement | null
-    if (fileButton && !managingRecentFiles) {
+    if (fileButton) {
       const filePath = fileButton.dataset.filePath
       const source = fileButton.dataset.sidebarSource === 'workdir'
         ? 'workdir'

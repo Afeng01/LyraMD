@@ -1,6 +1,17 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { runSaveAsMigration, shouldRemoveSourceAfterSaveAs } from './save-as'
+import { runSaveAsMigration, shouldPromptForFormalSave, shouldRemoveSourceAfterSaveAs } from './save-as'
+
+describe('shouldPromptForFormalSave', () => {
+  it('prompts for a formal location for blank documents and drafts', () => {
+    expect(shouldPromptForFormalSave('blank')).toBe(true)
+    expect(shouldPromptForFormalSave('draft')).toBe(true)
+  })
+
+  it('does not prompt for formal save for an existing regular file', () => {
+    expect(shouldPromptForFormalSave('file')).toBe(false)
+  })
+})
 
 describe('shouldRemoveSourceAfterSaveAs', () => {
   it('keeps the original file for switch-style save as', () => {

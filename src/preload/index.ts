@@ -17,6 +17,10 @@ export interface DraftEntry {
 export type DocumentKind = 'blank' | 'draft' | 'file'
 export type TitleSyncMode = 'ask' | 'always' | 'never'
 export type SaveAsMode = 'switch' | 'move'
+export type SidebarTab = 'drafts' | 'recent'
+export type PinnedItem =
+  | { kind: 'draft'; draftId: string }
+  | { kind: 'file'; filePath: string }
 
 export interface AppSettings {
   titleSyncMode: TitleSyncMode
@@ -37,6 +41,9 @@ export interface SidebarState {
   workdirExpanded: boolean
   recentFilesExpanded: boolean
   workdirPath: string | null
+  workspacePaths: string[]
+  pinnedItems: PinnedItem[]
+  activeSidebarTab: SidebarTab
   draftDirectoryPath: string | null
   draftOnboardingCompleted: boolean
   draftEntries: DraftEntry[]
@@ -73,10 +80,14 @@ export interface ElectronAPI {
   toggleDraftsExpanded: () => Promise<boolean>
   toggleWorkdirExpanded: () => Promise<boolean>
   toggleRecentFilesExpanded: () => Promise<boolean>
+  setActiveSidebarTab: (tab: SidebarTab) => Promise<SidebarState | null>
+  togglePinnedDraft: (draftId: string) => Promise<SidebarState | null>
+  togglePinnedFile: (path: string) => Promise<SidebarState | null>
   clearDrafts: () => Promise<SidebarState | null>
   removeDraft: (id: string) => Promise<SidebarState | null>
   setSidebarWidth: (width: number) => Promise<number>
   chooseWorkdir: () => Promise<SidebarState | null>
+  selectWorkspace: (path: string) => Promise<SidebarState | null>
   chooseDraftDirectory: () => Promise<SidebarState | null>
   skipDraftOnboarding: () => Promise<SidebarState | null>
   openSidebarFile: (path: string) => Promise<boolean>
@@ -92,6 +103,7 @@ export interface ElectronAPI {
   onMenuSave: (callback: () => void) => void
   onMenuSaveAs: (callback: () => void) => void
   onMenuSettings: (callback: () => void) => void
+  onMenuToggleOutline: (callback: () => void) => void
   onMenuExportPDF: (callback: () => void) => void
   onMenuExportHTML: (callback: () => void) => void
   onSetTheme: (callback: (theme: string) => void) => void
@@ -125,10 +137,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   toggleDraftsExpanded: () => ipcRenderer.invoke('toggle-drafts-expanded'),
   toggleWorkdirExpanded: () => ipcRenderer.invoke('toggle-workdir-expanded'),
   toggleRecentFilesExpanded: () => ipcRenderer.invoke('toggle-recent-files-expanded'),
+  setActiveSidebarTab: (tab: SidebarTab) => ipcRenderer.invoke('set-active-sidebar-tab', tab),
+  togglePinnedDraft: (draftId: string) => ipcRenderer.invoke('toggle-pinned-draft', draftId),
+  togglePinnedFile: (path: string) => ipcRenderer.invoke('toggle-pinned-file', path),
   clearDrafts: () => ipcRenderer.invoke('clear-drafts'),
   removeDraft: (id: string) => ipcRenderer.invoke('remove-draft', id),
   setSidebarWidth: (width: number) => ipcRenderer.invoke('set-sidebar-width', width),
   chooseWorkdir: () => ipcRenderer.invoke('choose-workdir'),
+  selectWorkspace: (path: string) => ipcRenderer.invoke('select-workspace', path),
   chooseDraftDirectory: () => ipcRenderer.invoke('choose-draft-directory'),
   skipDraftOnboarding: () => ipcRenderer.invoke('skip-draft-onboarding'),
   openSidebarFile: (path: string) => ipcRenderer.invoke('open-sidebar-file', path),
@@ -159,6 +175,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onMenuSettings: (callback: () => void) => {
     ipcRenderer.on('menu-settings', () => callback())
+  },
+  onMenuToggleOutline: (callback: () => void) => {
+    ipcRenderer.on('menu-toggle-outline', () => callback())
   },
   onMenuExportPDF: (callback: () => void) => {
     ipcRenderer.on('menu-export-pdf', () => callback())

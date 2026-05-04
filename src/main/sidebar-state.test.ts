@@ -68,6 +68,9 @@ describe('normalizeSidebarState', () => {
       workdirExpanded: true,
       recentFilesExpanded: true,
       workdirPath: null,
+      workspacePaths: [],
+      pinnedItems: [],
+      activeSidebarTab: 'drafts',
       draftDirectoryPath: null,
       draftOnboardingCompleted: false,
       draftEntries: [],
@@ -83,14 +86,22 @@ describe('normalizeSidebarState', () => {
   })
 
   it('sanitizes invalid draft persistence fields', () => {
-    expect(normalizeSidebarState({
-      draftsExpanded: false,
-      draftDirectoryPath: 123,
-      draftOnboardingCompleted: 'yes',
-      draftEntries: [
-        { id: 'ok', path: '/tmp/a.md', createdAt: 1, updatedAt: 2, displayTitle: 'OK' },
-        { id: 'missing-path', createdAt: 1, updatedAt: 2, displayTitle: 'Missing' },
-        'bad-entry',
+      expect(normalizeSidebarState({
+        draftsExpanded: false,
+        draftDirectoryPath: 123,
+        draftOnboardingCompleted: 'yes',
+        workdirPath: '/active',
+        workspacePaths: ['/a', 123, '/active'],
+        activeSidebarTab: 'recent',
+        pinnedItems: [
+          { kind: 'draft', draftId: 'draft-a' },
+          { kind: 'file', filePath: '/tmp/a.md' },
+          { kind: 'workspace', path: '/tmp' },
+        ],
+        draftEntries: [
+          { id: 'ok', path: '/tmp/a.md', createdAt: 1, updatedAt: 2, displayTitle: 'OK' },
+          { id: 'missing-path', createdAt: 1, updatedAt: 2, displayTitle: 'Missing' },
+          'bad-entry',
       ],
       fileTitleOverrides: {
         '/tmp/a.md': 'A',
@@ -98,16 +109,22 @@ describe('normalizeSidebarState', () => {
       },
     })).toEqual({
       sidebarOpen: false,
-      sidebarWidth: 336,
-      draftsExpanded: false,
-      workdirExpanded: true,
-      recentFilesExpanded: true,
-      workdirPath: null,
-      draftDirectoryPath: null,
-      draftOnboardingCompleted: false,
-      draftEntries: [
-        { id: 'ok', path: '/tmp/a.md', createdAt: 1, updatedAt: 2, displayTitle: 'OK' },
-      ],
+        sidebarWidth: 336,
+        draftsExpanded: false,
+        workdirExpanded: true,
+        recentFilesExpanded: true,
+        workdirPath: '/active',
+        workspacePaths: ['/active', '/a'],
+        pinnedItems: [
+          { kind: 'draft', draftId: 'draft-a' },
+          { kind: 'file', filePath: '/tmp/a.md' },
+        ],
+        activeSidebarTab: 'recent',
+        draftDirectoryPath: null,
+        draftOnboardingCompleted: false,
+        draftEntries: [
+          { id: 'ok', path: '/tmp/a.md', createdAt: 1, updatedAt: 2, displayTitle: 'OK' },
+        ],
       recentFiles: [],
       fileTitleOverrides: {
         '/tmp/a.md': 'A',

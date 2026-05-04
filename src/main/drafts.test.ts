@@ -7,6 +7,7 @@ import {
   deriveDraftDisplayTitle,
   isBlankDocumentContent,
   promoteDraftEntries,
+  updateDraftEntryManualTitle,
   upsertDraftEntry,
 } from './drafts'
 
@@ -171,5 +172,25 @@ describe('promoteDraftEntries', () => {
         manualTitle: null,
       },
     ])
+  })
+})
+
+describe('updateDraftEntryManualTitle', () => {
+  it('updates the visible title and path while preserving draft identity', () => {
+    expect(updateDraftEntryManualTitle({
+      id: 'draft-a',
+      path: '/drafts/draft-a.md',
+      createdAt: 1,
+      updatedAt: 2,
+      displayTitle: 'A',
+      manualTitle: null,
+    }, '数字一的对话', '/drafts/数字一的对话.md', 5)).toEqual({
+      id: 'draft-a',
+      path: '/drafts/数字一的对话.md',
+      createdAt: 1,
+      updatedAt: 5,
+      displayTitle: '数字一的对话',
+      manualTitle: '数字一的对话',
+    })
   })
 })

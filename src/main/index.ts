@@ -1,5 +1,5 @@
 import { app, BrowserWindow, ipcMain, dialog, Menu, shell } from 'electron'
-import { join, basename, relative } from 'path'
+import { join, basename, dirname, relative } from 'path'
 import { readFile, writeFile, readdir, copyFile, mkdir, rename, unlink } from 'fs/promises'
 import { FSWatcher, existsSync, readdirSync } from 'fs'
 import {
@@ -12,7 +12,17 @@ import {
   removeRecentFile,
   type PersistedSidebarState,
 } from './sidebar-state'
-import { deriveDocumentTitle, deriveDraftDisplayTitle, isBlankDocumentContent, promoteDraftEntries, upsertDraftEntry, type DraftEntry } from './drafts'
+import {
+  deriveDocumentTitle,
+  deriveDraftDisplayTitle,
+  isBlankDocumentContent,
+  promoteDraftEntries,
+  resolveManualDraftPath,
+  sanitizeMarkdownFileStem,
+  updateDraftEntryManualTitle,
+  upsertDraftEntry,
+  type DraftEntry,
+} from './drafts'
 import {
   consumeIgnoredWatchedContent,
   decideWatchEvent,
@@ -21,9 +31,15 @@ import {
   watchTargetFile,
 } from './file-sync'
 import { DEFAULT_APP_SETTINGS, loadAppSettings, updateAppSettings, type AppSettings } from './settings'
-import { shouldRemoveSourceAfterSaveAs } from './save-as'
+import { shouldPromptForFormalSave, shouldRemoveSourceAfterSaveAs } from './save-as'
 import { buildTitleSyncPath, decideTitleSync } from './title-sync'
 import { scanWorkdir, type WorkdirEntry } from './workdir'
+import {
+  addWorkspacePath,
+  migratePinnedDraftToFile,
+  normalizeSidebarTab,
+  togglePinnedItem,
+} from './workbench-state'
 
 // Custom themes directory
 const appDataDir = join(app.getPath('home'), '.lyramd')
@@ -87,6 +103,7 @@ async function refreshWorkdirEntries(): Promise<void> {
   }
 
   if (!existsSync(sidebarState.workdirPath)) {
+    sidebarState.workspacePaths = sidebarState.workspacePaths.filter((workspacePath) => workspacePath !== sidebarState.workdirPath)
     sidebarState.workdirPath = null
     workdirEntries = []
     persistSidebarState()
@@ -120,6 +137,7 @@ async function loadSidebarState(): Promise<void> {
 
   sidebarState.recentFiles = filterMissingRecentFiles(sidebarState.recentFiles, (filePath) => existsSync(filePath))
   sidebarState.draftEntries = sidebarState.draftEntries.filter((entry) => existsSync(entry.path))
+  sidebarState.workspacePaths = sidebarState.workspacePaths.filter((workspacePath) => existsSync(workspacePath))
   persistSidebarState()
   await refreshWorkdirEntries()
 }
@@ -326,6 +344,36 @@ function removeDraftEntry({ draftId, draftPath }: { draftId?: string | null; dra
   persistSidebarState()
 }
 
+async function applyManualDraftTitle(draftEntry: DraftEntry, nextTitle: string): Promise<DraftEntry> {
+  const trimmedTitle = nextTitle.trim()
+  const previousPath = draftEntry.path
+  const nextPath = resolveManualDraftPath(
+    dirname(previousPath),
+    trimmedTitle,
+    (candidatePath) => candidatePath !== previousPath && existsSync(candidatePath),
+  )
+
+  if (nextPath !== previousPath) {
+    await rename(previousPath, nextPath)
+  }
+
+  const nextEntry = updateDraftEntryManualTitle(draftEntry, trimmedTitle, nextPath, Date.now())
+  updateDraftEntry(nextEntry)
+
+  for (const window of BrowserWindow.getAllWindows()) {
+    const state = getState(window)
+    const pointsAtDraft = state.documentKind === 'draft'
+      && (state.draftId === draftEntry.id || state.filePath === previousPath)
+    if (!pointsAtDraft) continue
+
+    setFileDocumentState(window, nextEntry.path, 'draft', nextEntry.id)
+    state.displayTitle = nextEntry.displayTitle
+    updateTitle(window)
+  }
+
+  return nextEntry
+}
+
 function setBlankDocumentState(win: BrowserWindow): void {
   const state = getState(win)
   stopWatching(state)
@@ -443,6 +491,11 @@ function updateTitle(win: BrowserWindow): void {
 
 function suggestFileName(win: BrowserWindow, content?: string): string | undefined {
   const state = getState(win)
+  if (state.documentKind === 'draft') {
+    return sanitizeMarkdownFileStem(
+      state.displayTitle || (content ? deriveDocumentTitle(content, '未命名草稿') : '未命名草稿'),
+    )
+  }
   if (state.filePath) return basename(state.filePath, '.md')
   if (!content) return undefined
   // Extract first heading or first non-empty line
@@ -706,6 +759,8 @@ async function saveFileAsForWindow(win: BrowserWindow, nextPath: string, content
       }
 
       removeDraftEntry({ draftId: sourceDraftId, draftPath: sourcePath })
+      sidebarState.pinnedItems = migratePinnedDraftToFile(sidebarState.pinnedItems, sourceDraftId, nextPath)
+      persistSidebarState()
       recordIgnoredWatchedContent(state.ignoredWatchedContents, content)
       setFileDocumentState(win, nextPath, 'file', null)
       state.lastSyncedContent = content
@@ -963,15 +1018,12 @@ ipcMain.handle('update-current-draft-title', async (event, nextTitle: string) =>
     return createSidebarSnapshot(win)
   }
 
-  const nextEntry = {
-    ...draftEntry,
-    displayTitle: trimmedTitle,
-    manualTitle: trimmedTitle,
-    updatedAt: Date.now(),
+  try {
+    await applyManualDraftTitle(draftEntry, trimmedTitle)
+  } catch {
+    return createSidebarSnapshot(win)
   }
-  updateDraftEntry(nextEntry)
-  state.displayTitle = trimmedTitle
-  updateTitle(win)
+
   broadcastSidebarState()
   return createSidebarSnapshot(win)
 })
@@ -1001,20 +1053,10 @@ ipcMain.handle('update-draft-title-by-id', async (event, draftId: string, nextTi
     return createSidebarSnapshot(win)
   }
 
-  const nextEntry = {
-    ...draftEntry,
-    displayTitle: trimmedTitle,
-    manualTitle: trimmedTitle,
-    updatedAt: Date.now(),
-  }
-  updateDraftEntry(nextEntry)
-
-  for (const window of BrowserWindow.getAllWindows()) {
-    const state = getState(window)
-    if (state.documentKind === 'draft' && state.draftId === draftId) {
-      state.displayTitle = trimmedTitle
-      updateTitle(window)
-    }
+  try {
+    await applyManualDraftTitle(draftEntry, trimmedTitle)
+  } catch {
+    return createSidebarSnapshot(win)
   }
 
   broadcastSidebarState()
@@ -1111,8 +1153,65 @@ ipcMain.handle('choose-workdir', async (event) => {
   if (result.canceled || result.filePaths.length === 0) return null
 
   sidebarState.workdirPath = result.filePaths[0]
+  sidebarState.workspacePaths = addWorkspacePath(sidebarState.workspacePaths, sidebarState.workdirPath)
   sidebarState.workdirExpanded = true
   await refreshWorkdirEntries()
+  persistSidebarState()
+  broadcastSidebarState()
+  return createSidebarSnapshot(win)
+})
+
+ipcMain.handle('select-workspace', async (event, workspacePath: string) => {
+  const win = getWinFromEvent(event)
+  if (!win) return null
+  if (typeof workspacePath !== 'string' || !existsSync(workspacePath)) {
+    sidebarState.workspacePaths = sidebarState.workspacePaths.filter((candidate) => existsSync(candidate))
+    persistSidebarState()
+    broadcastSidebarState()
+    return createSidebarSnapshot(win)
+  }
+
+  sidebarState.workdirPath = workspacePath
+  sidebarState.workspacePaths = addWorkspacePath(sidebarState.workspacePaths, workspacePath)
+  sidebarState.workdirExpanded = true
+  await refreshWorkdirEntries()
+  persistSidebarState()
+  broadcastSidebarState()
+  return createSidebarSnapshot(win)
+})
+
+ipcMain.handle('set-active-sidebar-tab', async (event, tab: string) => {
+  const win = getWinFromEvent(event)
+  if (!win) return null
+  sidebarState.activeSidebarTab = normalizeSidebarTab(tab)
+  persistSidebarState()
+  broadcastSidebarState()
+  return createSidebarSnapshot(win)
+})
+
+ipcMain.handle('toggle-pinned-draft', async (event, draftId: string) => {
+  const win = getWinFromEvent(event)
+  if (!win) return null
+  if (typeof draftId !== 'string' || !sidebarState.draftEntries.some((entry) => entry.id === draftId)) {
+    return createSidebarSnapshot(win)
+  }
+
+  sidebarState.pinnedItems = togglePinnedItem(sidebarState.pinnedItems, { kind: 'draft', draftId })
+  persistSidebarState()
+  broadcastSidebarState()
+  return createSidebarSnapshot(win)
+})
+
+ipcMain.handle('toggle-pinned-file', async (event, filePath: string) => {
+  const win = getWinFromEvent(event)
+  if (!win) return null
+  const knownWorkdirFile = workdirEntries.some((entry) => entry.absolutePath === filePath)
+  const knownRecentFile = sidebarState.recentFiles.includes(filePath)
+  if (typeof filePath !== 'string' || !existsSync(filePath) || (!knownWorkdirFile && !knownRecentFile && getState(win).filePath !== filePath)) {
+    return createSidebarSnapshot(win)
+  }
+
+  sidebarState.pinnedItems = togglePinnedItem(sidebarState.pinnedItems, { kind: 'file', filePath })
   persistSidebarState()
   broadcastSidebarState()
   return createSidebarSnapshot(win)
@@ -1196,21 +1295,22 @@ ipcMain.handle('save-file', async (event, content: string) => {
   const win = getWinFromEvent(event)
   if (!win) return false
   const state = getState(win)
-  if (state.documentKind === 'draft' && state.filePath) {
-    return saveToPath(win, state.filePath, content)
-  }
 
-  if (!state.filePath) {
+  if (shouldPromptForFormalSave(state.documentKind) || !state.filePath) {
     const result = await dialog.showSaveDialog(win, {
       defaultPath: suggestFileName(win, content),
+      message: state.documentKind === 'draft'
+        ? '保存后会成为正式文件，并从草稿中移出。草稿内容已自动保存。'
+        : undefined,
       filters: [
         { name: 'Markdown', extensions: ['md'] },
         { name: 'All Files', extensions: ['*'] }
       ]
     })
     if (result.canceled || !result.filePath) return false
-    state.filePath = result.filePath
+    return saveFileAsForWindow(win, result.filePath, content)
   }
+
   return saveToPath(win, state.filePath, content)
 })
 
@@ -1431,6 +1531,11 @@ function buildMenu(): void {
           label: 'Toggle Sidebar',
           accelerator: 'CmdOrCtrl+\\',
           click: () => { toggleSidebarForWindow(getFocusedWindow()) }
+        },
+        {
+          label: 'Toggle Outline',
+          accelerator: 'CmdOrCtrl+Shift+O',
+          click: () => sendToFocused('menu-toggle-outline')
         },
         { type: 'separator' },
         {

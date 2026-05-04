@@ -44,16 +44,19 @@
         <aside id="sidebar">
           <section id="workspaces-section" class="sidebar-section">
             <div class="sidebar-section-header">
-              <button id="workspace-add" type="button" class="sidebar-icon-button" aria-label="选择目录">+</button>
+              <div class="sidebar-section-title static">
+                <span>工作区</span>
+              </div>
+              <button id="workspace-add" type="button" class="sidebar-icon-button" aria-label="新建或选择工作区" title="新建或选择工作区">+</button>
             </div>
             <div id="workspaces-list" class="workspace-list"></div>
           </section>
 
           <section id="pinned-section" class="sidebar-section">
             <div class="sidebar-section-header">
-              <div class="sidebar-section-title static">
+              <button id="pinned-toggle" type="button" class="sidebar-section-toggle" aria-expanded="true">
                 <span>置顶</span>
-              </div>
+              </button>
             </div>
             <div id="pinned-list" class="sidebar-list"></div>
           </section>

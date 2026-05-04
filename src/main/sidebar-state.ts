@@ -16,6 +16,7 @@ export interface PersistedSidebarState {
   sidebarWidth: number
   draftsExpanded: boolean
   workdirExpanded: boolean
+  pinnedExpanded: boolean
   recentFilesExpanded: boolean
   workdirPath: string | null
   workspacePaths: string[]
@@ -42,6 +43,7 @@ export const DEFAULT_SIDEBAR_STATE: PersistedSidebarState = {
   sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
   draftsExpanded: true,
   workdirExpanded: true,
+  pinnedExpanded: true,
   recentFilesExpanded: true,
   workdirPath: null,
   workspacePaths: [],
@@ -132,6 +134,7 @@ export function normalizeSidebarState(value: unknown): PersistedSidebarState {
     sidebarWidth: clampSidebarWidth(typeof candidate.sidebarWidth === 'number' ? candidate.sidebarWidth : DEFAULT_SIDEBAR_WIDTH),
     draftsExpanded: candidate.draftsExpanded !== false,
     workdirExpanded: candidate.workdirExpanded !== false,
+    pinnedExpanded: candidate.pinnedExpanded !== false,
     recentFilesExpanded: candidate.recentFilesExpanded !== false,
     workdirPath,
     workspacePaths: normalizeWorkspacePaths(candidate.workspacePaths, workdirPath),

@@ -1128,6 +1128,13 @@ ipcMain.handle('toggle-workdir-expanded', async () => {
   return sidebarState.workdirExpanded
 })
 
+ipcMain.handle('toggle-pinned-expanded', async () => {
+  sidebarState.pinnedExpanded = !sidebarState.pinnedExpanded
+  persistSidebarState()
+  broadcastSidebarState()
+  return sidebarState.pinnedExpanded
+})
+
 ipcMain.handle('toggle-recent-files-expanded', async () => {
   sidebarState.recentFilesExpanded = !sidebarState.recentFilesExpanded
   persistSidebarState()

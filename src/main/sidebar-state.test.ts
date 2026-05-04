@@ -66,6 +66,7 @@ describe('normalizeSidebarState', () => {
       sidebarWidth: 336,
       draftsExpanded: true,
       workdirExpanded: true,
+      pinnedExpanded: true,
       recentFilesExpanded: true,
       workdirPath: null,
       workspacePaths: [],
@@ -88,6 +89,7 @@ describe('normalizeSidebarState', () => {
   it('sanitizes invalid draft persistence fields', () => {
       expect(normalizeSidebarState({
         draftsExpanded: false,
+        pinnedExpanded: false,
         draftDirectoryPath: 123,
         draftOnboardingCompleted: 'yes',
         workdirPath: '/active',
@@ -112,6 +114,7 @@ describe('normalizeSidebarState', () => {
         sidebarWidth: 336,
         draftsExpanded: false,
         workdirExpanded: true,
+        pinnedExpanded: false,
         recentFilesExpanded: true,
         workdirPath: '/active',
         workspacePaths: ['/active', '/a'],

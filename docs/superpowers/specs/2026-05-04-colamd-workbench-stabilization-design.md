@@ -103,7 +103,8 @@ List content
 ### Workspaces
 
 - When no workspace has been selected, show `选择目录`.
-- After selection, the section label becomes the folder name, not `工作目录`.
+- The workspace area has its own `工作区` header and a small `+` action on the right.
+- After selection, the workspace list shows folder names, not `工作目录`.
 - Previously opened workspaces are retained.
 - If there are one to three workspaces, display them compactly.
 - If there are more than three, keep a fixed-height scrollable list.
@@ -114,6 +115,7 @@ List content
 ### Pinned
 
 Pinned is a persistent area below Workspaces.
+It is collapsible, because pinned items are shortcuts and should not permanently compete with Drafts/Recent for vertical space.
 
 Allowed pinned targets:
 
@@ -133,6 +135,7 @@ Known formal files include:
 - Files explicitly opened by the user.
 
 Pinned items remain visible in their original list as well. Pinning creates a shortcut, not a move.
+Pin and unpin actions live inside each document row as icon buttons, not as separate text buttons beside the row.
 
 If a pinned draft is saved as a formal file, the pinned entry migrates to the new file path.
 
@@ -190,6 +193,9 @@ The C phase should start only after this release stabilizes document identity, s
 - Pinned draft entries survive draft rename.
 - Pinned draft entries migrate when the draft becomes a formal file.
 - The left sidebar shows Workspaces, Pinned, and Drafts/Recent in that order.
+- The workspace section is a complete area with `工作区`, a right-side `+`, and selected folder rows.
+- Pin controls are icon buttons inside each document row.
+- The Pinned section can be collapsed.
 - Drafts is the default selected tab.
 - Workspace labels show selected folder names or `选择目录`; they do not show `工作目录`.
 - More than three workspaces become scrollable.

@@ -39,6 +39,7 @@ export interface SidebarState {
   sidebarWidth: number
   draftsExpanded: boolean
   workdirExpanded: boolean
+  pinnedExpanded: boolean
   recentFilesExpanded: boolean
   workdirPath: string | null
   workspacePaths: string[]
@@ -79,6 +80,7 @@ export interface ElectronAPI {
   toggleSidebar: () => Promise<boolean>
   toggleDraftsExpanded: () => Promise<boolean>
   toggleWorkdirExpanded: () => Promise<boolean>
+  togglePinnedExpanded: () => Promise<boolean>
   toggleRecentFilesExpanded: () => Promise<boolean>
   setActiveSidebarTab: (tab: SidebarTab) => Promise<SidebarState | null>
   togglePinnedDraft: (draftId: string) => Promise<SidebarState | null>
@@ -136,6 +138,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   toggleSidebar: () => ipcRenderer.invoke('toggle-sidebar'),
   toggleDraftsExpanded: () => ipcRenderer.invoke('toggle-drafts-expanded'),
   toggleWorkdirExpanded: () => ipcRenderer.invoke('toggle-workdir-expanded'),
+  togglePinnedExpanded: () => ipcRenderer.invoke('toggle-pinned-expanded'),
   toggleRecentFilesExpanded: () => ipcRenderer.invoke('toggle-recent-files-expanded'),
   setActiveSidebarTab: (tab: SidebarTab) => ipcRenderer.invoke('set-active-sidebar-tab', tab),
   togglePinnedDraft: (draftId: string) => ipcRenderer.invoke('toggle-pinned-draft', draftId),

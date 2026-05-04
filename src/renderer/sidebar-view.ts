@@ -19,6 +19,12 @@ export interface FileSidebarItem {
 
 export type SidebarItem = DraftSidebarItem | FileSidebarItem
 
+export interface PinControl {
+  title: string
+  ariaLabel: string
+  icon: 'pin' | 'pin-filled'
+}
+
 export function resolveWorkspaceLabel(workspacePath: string | null): string {
   if (!workspacePath) return '选择目录'
   return basename(workspacePath)
@@ -34,6 +40,15 @@ export function isPinnedDraft(state: SidebarState, draftId: string): boolean {
 
 export function isPinnedFile(state: SidebarState, filePath: string): boolean {
   return state.pinnedItems.some((item) => item.kind === 'file' && item.filePath === filePath)
+}
+
+export function resolvePinControl(pinned: boolean, title: string): PinControl {
+  const action = pinned ? '取消置顶' : '置顶'
+  return {
+    title: `${action} ${title}`,
+    ariaLabel: `${action} ${title}`,
+    icon: pinned ? 'pin-filled' : 'pin',
+  }
 }
 
 export function resolvePinnedItems(state: SidebarState): SidebarItem[] {

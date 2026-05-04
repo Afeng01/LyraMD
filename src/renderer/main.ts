@@ -38,6 +38,7 @@ import {
 import { createSettingsDialogController } from './settings-dialog'
 import {
   resolvePinnedItems,
+  resolvePinControl,
   resolveVisibleTabItems,
   resolveWorkspaceLabel,
   shouldScrollWorkspaces,
@@ -355,6 +356,8 @@ async function init(): Promise<void> {
   const workdirChange = document.getElementById('workdir-change') as HTMLButtonElement | null
   const workspaceAdd = document.getElementById('workspace-add') as HTMLButtonElement | null
   const workspacesList = document.getElementById('workspaces-list') as HTMLDivElement | null
+  const pinnedSection = document.getElementById('pinned-section') as HTMLElement | null
+  const pinnedToggle = document.getElementById('pinned-toggle') as HTMLButtonElement | null
   const pinnedList = document.getElementById('pinned-list') as HTMLDivElement | null
   const draftsTab = document.getElementById('drafts-tab') as HTMLButtonElement | null
   const recentTab = document.getElementById('recent-tab') as HTMLButtonElement | null
@@ -1023,18 +1026,46 @@ async function init(): Promise<void> {
     }, 160)
   }
 
+  const createIconSvg = (
+    paths: string[],
+    options: { filled?: boolean } = {},
+  ): SVGSVGElement => {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+    svg.setAttribute('viewBox', '0 0 18 18')
+    svg.setAttribute('width', '15')
+    svg.setAttribute('height', '15')
+    svg.setAttribute('aria-hidden', 'true')
+    svg.setAttribute('fill', options.filled ? 'currentColor' : 'none')
+    svg.setAttribute('stroke', 'currentColor')
+    svg.setAttribute('stroke-width', '1.45')
+    svg.setAttribute('stroke-linecap', 'round')
+    svg.setAttribute('stroke-linejoin', 'round')
+
+    for (const data of paths) {
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+      path.setAttribute('d', data)
+      svg.appendChild(path)
+    }
+
+    return svg
+  }
+
   const createPinButton = (item: SidebarItem): HTMLButtonElement => {
+    const control = resolvePinControl(item.pinned, item.title)
     const button = document.createElement('button')
     button.type = 'button'
-    button.className = `pin-toggle-button${item.pinned ? ' active' : ''}`
-    button.textContent = item.pinned ? '已置顶' : '置顶'
+    button.className = `pin-toggle-button icon-only${item.pinned ? ' active' : ''}`
+    button.title = control.title
     if (item.kind === 'draft') {
       button.dataset.pinDraftId = item.id
-      button.setAttribute('aria-label', `${item.pinned ? '取消置顶' : '置顶'} ${item.title}`)
     } else {
       button.dataset.pinFilePath = item.filePath
-      button.setAttribute('aria-label', `${item.pinned ? '取消置顶' : '置顶'} ${item.title}`)
     }
+    button.setAttribute('aria-label', control.ariaLabel)
+    button.appendChild(createIconSvg(
+      ['M6.8 2.8h4.4l-.8 4.2 3 3v1H9.8l-.6 4.2H8.8L8.2 11H4.6v-1l3-3-.8-4.2Z', 'M9 11v4.2'],
+      { filled: control.icon === 'pin-filled' },
+    ))
     return button
   }
 
@@ -1119,7 +1150,10 @@ async function init(): Promise<void> {
 
     if (options.showRemove) {
       const remove = createRemoveButton(item)
-      if (remove) row.appendChild(remove)
+      if (remove) {
+        row.classList.add('with-remove')
+        row.appendChild(remove)
+      }
     }
 
     container.appendChild(row)
@@ -1169,13 +1203,19 @@ async function init(): Promise<void> {
       }
     }
 
+    pinnedSection?.classList.toggle('collapsed', !sidebarState.pinnedExpanded)
+    if (pinnedToggle) {
+      pinnedToggle.setAttribute('aria-expanded', sidebarState.pinnedExpanded ? 'true' : 'false')
+    }
     clearElement(pinnedList)
-    const pinnedItems = resolvePinnedItems(sidebarState)
-    if (pinnedItems.length === 0) {
-      pinnedList.appendChild(createTextBlock('sidebar-empty', '还没有置顶文稿'))
-    } else {
-      for (const item of pinnedItems) {
-        appendWorkbenchRow(pinnedList, item, { allowInlineEdit: false, showRemove: false })
+    if (sidebarState.pinnedExpanded) {
+      const pinnedItems = resolvePinnedItems(sidebarState)
+      if (pinnedItems.length === 0) {
+        pinnedList.appendChild(createTextBlock('sidebar-empty', '还没有置顶文稿'))
+      } else {
+        for (const item of pinnedItems) {
+          appendWorkbenchRow(pinnedList, item, { allowInlineEdit: false, showRemove: false })
+        }
       }
     }
 
@@ -1454,6 +1494,10 @@ img{max-width:100%}
 
   workdirToggle?.addEventListener('click', () => {
     api.toggleWorkdirExpanded().catch(() => {})
+  })
+
+  pinnedToggle?.addEventListener('click', () => {
+    api.togglePinnedExpanded().catch(() => {})
   })
 
   workdirChange?.addEventListener('click', () => {

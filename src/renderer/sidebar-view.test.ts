@@ -5,6 +5,7 @@ import {
   isPinnedDraft,
   isPinnedFile,
   resolvePinnedItems,
+  resolvePinControl,
   resolveVisibleTabItems,
   resolveWorkspaceLabel,
   shouldScrollWorkspaces,
@@ -16,6 +17,7 @@ function createSidebarState(patch: Partial<SidebarState> = {}): SidebarState {
     sidebarWidth: 336,
     draftsExpanded: true,
     workdirExpanded: true,
+    pinnedExpanded: true,
     recentFilesExpanded: true,
     workdirPath: null,
     workspacePaths: [],
@@ -64,6 +66,19 @@ describe('pinned view helpers', () => {
     expect(isPinnedDraft(state, 'd2')).toBe(false)
     expect(isPinnedFile(state, '/a.md')).toBe(true)
     expect(isPinnedFile(state, '/b.md')).toBe(false)
+  })
+
+  it('resolves pin controls as icon-only actions', () => {
+    expect(resolvePinControl(false, '数字一的对话')).toEqual({
+      title: '置顶 数字一的对话',
+      ariaLabel: '置顶 数字一的对话',
+      icon: 'pin',
+    })
+    expect(resolvePinControl(true, '数字一的对话')).toEqual({
+      title: '取消置顶 数字一的对话',
+      ariaLabel: '取消置顶 数字一的对话',
+      icon: 'pin-filled',
+    })
   })
 
   it('resolves pinned drafts and files to visible sidebar items', () => {

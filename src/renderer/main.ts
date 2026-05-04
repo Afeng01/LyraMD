@@ -28,6 +28,11 @@ import {
 } from './editor/content-sync'
 import { createAgentChangeAutoDismiss } from './agent-change-autodismiss'
 import {
+  createAgentChangeSession,
+  mergeAgentChangeSession,
+  type AgentChangeSession,
+} from './agent-change-session'
+import {
   decideAutosaveBehavior,
   getDocumentViewportKey,
   resolveCenteredViewportScrollTop,
@@ -36,7 +41,7 @@ import {
 } from './editor/session-ux'
 import { createSettingsDialogController } from './settings-dialog'
 import { applyTheme, loadSavedTheme } from './themes/theme-manager'
-import type { AgentChangePreviewLine, AgentChangeSummary, AppSettings, SidebarState } from '../preload/index'
+import type { AgentChangePayload, AgentChangePreviewLine, AgentChangeSummary, AppSettings, SidebarState } from '../preload/index'
 import './themes/base.css'
 
 type TitleEditingAPI = typeof window.electronAPI & {
@@ -367,6 +372,7 @@ async function init(): Promise<void> {
   const agentChangeStats = document.getElementById('agent-change-stats') as HTMLSpanElement | null
   const agentChangeDetails = document.getElementById('agent-change-details') as HTMLDivElement | null
   const agentChangeList = document.getElementById('agent-change-list') as HTMLDivElement | null
+  const agentChangeRestore = document.getElementById('agent-change-restore') as HTMLButtonElement | null
   const agentChangeDismiss = document.getElementById('agent-change-dismiss') as HTMLButtonElement | null
 
   const updateEditorPlaceholder = (content: string): void => {
@@ -432,9 +438,9 @@ async function init(): Promise<void> {
   let immediateSaveInFlight = false
   let pendingImmediateSaveContent: string | null = null
   let immediateSavePromise: Promise<void> | null = null
-  let deferredIncomingContent: { content: string; scrollTop: number; agentChangeSummary: AgentChangeSummary | null } | null = null
+  let deferredIncomingContent: { content: string; scrollTop: number; agentChangePayload: AgentChangePayload | null } | null = null
   const recentLocalEchoes = new Map<string, number>()
-  let queuedAgentChangeSummary: AgentChangeSummary | null = null
+  let queuedAgentChangePayload: AgentChangePayload | null = null
 
   const hasPendingImmediateSave = (): boolean => immediateSaveInFlight || pendingImmediateSaveContent !== null
 
@@ -448,7 +454,7 @@ async function init(): Promise<void> {
   const resetLocalEchoState = (): void => {
     recentLocalEchoes.clear()
     deferredIncomingContent = null
-    queuedAgentChangeSummary = null
+    queuedAgentChangePayload = null
   }
 
   const closeTitleSyncPrompt = (): void => {
@@ -486,7 +492,7 @@ async function init(): Promise<void> {
   const processIncomingDocumentContent = (
     content: string,
     scrollTop: number,
-    options: { allowDefer: boolean; agentChangeSummary?: AgentChangeSummary | null },
+    options: { allowDefer: boolean; agentChangePayload?: AgentChangePayload | null },
   ): void => {
     const decision = resolveIncomingContentDecision({
       currentContent: getMarkdown(),
@@ -501,29 +507,31 @@ async function init(): Promise<void> {
       deferredIncomingContent = {
         content,
         scrollTop,
-        agentChangeSummary: options.agentChangeSummary ?? null,
+        agentChangePayload: options.agentChangePayload ?? null,
       }
       return
     }
 
     deferredIncomingContent = null
     applyProgrammaticDocumentContent(content, scrollTop)
-    agentChangeSummary = options.agentChangeSummary ?? null
-    agentChangeExpanded = false
-    renderAgentChangePanel()
-    if (hasAgentChangeSummary(agentChangeSummary)) {
+    if (options.agentChangePayload) {
+      agentChangeSession = agentChangeSession
+        ? mergeAgentChangeSession(agentChangeSession, options.agentChangePayload)
+        : createAgentChangeSession(options.agentChangePayload)
+      agentChangeExpanded = false
+      renderAgentChangePanel()
       agentChangeAutoDismiss.schedule()
     } else {
-      agentChangeAutoDismiss.clear()
+      clearAgentChangePanel()
     }
   }
 
   const flushDeferredIncomingContent = (): void => {
     if (!deferredIncomingContent || hasPendingImmediateSave()) return
 
-    const { content, scrollTop, agentChangeSummary } = deferredIncomingContent
+    const { content, scrollTop, agentChangePayload } = deferredIncomingContent
     deferredIncomingContent = null
-    processIncomingDocumentContent(content, scrollTop, { allowDefer: false, agentChangeSummary })
+    processIncomingDocumentContent(content, scrollTop, { allowDefer: false, agentChangePayload })
   }
 
   const runImmediateAutoSave = async (): Promise<void> => {
@@ -801,14 +809,18 @@ async function init(): Promise<void> {
   let searchPanelOpen = false
   let searchInputComposing = false
   let searchQueryMemory: SearchMemoryState = {}
-  let agentChangeSummary: AgentChangeSummary | null = null
+  let agentChangeSession: AgentChangeSession | null = null
   let agentChangeExpanded = false
   const agentChangeAutoDismiss = createAgentChangeAutoDismiss(() => {
     clearAgentChangePanel()
   })
 
-  const hasAgentChangeSummary = (summary: AgentChangeSummary | null): summary is AgentChangeSummary => {
-    return !!summary && (summary.addedLines > 0 || summary.removedLines > 0 || summary.changedLines > 0)
+  const hasAgentChangeSession = (session: AgentChangeSession | null): session is AgentChangeSession => {
+    return !!session && (
+      session.summary.addedLines > 0
+      || session.summary.removedLines > 0
+      || session.summary.changedLines > 0
+    )
   }
 
   const formatAgentChangeStats = (summary: AgentChangeSummary): string => {
@@ -828,7 +840,7 @@ async function init(): Promise<void> {
   const renderAgentChangePanel = (): void => {
     if (!agentChangePanel || !agentChangeToggle || !agentChangeStats || !agentChangeDetails || !agentChangeList) return
 
-    if (!hasAgentChangeSummary(agentChangeSummary)) {
+    if (!hasAgentChangeSession(agentChangeSession)) {
       agentChangePanel.hidden = true
       agentChangeToggle.setAttribute('aria-expanded', 'false')
       agentChangeDetails.hidden = true
@@ -837,12 +849,16 @@ async function init(): Promise<void> {
     }
 
     agentChangePanel.hidden = false
-    agentChangeStats.textContent = formatAgentChangeStats(agentChangeSummary)
+    const title = document.getElementById('agent-change-title') as HTMLSpanElement | null
+    if (title) title.textContent = agentChangeSession.updateCount > 1
+      ? `外部更新 ${agentChangeSession.updateCount} 次`
+      : '外部更新'
+    agentChangeStats.textContent = formatAgentChangeStats(agentChangeSession.summary)
     agentChangeToggle.setAttribute('aria-expanded', agentChangeExpanded ? 'true' : 'false')
     agentChangeDetails.hidden = !agentChangeExpanded
     clearElement(agentChangeList)
 
-    for (const previewLine of agentChangeSummary.preview) {
+    for (const previewLine of agentChangeSession.summary.preview) {
       const row = document.createElement('div')
       row.className = `agent-change-line ${previewLine.type}`
 
@@ -860,16 +876,24 @@ async function init(): Promise<void> {
       agentChangeList.appendChild(row)
     }
 
-    if (agentChangeSummary.truncated) {
+    if (agentChangeSession.summary.truncated) {
       agentChangeList.appendChild(createTextBlock('agent-change-truncated', '还有更多变更'))
     }
   }
 
   const clearAgentChangePanel = (): void => {
     agentChangeAutoDismiss.clear()
-    agentChangeSummary = null
+    agentChangeSession = null
     agentChangeExpanded = false
     renderAgentChangePanel()
+  }
+
+  const restoreAgentChangeSession = (): void => {
+    if (!agentChangeSession) return
+    const previousContent = agentChangeSession.previousContent
+    applyProgrammaticDocumentContent(previousContent, editorShell?.scrollTop ?? 0)
+    void saveImmediately(previousContent)
+    clearAgentChangePanel()
   }
 
   const renderSearchPreviewText = (
@@ -1415,9 +1439,9 @@ img{max-width:100%}
   })
   api.onFileChanged((content) => {
     const currentScrollTop = editorShell?.scrollTop ?? 0
-    const agentChangeSummary = queuedAgentChangeSummary
-    queuedAgentChangeSummary = null
-    processIncomingDocumentContent(content, currentScrollTop, { allowDefer: true, agentChangeSummary })
+    const agentChangePayload = queuedAgentChangePayload
+    queuedAgentChangePayload = null
+    processIncomingDocumentContent(content, currentScrollTop, { allowDefer: true, agentChangePayload })
   })
   api.onSetTheme(async (theme) => {
     applyTheme(theme)
@@ -1448,8 +1472,8 @@ img{max-width:100%}
   api.onAgentActivity((state) => {
     if (agentDot) agentDot.className = state === 'idle' ? '' : state
   })
-  api.onAgentChangeSummary((summary) => {
-    queuedAgentChangeSummary = summary
+  api.onAgentChangeSummary((payload) => {
+    queuedAgentChangePayload = payload
   })
 
   api.onSidebarState((state) => {
@@ -1471,9 +1495,13 @@ img{max-width:100%}
   agentChangeToggle?.addEventListener('click', () => {
     agentChangeExpanded = !agentChangeExpanded
     renderAgentChangePanel()
-    if (agentChangeExpanded && hasAgentChangeSummary(agentChangeSummary)) {
+    if (agentChangeExpanded && hasAgentChangeSession(agentChangeSession)) {
       agentChangeAutoDismiss.schedule()
     }
+  })
+
+  agentChangeRestore?.addEventListener('click', () => {
+    restoreAgentChangeSession()
   })
 
   agentChangeDismiss?.addEventListener('click', () => {

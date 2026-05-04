@@ -11,7 +11,7 @@ LyraMD is a personal fork of [ColaMD](https://github.com/marswaveai/ColaMD), ada
 ## Features
 
 - **Live file refresh**: when an AI agent edits the current Markdown file, LyraMD reloads it automatically.
-- **Agent change summary** for external edits, with added, removed, and changed line counts plus a compact preview.
+- **Agent change summary** for external edits, with compact preview, burst coalescing, and one-click rollback.
 - **WYSIWYG Markdown editing** powered by Milkdown.
 - **Lightweight sidebar** with current file, recent files, and a persistent working directory.
 - **Recent file management** with a compact delete mode.

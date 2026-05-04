@@ -539,7 +539,12 @@ function watchFile(win: BrowserWindow, state: WindowState): void {
             state.displayTitle = resolveFileDisplayTitle(state.filePath, data)
             updateTitle(win)
           }
-          if (!win.isDestroyed()) win.webContents.send('agent-change-summary', changeSummary)
+          if (!win.isDestroyed()) {
+            win.webContents.send('agent-change-summary', {
+              previousContent,
+              summary: changeSummary,
+            })
+          }
           if (!win.isDestroyed()) win.webContents.send('file-changed', data)
           if (!win.isDestroyed()) sendSidebarState(win)
         })

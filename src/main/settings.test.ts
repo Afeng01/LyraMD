@@ -61,7 +61,55 @@ describe('loadAppSettings', () => {
       titleSyncMode: 'always',
       saveAsMode: 'move',
       themeName: 'newsprint',
+      shortcuts: settingsModule.DEFAULT_SHORTCUTS,
     })
+  })
+
+  it('loads default shortcuts when none are persisted', async () => {
+    const settingsModule = await loadSettingsModule()
+    const tempDir = await createTempDir()
+    const settingsPath = join(tempDir, 'settings.json')
+
+    const settings = await settingsModule.loadAppSettings(settingsPath)
+
+    expect(settings.shortcuts).toEqual(settingsModule.DEFAULT_SHORTCUTS)
+  })
+
+  it('preserves supported shortcut overrides while filling missing defaults', async () => {
+    const settingsModule = await loadSettingsModule()
+    const tempDir = await createTempDir()
+    const settingsPath = join(tempDir, 'settings.json')
+    await writeFile(settingsPath, JSON.stringify({
+      titleSyncMode: 'ask',
+      saveAsMode: 'switch',
+      themeName: 'elegant',
+      shortcuts: {
+        cleanCjkTypography: 'CmdOrCtrl+Alt+K',
+      },
+    }), 'utf-8')
+
+    const settings = await settingsModule.loadAppSettings(settingsPath)
+
+    expect(settings.shortcuts).toEqual({
+      ...settingsModule.DEFAULT_SHORTCUTS,
+      cleanCjkTypography: 'CmdOrCtrl+Alt+K',
+    })
+  })
+
+  it('rejects malformed shortcut overrides', async () => {
+    const settingsModule = await loadSettingsModule()
+    const tempDir = await createTempDir()
+    const settingsPath = join(tempDir, 'settings.json')
+    await writeFile(settingsPath, JSON.stringify({
+      shortcuts: {
+        save: 'not a shortcut',
+        search: 'CmdOrCtrl+F',
+      },
+    }), 'utf-8')
+
+    const settings = await settingsModule.loadAppSettings(settingsPath)
+
+    expect(settings.shortcuts).toEqual(settingsModule.DEFAULT_SHORTCUTS)
   })
 })
 
@@ -77,8 +125,18 @@ describe('updateAppSettings', () => {
       { titleSyncMode: 'always', saveAsMode: 'move' },
     )
 
-    expect(updated).toEqual({ titleSyncMode: 'always', saveAsMode: 'move', themeName: 'elegant' })
-    expect(JSON.parse(await readFile(settingsPath, 'utf-8'))).toEqual({ titleSyncMode: 'always', saveAsMode: 'move', themeName: 'elegant' })
+    expect(updated).toEqual({
+      titleSyncMode: 'always',
+      saveAsMode: 'move',
+      themeName: 'elegant',
+      shortcuts: settingsModule.DEFAULT_SHORTCUTS,
+    })
+    expect(JSON.parse(await readFile(settingsPath, 'utf-8'))).toEqual({
+      titleSyncMode: 'always',
+      saveAsMode: 'move',
+      themeName: 'elegant',
+      shortcuts: settingsModule.DEFAULT_SHORTCUTS,
+    })
   })
 
   it('ignores unsupported app settings updates', async () => {
@@ -88,15 +146,30 @@ describe('updateAppSettings', () => {
 
     const updated = await settingsModule.updateAppSettings(
       settingsPath,
-      { titleSyncMode: 'never', saveAsMode: 'switch', themeName: 'elegant' },
+      {
+        titleSyncMode: 'never',
+        saveAsMode: 'switch',
+        themeName: 'elegant',
+        shortcuts: settingsModule.DEFAULT_SHORTCUTS,
+      },
       {
         titleSyncMode: 'unsupported' as 'ask',
         saveAsMode: 'unsupported' as 'switch',
       },
     )
 
-    expect(updated).toEqual({ titleSyncMode: 'never', saveAsMode: 'switch', themeName: 'elegant' })
-    expect(JSON.parse(await readFile(settingsPath, 'utf-8'))).toEqual({ titleSyncMode: 'never', saveAsMode: 'switch', themeName: 'elegant' })
+    expect(updated).toEqual({
+      titleSyncMode: 'never',
+      saveAsMode: 'switch',
+      themeName: 'elegant',
+      shortcuts: settingsModule.DEFAULT_SHORTCUTS,
+    })
+    expect(JSON.parse(await readFile(settingsPath, 'utf-8'))).toEqual({
+      titleSyncMode: 'never',
+      saveAsMode: 'switch',
+      themeName: 'elegant',
+      shortcuts: settingsModule.DEFAULT_SHORTCUTS,
+    })
   })
 
   it('persists theme name updates', async () => {
@@ -118,5 +191,20 @@ describe('updateAppSettings', () => {
       ...settingsModule.DEFAULT_APP_SETTINGS,
       themeName: 'dark',
     })
+  })
+
+  it('persists supported shortcut updates', async () => {
+    const settingsModule = await loadSettingsModule()
+    const tempDir = await createTempDir()
+    const settingsPath = join(tempDir, 'settings.json')
+
+    const updated = await settingsModule.updateAppSettings(
+      settingsPath,
+      settingsModule.DEFAULT_APP_SETTINGS,
+      { shortcuts: { cleanCjkTypography: 'CmdOrCtrl+Alt+K' } },
+    )
+
+    expect(updated.shortcuts.cleanCjkTypography).toBe('CmdOrCtrl+Alt+K')
+    expect(JSON.parse(await readFile(settingsPath, 'utf-8')).shortcuts.cleanCjkTypography).toBe('CmdOrCtrl+Alt+K')
   })
 })

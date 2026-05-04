@@ -9,6 +9,7 @@ describe('CJK typography cleanup integration', () => {
     const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
 
     expect(mainProcess).toContain('Clean CJK Typography')
+    expect(mainProcess).toContain("shortcutFor('cleanCjkTypography')")
     expect(mainProcess).toContain("sendToFocused('menu-clean-cjk-typography')")
     expect(preload).toContain('onMenuCleanCjkTypography')
     expect(renderer).toContain('formatCjkTypography(')

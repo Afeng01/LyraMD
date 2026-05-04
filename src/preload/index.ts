@@ -17,11 +17,14 @@ export interface DraftEntry {
 export type DocumentKind = 'blank' | 'draft' | 'file'
 export type TitleSyncMode = 'ask' | 'always' | 'never'
 export type SaveAsMode = 'switch' | 'move'
+export type ShortcutAction = 'save' | 'saveAs' | 'settings' | 'search' | 'toggleSidebar' | 'cleanCjkTypography'
+export type ShortcutMap = Record<ShortcutAction, string>
 
 export interface AppSettings {
   titleSyncMode: TitleSyncMode
   saveAsMode: SaveAsMode
   themeName: string
+  shortcuts: ShortcutMap
 }
 
 export interface TitleSyncPromptPayload {
@@ -113,6 +116,7 @@ export interface ElectronAPI {
   onMenuOpen: (callback: () => void) => void
   onMenuSave: (callback: () => void) => void
   onMenuSaveAs: (callback: () => void) => void
+  onMenuSearch: (callback: () => void) => void
   onMenuCleanCjkTypography: (callback: () => void) => void
   onMenuSettings: (callback: () => void) => void
   onMenuExportPDF: (callback: () => void) => void
@@ -180,6 +184,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onMenuSaveAs: (callback: () => void) => {
     ipcRenderer.on('menu-save-as', () => callback())
+  },
+  onMenuSearch: (callback: () => void) => {
+    ipcRenderer.on('menu-search', () => callback())
   },
   onMenuCleanCjkTypography: (callback: () => void) => {
     ipcRenderer.on('menu-clean-cjk-typography', () => callback())

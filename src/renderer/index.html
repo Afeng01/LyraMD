@@ -252,6 +252,13 @@
                   <span>另存为后切换到新位置，并删除旧路径</span>
                 </label>
               </section>
+
+              <section class="settings-group">
+                <div class="settings-group-heading">
+                  <h4 class="settings-group-title">Agent 协作</h4>
+                  <p class="settings-group-copy">外部更新提示会显示新增、删除和修改行数；展开后可以查看摘要，并用“撤回这次更新”回到本轮外部更新之前。</p>
+                </div>
+              </section>
             </section>
 
             <section class="settings-pane" data-settings-panel="workspace" hidden>
@@ -288,23 +295,27 @@
               <div class="settings-shortcut-list">
                   <div class="settings-shortcut-item">
                     <span class="settings-shortcut-label">保存</span>
-                    <kbd class="settings-shortcut-key">Cmd/Ctrl+S</kbd>
+                    <kbd class="settings-shortcut-key" data-shortcut-action="save">Cmd/Ctrl+S</kbd>
                   </div>
                   <div class="settings-shortcut-item">
                     <span class="settings-shortcut-label">另存为</span>
-                    <kbd class="settings-shortcut-key">Cmd/Ctrl+Shift+S</kbd>
+                    <kbd class="settings-shortcut-key" data-shortcut-action="saveAs">Cmd/Ctrl+Shift+S</kbd>
                   </div>
                   <div class="settings-shortcut-item">
                     <span class="settings-shortcut-label">打开设置</span>
-                    <kbd class="settings-shortcut-key">Cmd/Ctrl+,</kbd>
+                    <kbd class="settings-shortcut-key" data-shortcut-action="settings">Cmd/Ctrl+,</kbd>
                   </div>
                   <div class="settings-shortcut-item">
                     <span class="settings-shortcut-label">搜索</span>
-                    <kbd class="settings-shortcut-key">Cmd/Ctrl+F</kbd>
+                    <kbd class="settings-shortcut-key" data-shortcut-action="search">Cmd/Ctrl+F</kbd>
                   </div>
                   <div class="settings-shortcut-item">
                     <span class="settings-shortcut-label">切换侧边栏</span>
-                    <kbd class="settings-shortcut-key">Cmd/Ctrl+\</kbd>
+                    <kbd class="settings-shortcut-key" data-shortcut-action="toggleSidebar">Cmd/Ctrl+\</kbd>
+                  </div>
+                  <div class="settings-shortcut-item">
+                    <span class="settings-shortcut-label">清理中英排版</span>
+                    <kbd class="settings-shortcut-key" data-shortcut-action="cleanCjkTypography">Cmd/Ctrl+Shift+F</kbd>
                   </div>
                 </div>
               </section>

@@ -10,7 +10,7 @@ describe('createAgentChangeAutoDismiss', () => {
     vi.useRealTimers()
   })
 
-  it('dismisses the agent change panel after five seconds', () => {
+  it('dismisses the agent change panel after three seconds', () => {
     vi.useFakeTimers()
     const onDismiss = vi.fn()
     const autoDismiss = createAgentChangeAutoDismiss(onDismiss)
@@ -23,18 +23,18 @@ describe('createAgentChangeAutoDismiss', () => {
     expect(onDismiss).toHaveBeenCalledTimes(1)
   })
 
-  it('restarts the five-second timer for a newer external update', () => {
+  it('restarts the three-second timer for a newer external update', () => {
     vi.useFakeTimers()
     const onDismiss = vi.fn()
     const autoDismiss = createAgentChangeAutoDismiss(onDismiss)
 
     autoDismiss.schedule()
-    vi.advanceTimersByTime(3000)
+    vi.advanceTimersByTime(2000)
     autoDismiss.schedule()
-    vi.advanceTimersByTime(3000)
+    vi.advanceTimersByTime(2000)
     expect(onDismiss).not.toHaveBeenCalled()
 
-    vi.advanceTimersByTime(2000)
+    vi.advanceTimersByTime(1000)
     expect(onDismiss).toHaveBeenCalledTimes(1)
   })
 

@@ -20,7 +20,7 @@ import {
   recordIgnoredWatchedContent,
   watchTargetFile,
 } from './file-sync'
-import { DEFAULT_APP_SETTINGS, loadAppSettings, updateAppSettings, type AppSettings } from './settings'
+import { DEFAULT_SHORTCUTS, DEFAULT_APP_SETTINGS, loadAppSettings, updateAppSettings, type AppSettings, type ShortcutAction } from './settings'
 import { shouldRemoveSourceAfterSaveAs } from './save-as'
 import { buildTitleSyncPath, decideTitleSync } from './title-sync'
 import { scanWorkdir, type WorkdirEntry } from './workdir'
@@ -959,6 +959,7 @@ ipcMain.handle('update-settings', async (event, patch: Partial<AppSettings>) => 
   const win = getWinFromEvent(event)
   if (!win) return null
   appSettings = await updateAppSettings(settingsPath, appSettings, patch ?? {})
+  buildMenu()
   return appSettings
 })
 
@@ -1336,6 +1337,10 @@ function sendToFocused(channel: string, ...args: unknown[]): void {
   if (win) win.webContents.send(channel, ...args)
 }
 
+function shortcutFor(action: ShortcutAction): string {
+  return appSettings.shortcuts[action] ?? DEFAULT_SHORTCUTS[action]
+}
+
 function buildMenu(): void {
   const isMac = process.platform === 'darwin'
 
@@ -1400,12 +1405,12 @@ function buildMenu(): void {
         { type: 'separator' },
         {
           label: 'Save',
-          accelerator: 'CmdOrCtrl+S',
+          accelerator: shortcutFor('save'),
           click: () => sendToFocused('menu-save')
         },
         {
           label: 'Save As...',
-          accelerator: 'CmdOrCtrl+Shift+S',
+          accelerator: shortcutFor('saveAs'),
           click: () => sendToFocused('menu-save-as')
         },
         { type: 'separator' },
@@ -1433,7 +1438,13 @@ function buildMenu(): void {
         { role: 'selectAll' },
         { type: 'separator' },
         {
+          label: 'Find',
+          accelerator: shortcutFor('search'),
+          click: () => sendToFocused('menu-search')
+        },
+        {
           label: 'Clean CJK Typography',
+          accelerator: shortcutFor('cleanCjkTypography'),
           click: () => sendToFocused('menu-clean-cjk-typography')
         }
       ]
@@ -1443,7 +1454,7 @@ function buildMenu(): void {
       submenu: [
         {
           label: 'Toggle Sidebar',
-          accelerator: 'CmdOrCtrl+\\',
+          accelerator: shortcutFor('toggleSidebar'),
           click: () => { toggleSidebarForWindow(getFocusedWindow()) }
         },
         { type: 'separator' },
@@ -1475,7 +1486,7 @@ function buildMenu(): void {
       submenu: [
         {
           label: 'Open Settings',
-          accelerator: 'CmdOrCtrl+,',
+          accelerator: shortcutFor('settings'),
           click: () => sendToFocused('menu-settings')
         }
       ]

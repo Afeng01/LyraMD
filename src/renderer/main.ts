@@ -42,7 +42,7 @@ import {
 } from './editor/session-ux'
 import { createSettingsDialogController } from './settings-dialog'
 import { applyTheme, loadSavedTheme } from './themes/theme-manager'
-import type { AgentChangePayload, AgentChangePreviewLine, AgentChangeSummary, AppSettings, SidebarState } from '../preload/index'
+import type { AgentChangePayload, AgentChangePreviewLine, AgentChangeSummary, AppSettings, ShortcutAction, SidebarState } from '../preload/index'
 import './themes/base.css'
 
 type TitleEditingAPI = typeof window.electronAPI & {
@@ -159,7 +159,49 @@ function currentDocumentMeta(state: SidebarState): string {
 }
 
 function createDefaultSettings(): AppSettings {
-  return { titleSyncMode: 'ask', saveAsMode: 'switch', themeName: 'elegant' }
+  return {
+    titleSyncMode: 'ask',
+    saveAsMode: 'switch',
+    themeName: 'elegant',
+    shortcuts: {
+      save: 'CmdOrCtrl+S',
+      saveAs: 'CmdOrCtrl+Shift+S',
+      settings: 'CmdOrCtrl+,',
+      search: 'CmdOrCtrl+F',
+      toggleSidebar: 'CmdOrCtrl+\\',
+      cleanCjkTypography: 'CmdOrCtrl+Shift+F',
+    },
+  }
+}
+
+function normalizeShortcutKey(key: string): string {
+  if (key === ' ') return 'Space'
+  if (key.length === 1) return key.toUpperCase()
+  return key
+}
+
+function eventMatchesShortcut(event: KeyboardEvent, accelerator: string): boolean {
+  const parts = accelerator.split('+').map((part) => part.trim()).filter(Boolean)
+  const key = parts.at(-1)
+  if (!key) return false
+
+  const needsPrimary = parts.includes('CmdOrCtrl') || parts.includes('CommandOrControl')
+  const needsShift = parts.includes('Shift')
+  const needsAlt = parts.includes('Alt') || parts.includes('Option')
+  const needsCtrl = parts.includes('Ctrl') || parts.includes('Control')
+  const needsMeta = parts.includes('Cmd') || parts.includes('Command') || parts.includes('Meta') || parts.includes('Super')
+  const primaryPressed = event.metaKey || event.ctrlKey
+
+  return normalizeShortcutKey(event.key) === key
+    && (needsPrimary ? primaryPressed : (!event.metaKey && !event.ctrlKey) || needsCtrl || needsMeta)
+    && event.shiftKey === needsShift
+    && event.altKey === needsAlt
+    && (!needsCtrl || event.ctrlKey)
+    && (!needsMeta || event.metaKey)
+}
+
+function shortcutFor(settings: AppSettings, action: ShortcutAction): string {
+  return settings.shortcuts[action] ?? createDefaultSettings().shortcuts[action]
 }
 
 function createFileItem(
@@ -519,7 +561,8 @@ async function init(): Promise<void> {
       agentChangeSession = agentChangeSession
         ? mergeAgentChangeSession(agentChangeSession, options.agentChangePayload)
         : createAgentChangeSession(options.agentChangePayload)
-      agentChangeExpanded = false
+      agentChangeExpanded = !hasShownAgentChangeHint
+      hasShownAgentChangeHint = true
       renderAgentChangePanel()
       agentChangeAutoDismiss.schedule()
     } else {
@@ -812,6 +855,7 @@ async function init(): Promise<void> {
   let searchQueryMemory: SearchMemoryState = {}
   let agentChangeSession: AgentChangeSession | null = null
   let agentChangeExpanded = false
+  let hasShownAgentChangeHint = false
   const agentChangeAutoDismiss = createAgentChangeAutoDismiss(() => {
     clearAgentChangePanel()
   })
@@ -1369,6 +1413,9 @@ async function init(): Promise<void> {
       api.saveFileAs(markdown, appSettings.saveAsMode).catch(() => {})
     })
   })
+  api.onMenuSearch(() => {
+    openSearchPanel()
+  })
   api.onMenuCleanCjkTypography(() => {
     void flushAutoSave().then(() => {
       const markdown = getMarkdown()
@@ -1704,7 +1751,7 @@ img{max-width:100%}
   })
 
   document.addEventListener('keydown', (event) => {
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
+    if (eventMatchesShortcut(event, shortcutFor(appSettings, 'search'))) {
       event.preventDefault()
       openSearchPanel()
       return

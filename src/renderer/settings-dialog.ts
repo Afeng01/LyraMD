@@ -1,4 +1,4 @@
-import type { AppSettings, ElectronAPI, SaveAsMode, SidebarState, TitleSyncMode } from '../preload/index'
+import type { AppSettings, ElectronAPI, SaveAsMode, ShortcutAction, SidebarState, TitleSyncMode } from '../preload/index'
 import { applyTheme } from './themes/theme-manager'
 
 const BUILT_IN_THEMES = [
@@ -17,8 +17,15 @@ function getThemeSummary(themeName: string): string {
   return builtin ? `当前主题 · ${builtin.label}` : `当前主题 · ${themeName}`
 }
 
-function isMacPlatform(): boolean {
-  return navigator.platform.toLowerCase().includes('mac')
+function formatShortcutLabel(accelerator: string): string {
+  return accelerator.replace('CmdOrCtrl', 'Cmd/Ctrl')
+}
+
+function normalizeRecordedKey(key: string): string {
+  if (key === ' ') return 'Space'
+  if (key === 'Escape') return 'Esc'
+  if (key.length === 1) return key.toUpperCase()
+  return key
 }
 
 export interface SettingsDialogController {
@@ -92,7 +99,7 @@ export function createSettingsDialogController({
     document.querySelectorAll<HTMLInputElement>('input[name="settings-save-as-mode"]'),
   )
   const shortcutKeys = Array.from(
-    document.querySelectorAll<HTMLElement>('.settings-shortcut-key'),
+    document.querySelectorAll<HTMLElement>('[data-shortcut-action]'),
   )
 
   let dialogOpen = false
@@ -126,21 +133,18 @@ export function createSettingsDialogController({
     }
   }
 
-  const formatKeyCombo = (event: KeyboardEvent): string => {
+  const formatKeyCombo = (event: KeyboardEvent): string | null => {
     const parts: string[] = []
-    if (event.metaKey || (event.ctrlKey && !parts.includes('Ctrl'))) {
-      parts.push(isMacPlatform() && event.metaKey ? '⌘' : 'Ctrl')
-    }
+    if (event.metaKey || event.ctrlKey) parts.push('CmdOrCtrl')
     if (event.shiftKey) parts.push('Shift')
     if (event.altKey) parts.push('Alt')
-    
-    let key = event.key
-    if (key === ' ') key = 'Space'
-    if (key.length === 1) key = key.toUpperCase()
+
+    const key = normalizeRecordedKey(event.key)
     if (!['Control', 'Shift', 'Alt', 'Meta'].includes(key)) {
       parts.push(key)
     }
-    return parts.join('+')
+
+    return parts.length > 1 ? parts.join('+') : null
   }
 
   const render = (): void => {
@@ -166,6 +170,12 @@ export function createSettingsDialogController({
 
     for (const button of themeButtons) {
       button.classList.toggle('active', button.dataset.settingsTheme === activeTheme)
+    }
+
+    for (const key of shortcutKeys) {
+      const action = key.dataset.shortcutAction as ShortcutAction | undefined
+      if (!action) continue
+      key.textContent = formatShortcutLabel(appSettings.shortcuts[action])
     }
 
     renderPane()
@@ -218,6 +228,20 @@ export function createSettingsDialogController({
     render()
   }
 
+  const updateShortcut = async (action: ShortcutAction, accelerator: string): Promise<void> => {
+    const current = getAppSettings()
+    const nextShortcuts = {
+      ...current.shortcuts,
+      [action]: accelerator,
+    }
+    const next = (await api.updateSettings({ shortcuts: nextShortcuts }).catch(() => null)) ?? {
+      ...current,
+      shortcuts: nextShortcuts,
+    }
+    onAppSettingsChange(next)
+    render()
+  }
+
   overlay?.addEventListener('click', (event) => {
     if (event.target === overlay) close()
   })
@@ -234,16 +258,17 @@ export function createSettingsDialogController({
 
     if (event.key === 'Escape') {
       stopRecording()
+      render()
       return
     }
 
     const combo = formatKeyCombo(event)
-    // Only save if a non-modifier key was pressed
-    if (!['Control', 'Shift', 'Alt', 'Meta'].includes(event.key)) {
-      recordingShortcut.textContent = combo
-      // Here you would typically call api.updateShortcut(...)
-      stopRecording()
-    }
+    const action = recordingShortcut.dataset.shortcutAction as ShortcutAction | undefined
+    if (!combo || !action) return
+
+    recordingShortcut.textContent = formatShortcutLabel(combo)
+    stopRecording()
+    void updateShortcut(action, combo)
   }, true)
 
   for (const key of shortcutKeys) {
@@ -251,8 +276,10 @@ export function createSettingsDialogController({
       event.stopPropagation()
       if (recordingShortcut === key) {
         stopRecording()
+        render()
       } else {
         stopRecording()
+        render()
         recordingShortcut = key
         key.classList.add('recording')
         key.textContent = '录制中...'

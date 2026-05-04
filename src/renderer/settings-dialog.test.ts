@@ -20,4 +20,12 @@ describe('settings dialog regression', () => {
 
     expect(file).toContain('api.updateSettings({ themeName')
   })
+
+  it('persists recorded shortcut changes through the shared app settings channel', () => {
+    const file = readFileSync(join(process.cwd(), 'src/renderer/settings-dialog.ts'), 'utf8')
+    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
+
+    expect(html).toContain('data-shortcut-action="cleanCjkTypography"')
+    expect(file).toContain('api.updateSettings({ shortcuts:')
+  })
 })

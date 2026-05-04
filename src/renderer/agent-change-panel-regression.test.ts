@@ -20,4 +20,19 @@ describe('agent change panel regression', () => {
     expect(main).toContain("agentChangeRestore?.addEventListener('click'")
     expect(main).toContain('restoreAgentChangeSession()')
   })
+
+  it('opens the first external update summary as an inline onboarding hint', () => {
+    const main = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+
+    expect(main).toContain('hasShownAgentChangeHint')
+    expect(main).toContain('agentChangeExpanded = !hasShownAgentChangeHint')
+  })
+
+  it('documents Agent collaboration behavior in Settings', () => {
+    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
+
+    expect(html).toContain('Agent 协作')
+    expect(html).toContain('外部更新提示会显示新增、删除和修改行数')
+    expect(html).toContain('撤回这次更新')
+  })
 })

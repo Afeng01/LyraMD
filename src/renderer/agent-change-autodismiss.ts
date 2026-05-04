@@ -1,4 +1,4 @@
-export const AGENT_CHANGE_AUTO_DISMISS_MS = 5000
+export const AGENT_CHANGE_AUTO_DISMISS_MS = 3000
 
 export interface AgentChangeAutoDismiss {
   schedule: () => void

@@ -17,6 +17,14 @@ describe('sidebar defaults', () => {
     expect(DEFAULT_SIDEBAR_WIDTH).toBe(336)
     expect(DEFAULT_SIDEBAR_STATE.sidebarWidth).toBe(336)
   })
+
+  it('keeps twenty recent files by default', () => {
+    expect(DEFAULT_SIDEBAR_STATE.recentFiles).toHaveLength(0)
+    expect(pushRecentFile(
+      Array.from({ length: 20 }, (_, index) => `${index}.md`),
+      'new.md',
+    )).toHaveLength(20)
+  })
 })
 
 describe('pushRecentFile', () => {
@@ -82,8 +90,8 @@ describe('normalizeSidebarState', () => {
 
   it('trims persisted recent files to the supported maximum', () => {
     expect(normalizeSidebarState({
-      recentFiles: Array.from({ length: 12 }, (_, index) => `${index}.md`),
-    }).recentFiles).toHaveLength(10)
+      recentFiles: Array.from({ length: 24 }, (_, index) => `${index}.md`),
+    }).recentFiles).toHaveLength(20)
   })
 
   it('sanitizes invalid draft persistence fields', () => {

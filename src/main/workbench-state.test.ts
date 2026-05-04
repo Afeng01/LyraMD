@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   addWorkspacePath,
+  canTogglePinnedFile,
   migratePinnedDraftToFile,
   normalizePinnedItems,
   normalizeSidebarTab,
@@ -71,5 +72,16 @@ describe('pinned item helpers', () => {
       { kind: 'file', filePath: '/final.md' },
       { kind: 'file', filePath: '/existing.md' },
     ])
+  })
+
+  it('allows a previously pinned file to be toggled even when it is no longer recent or in the active workspace', () => {
+    expect(canTogglePinnedFile({
+      filePath: '/pinned-only.md',
+      fileExists: true,
+      knownWorkdirFiles: [],
+      recentFiles: [],
+      currentFilePath: null,
+      pinnedItems: [{ kind: 'file', filePath: '/pinned-only.md' }],
+    })).toBe(true)
   })
 })

@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog, Menu, shell } from 'electron'
 import { join, basename, dirname, relative } from 'path'
 import { readFile, writeFile, readdir, copyFile, mkdir, rename, unlink } from 'fs/promises'
-import { FSWatcher, existsSync, readdirSync } from 'fs'
+import { FSWatcher, existsSync, readdirSync, watch } from 'fs'
 import {
   clampSidebarWidth,
   filterMissingRecentFiles,
@@ -33,9 +33,10 @@ import {
 import { DEFAULT_APP_SETTINGS, loadAppSettings, updateAppSettings, type AppSettings } from './settings'
 import { shouldPromptForFormalSave, shouldRemoveSourceAfterSaveAs } from './save-as'
 import { buildTitleSyncPath, decideTitleSync } from './title-sync'
-import { scanWorkdir, type WorkdirEntry } from './workdir'
+import { scanWorkdir, shouldRefreshWorkdirForWatchEvent, type WorkdirEntry } from './workdir'
 import {
   addWorkspacePath,
+  canTogglePinnedFile,
   migratePinnedDraftToFile,
   normalizeSidebarTab,
   togglePinnedItem,
@@ -70,6 +71,9 @@ interface SidebarSnapshot extends PersistedSidebarState {
 
 let sidebarState: PersistedSidebarState = normalizeSidebarState(null)
 let workdirEntries: WorkdirEntry[] = []
+let workdirWatcher: FSWatcher | null = null
+let watchedWorkdirPath: string | null = null
+let workdirRefreshTimer: NodeJS.Timeout | null = null
 let persistedSessionState: PersistedSessionState = {
   lastActiveDocument: null,
 }
@@ -96,9 +100,61 @@ async function scanCustomThemes(): Promise<string[]> {
   }
 }
 
+function stopWatchingWorkdir(): void {
+  if (workdirRefreshTimer) {
+    clearTimeout(workdirRefreshTimer)
+    workdirRefreshTimer = null
+  }
+  if (workdirWatcher) {
+    workdirWatcher.close()
+    workdirWatcher = null
+  }
+  watchedWorkdirPath = null
+}
+
+function scheduleWorkdirRefresh(): void {
+  if (workdirRefreshTimer) clearTimeout(workdirRefreshTimer)
+  workdirRefreshTimer = setTimeout(() => {
+    workdirRefreshTimer = null
+    refreshWorkdirEntries()
+      .then(() => {
+        broadcastSidebarState()
+      })
+      .catch(() => {})
+  }, 160)
+}
+
+function watchWorkdirPath(workdirPath: string | null): void {
+  if (watchedWorkdirPath === workdirPath) return
+  stopWatchingWorkdir()
+  if (!workdirPath) return
+
+  const attachWatcher = (recursive: boolean): FSWatcher => watch(
+    workdirPath,
+    { recursive },
+    (_eventType, fileName) => {
+      if (!shouldRefreshWorkdirForWatchEvent(fileName)) return
+      scheduleWorkdirRefresh()
+    },
+  )
+
+  try {
+    workdirWatcher = attachWatcher(true)
+  } catch {
+    try {
+      workdirWatcher = attachWatcher(false)
+    } catch {
+      workdirWatcher = null
+      return
+    }
+  }
+  watchedWorkdirPath = workdirPath
+}
+
 async function refreshWorkdirEntries(): Promise<void> {
   if (!sidebarState.workdirPath) {
     workdirEntries = []
+    watchWorkdirPath(null)
     return
   }
 
@@ -106,14 +162,17 @@ async function refreshWorkdirEntries(): Promise<void> {
     sidebarState.workspacePaths = sidebarState.workspacePaths.filter((workspacePath) => workspacePath !== sidebarState.workdirPath)
     sidebarState.workdirPath = null
     workdirEntries = []
+    watchWorkdirPath(null)
     persistSidebarState()
     return
   }
 
   try {
     workdirEntries = await scanWorkdir(sidebarState.workdirPath)
+    watchWorkdirPath(sidebarState.workdirPath)
   } catch {
     workdirEntries = []
+    watchWorkdirPath(null)
   }
 }
 
@@ -1212,9 +1271,14 @@ ipcMain.handle('toggle-pinned-draft', async (event, draftId: string) => {
 ipcMain.handle('toggle-pinned-file', async (event, filePath: string) => {
   const win = getWinFromEvent(event)
   if (!win) return null
-  const knownWorkdirFile = workdirEntries.some((entry) => entry.absolutePath === filePath)
-  const knownRecentFile = sidebarState.recentFiles.includes(filePath)
-  if (typeof filePath !== 'string' || !existsSync(filePath) || (!knownWorkdirFile && !knownRecentFile && getState(win).filePath !== filePath)) {
+  if (typeof filePath !== 'string' || !canTogglePinnedFile({
+    filePath,
+    fileExists: existsSync(filePath),
+    knownWorkdirFiles: workdirEntries.map((entry) => entry.absolutePath),
+    recentFiles: sidebarState.recentFiles,
+    currentFilePath: getState(win).filePath,
+    pinnedItems: sidebarState.pinnedItems,
+  })) {
     return createSidebarSnapshot(win)
   }
 
@@ -1635,6 +1699,10 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
+})
+
+app.on('before-quit', () => {
+  stopWatchingWorkdir()
 })
 
 app.on('open-file', (event, filePath) => {

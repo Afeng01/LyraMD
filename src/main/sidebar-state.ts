@@ -6,7 +6,7 @@ import {
   type SidebarTab,
 } from './workbench-state'
 
-export const DEFAULT_MAX_RECENT_FILES = 10
+export const DEFAULT_MAX_RECENT_FILES = 20
 export const DEFAULT_SIDEBAR_WIDTH = 336
 export const MIN_SIDEBAR_WIDTH = 220
 export const MAX_SIDEBAR_WIDTH = 460

@@ -575,6 +575,15 @@ html, body {
   align-items: center;
   gap: 3px;
   transform: translateY(-50%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+
+.sidebar-item-row:hover .sidebar-row-actions,
+.sidebar-item-row:focus-within .sidebar-row-actions {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .row-action-button {

@@ -111,6 +111,7 @@ List content
 - The active workspace is highlighted.
 - `+` adds or chooses another workspace.
 - Workspaces themselves are not pinned; they already live in the workspace area.
+- The active workspace watches external Markdown file additions/deletions and refreshes the list automatically.
 
 ### Pinned
 
@@ -136,6 +137,7 @@ Known formal files include:
 
 Pinned items remain visible in their original list as well. Pinning creates a shortcut, not a move.
 Pin/unpin and row removal actions live inside each document row as icon buttons, not as separate text buttons beside the row.
+Those row actions are revealed on hover or keyboard focus so the list stays quiet while scanning.
 Drafts and Recent do not need a separate "clear/manage" button; removal is available directly from the row.
 
 If a pinned draft is saved as a formal file, the pinned entry migrates to the new file path.
@@ -145,7 +147,7 @@ If a pinned draft is saved as a formal file, the pinned entry migrates to the ne
 - The default tab is Drafts.
 - If Drafts is empty, the UI may show an empty state and a gentle affordance to switch to Recent, but it should not silently change the user-selected tab.
 - Drafts contains unarchived drafts only.
-- Recent contains formal files only.
+- Recent contains formal files only and keeps up to 20 entries.
 - Drafts and Recent stay separate because they represent different document states.
 
 ## Right Outline Panel
@@ -197,8 +199,10 @@ The C phase should start only after this release stabilizes document identity, s
 - The workspace section is a complete area with `工作区`, a right-side `+`, and selected folder rows.
 - Pin controls are icon buttons inside each document row.
 - Row removal controls sit next to pin controls; no separate clear/manage button is shown.
+- Row action icons appear on hover/focus, not permanently.
 - The Pinned section can be collapsed.
 - Drafts is the default selected tab.
 - Workspace labels show selected folder names or `选择目录`; they do not show `工作目录`.
 - More than three workspaces become scrollable.
+- Active workspace contents update after external Markdown file create/delete events.
 - The outline panel opens on the right and navigates H1/H2 headings.

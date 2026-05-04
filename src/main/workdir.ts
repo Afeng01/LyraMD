@@ -14,6 +14,13 @@ function hasMarkdownExtension(fileName: string): boolean {
   return MARKDOWN_EXTENSIONS.has(fileName.slice(dotIndex).toLowerCase())
 }
 
+export function shouldRefreshWorkdirForWatchEvent(fileName?: string | Buffer | null): boolean {
+  if (!fileName) return true
+  const normalizedName = String(fileName)
+  if (!normalizedName) return true
+  return hasMarkdownExtension(normalizedName)
+}
+
 export async function scanWorkdir(rootPath: string): Promise<WorkdirEntry[]> {
   const entries: WorkdirEntry[] = []
 

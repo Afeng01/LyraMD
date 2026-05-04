@@ -78,6 +78,30 @@ export function togglePinnedItem(items: PinnedItem[], item: PinnedItem): PinnedI
     : [item, ...items]
 }
 
+export interface CanTogglePinnedFileInput {
+  filePath: string
+  fileExists: boolean
+  knownWorkdirFiles: string[]
+  recentFiles: string[]
+  currentFilePath: string | null
+  pinnedItems: PinnedItem[]
+}
+
+export function canTogglePinnedFile({
+  filePath,
+  fileExists,
+  knownWorkdirFiles,
+  recentFiles,
+  currentFilePath,
+  pinnedItems,
+}: CanTogglePinnedFileInput): boolean {
+  if (!filePath || !fileExists) return false
+  return knownWorkdirFiles.includes(filePath)
+    || recentFiles.includes(filePath)
+    || currentFilePath === filePath
+    || pinnedItems.some((item) => item.kind === 'file' && item.filePath === filePath)
+}
+
 export function migratePinnedDraftToFile(
   items: PinnedItem[],
   draftId: string | null,

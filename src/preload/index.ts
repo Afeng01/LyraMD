@@ -113,6 +113,7 @@ export interface ElectronAPI {
   onMenuOpen: (callback: () => void) => void
   onMenuSave: (callback: () => void) => void
   onMenuSaveAs: (callback: () => void) => void
+  onMenuCleanCjkTypography: (callback: () => void) => void
   onMenuSettings: (callback: () => void) => void
   onMenuExportPDF: (callback: () => void) => void
   onMenuExportHTML: (callback: () => void) => void
@@ -179,6 +180,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onMenuSaveAs: (callback: () => void) => {
     ipcRenderer.on('menu-save-as', () => callback())
+  },
+  onMenuCleanCjkTypography: (callback: () => void) => {
+    ipcRenderer.on('menu-clean-cjk-typography', () => callback())
   },
   onMenuSettings: (callback: () => void) => {
     ipcRenderer.on('menu-settings', () => callback())

@@ -14,6 +14,7 @@ import {
   setSearchQuery,
 } from './editor/editor'
 import { resolveSearchPanelPreview, type SearchState } from './editor/search'
+import { formatCjkTypography } from './editor/cjk-format'
 import {
   rememberQueryForDocument,
   resolveRememberedQuery,
@@ -1366,6 +1367,15 @@ async function init(): Promise<void> {
       const markdown = getMarkdown()
       recordRecentLocalEcho(markdown)
       api.saveFileAs(markdown, appSettings.saveAsMode).catch(() => {})
+    })
+  })
+  api.onMenuCleanCjkTypography(() => {
+    void flushAutoSave().then(() => {
+      const markdown = getMarkdown()
+      const nextMarkdown = formatCjkTypography(markdown)
+      if (nextMarkdown === markdown) return
+      applyProgrammaticDocumentContent(nextMarkdown, editorShell?.scrollTop ?? 0)
+      void saveImmediately(nextMarkdown)
     })
   })
   api.onMenuSettings?.(() => {

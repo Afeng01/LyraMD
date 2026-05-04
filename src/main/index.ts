@@ -1430,7 +1430,12 @@ function buildMenu(): void {
         { role: 'cut' },
         { role: 'copy' },
         { role: 'paste' },
-        { role: 'selectAll' }
+        { role: 'selectAll' },
+        { type: 'separator' },
+        {
+          label: 'Clean CJK Typography',
+          click: () => sendToFocused('menu-clean-cjk-typography')
+        }
       ]
     },
     {

@@ -28,6 +28,26 @@ function normalizeRecordedKey(key: string): string {
   return key
 }
 
+const SHORTCUT_ACTION_LABELS: Record<ShortcutAction, string> = {
+  save: '保存',
+  saveAs: '另存为',
+  settings: '打开设置',
+  search: '搜索',
+  toggleSidebar: '切换侧边栏',
+  cleanCjkTypography: '清理中英排版',
+}
+
+export function resolveShortcutConflict(
+  shortcuts: Record<ShortcutAction, string>,
+  action: ShortcutAction,
+  accelerator: string,
+): ShortcutAction | null {
+  const conflict = Object.entries(shortcuts).find(([candidateAction, candidateAccelerator]) => (
+    candidateAction !== action && candidateAccelerator === accelerator
+  ))
+  return (conflict?.[0] as ShortcutAction | undefined) ?? null
+}
+
 export interface SettingsDialogController {
   close: () => void
   isOpen: () => boolean
@@ -101,6 +121,7 @@ export function createSettingsDialogController({
   const shortcutKeys = Array.from(
     document.querySelectorAll<HTMLElement>('[data-shortcut-action]'),
   )
+  const shortcutConflict = document.getElementById('settings-shortcut-conflict') as HTMLDivElement | null
 
   let dialogOpen = false
   let activePane: SettingsPaneId = 'general'
@@ -131,6 +152,18 @@ export function createSettingsDialogController({
       recordingShortcut.classList.remove('recording')
       recordingShortcut = null
     }
+  }
+
+  const clearShortcutConflict = (): void => {
+    if (!shortcutConflict) return
+    shortcutConflict.hidden = true
+    shortcutConflict.textContent = ''
+  }
+
+  const showShortcutConflict = (action: ShortcutAction): void => {
+    if (!shortcutConflict) return
+    shortcutConflict.hidden = false
+    shortcutConflict.textContent = `这个快捷键已经被「${SHORTCUT_ACTION_LABELS[action]}」使用`
   }
 
   const formatKeyCombo = (event: KeyboardEvent): string | null => {
@@ -183,6 +216,7 @@ export function createSettingsDialogController({
 
   const open = (): void => {
     dialogOpen = true
+    clearShortcutConflict()
     render()
     if (!overlay) return
     overlay.hidden = false
@@ -195,6 +229,7 @@ export function createSettingsDialogController({
   const close = (): void => {
     dialogOpen = false
     stopRecording()
+    clearShortcutConflict()
     if (!overlay) return
     overlay.hidden = true
     overlay.setAttribute('aria-hidden', 'true')
@@ -230,6 +265,13 @@ export function createSettingsDialogController({
 
   const updateShortcut = async (action: ShortcutAction, accelerator: string): Promise<void> => {
     const current = getAppSettings()
+    const conflict = resolveShortcutConflict(current.shortcuts, action, accelerator)
+    if (conflict) {
+      render()
+      showShortcutConflict(conflict)
+      return
+    }
+
     const nextShortcuts = {
       ...current.shortcuts,
       [action]: accelerator,
@@ -258,6 +300,7 @@ export function createSettingsDialogController({
 
     if (event.key === 'Escape') {
       stopRecording()
+      clearShortcutConflict()
       render()
       return
     }
@@ -268,6 +311,7 @@ export function createSettingsDialogController({
 
     recordingShortcut.textContent = formatShortcutLabel(combo)
     stopRecording()
+    clearShortcutConflict()
     void updateShortcut(action, combo)
   }, true)
 
@@ -276,9 +320,11 @@ export function createSettingsDialogController({
       event.stopPropagation()
       if (recordingShortcut === key) {
         stopRecording()
+        clearShortcutConflict()
         render()
       } else {
         stopRecording()
+        clearShortcutConflict()
         render()
         recordingShortcut = key
         key.classList.add('recording')

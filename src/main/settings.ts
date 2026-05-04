@@ -67,17 +67,31 @@ function isShortcutAccelerator(value: unknown): value is string {
   return parts.slice(0, -1).every((part) => modifiers.has(part))
 }
 
-function normalizeShortcuts(input: unknown, fallback: ShortcutMap = DEFAULT_SHORTCUTS): ShortcutMap {
-  const normalized: ShortcutMap = { ...DEFAULT_SHORTCUTS, ...fallback }
+function hasShortcutConflict(shortcuts: ShortcutMap, action: ShortcutAction, accelerator: string): boolean {
+  return Object.entries(shortcuts).some(([candidateAction, candidateAccelerator]) => (
+    candidateAction !== action && candidateAccelerator === accelerator
+  ))
+}
+
+function applyShortcutOverrides(base: ShortcutMap, input: unknown): ShortcutMap {
+  const normalized = { ...base }
   if (!input || typeof input !== 'object') return normalized
 
   for (const [action, accelerator] of Object.entries(input)) {
     if (!isShortcutAction(action)) continue
     if (!isShortcutAccelerator(accelerator)) continue
+    if (hasShortcutConflict(normalized, action, accelerator)) continue
     normalized[action] = accelerator
   }
 
   return normalized
+}
+
+function normalizeShortcuts(input: unknown, fallback: ShortcutMap = DEFAULT_SHORTCUTS): ShortcutMap {
+  return applyShortcutOverrides(
+    applyShortcutOverrides(DEFAULT_SHORTCUTS, fallback),
+    input,
+  )
 }
 
 export function normalizeAppSettings(input: PersistedAppSettings | null | undefined): AppSettings {

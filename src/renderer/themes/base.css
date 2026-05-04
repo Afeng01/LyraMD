@@ -1307,6 +1307,12 @@ body.theme-dark .settings-theme-button.active {
   gap: 4px;
 }
 
+.settings-shortcut-conflict {
+  margin: 0 0 8px;
+  color: #c0392b;
+  font-size: 11.5px;
+}
+
 .settings-shortcut-item {
   display: flex;
   align-items: center;

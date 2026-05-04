@@ -111,6 +111,21 @@ describe('loadAppSettings', () => {
 
     expect(settings.shortcuts).toEqual(settingsModule.DEFAULT_SHORTCUTS)
   })
+
+  it('rejects persisted shortcut overrides that conflict with another action', async () => {
+    const settingsModule = await loadSettingsModule()
+    const tempDir = await createTempDir()
+    const settingsPath = join(tempDir, 'settings.json')
+    await writeFile(settingsPath, JSON.stringify({
+      shortcuts: {
+        cleanCjkTypography: settingsModule.DEFAULT_SHORTCUTS.search,
+      },
+    }), 'utf-8')
+
+    const settings = await settingsModule.loadAppSettings(settingsPath)
+
+    expect(settings.shortcuts).toEqual(settingsModule.DEFAULT_SHORTCUTS)
+  })
 })
 
 describe('updateAppSettings', () => {
@@ -206,5 +221,20 @@ describe('updateAppSettings', () => {
 
     expect(updated.shortcuts.cleanCjkTypography).toBe('CmdOrCtrl+Alt+K')
     expect(JSON.parse(await readFile(settingsPath, 'utf-8')).shortcuts.cleanCjkTypography).toBe('CmdOrCtrl+Alt+K')
+  })
+
+  it('rejects shortcut updates that conflict with another action', async () => {
+    const settingsModule = await loadSettingsModule()
+    const tempDir = await createTempDir()
+    const settingsPath = join(tempDir, 'settings.json')
+
+    const updated = await settingsModule.updateAppSettings(
+      settingsPath,
+      settingsModule.DEFAULT_APP_SETTINGS,
+      { shortcuts: { cleanCjkTypography: settingsModule.DEFAULT_SHORTCUTS.search } },
+    )
+
+    expect(updated.shortcuts).toEqual(settingsModule.DEFAULT_SHORTCUTS)
+    expect(JSON.parse(await readFile(settingsPath, 'utf-8')).shortcuts).toEqual(settingsModule.DEFAULT_SHORTCUTS)
   })
 })

@@ -133,3 +133,7 @@ export function migratePinnedDraftToFile(
 
   return normalizePinnedItems(migrated)
 }
+
+export function removePinnedFile(items: PinnedItem[], filePath: string): PinnedItem[] {
+  return items.filter((item) => item.kind !== 'file' || item.filePath !== filePath)
+}

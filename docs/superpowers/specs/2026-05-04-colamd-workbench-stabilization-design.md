@@ -152,6 +152,8 @@ If a pinned draft is saved as a formal file, the pinned entry migrates to the ne
 - Recent contains formal files only and keeps up to 20 entries.
 - Workdir contains Markdown files from the currently selected workspace, using the current workspace watcher to stay fresh.
 - Drafts and Recent stay separate because they represent different document states.
+- Removing a Workdir row is destructive to the real workspace file, so it asks for confirmation and moves the file to the system Trash.
+- After a Workdir file is removed, Workdir refreshes and stale Recent, Pinned, and title-override references to that file are cleared.
 
 ## Right Outline Panel
 
@@ -203,6 +205,7 @@ The C phase should start only after this release stabilizes document identity, s
 - Clicking a workspace does not reorder it; drag the row handle to change workspace order.
 - Pin controls are icon buttons inside each document row.
 - Row removal controls sit next to pin controls; no separate clear/manage button is shown.
+- Removing a Workdir row confirms and moves the real Markdown file to the system Trash, then updates the sidebar.
 - Row action icons appear on hover/focus, not permanently.
 - The Pinned section can be collapsed.
 - Drafts is the default selected tab.

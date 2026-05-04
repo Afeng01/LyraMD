@@ -96,6 +96,7 @@ export interface ElectronAPI {
   openSidebarFile: (path: string) => Promise<boolean>
   openDraft: (id: string) => Promise<boolean>
   removeRecentFile: (path: string) => Promise<boolean>
+  removeWorkdirFile: (path: string) => Promise<SidebarState | null>
   getPathForFile: (file: File) => string
   openExternal: (url: string) => void
   onFileChanged: (callback: (content: string) => void) => void
@@ -155,6 +156,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openSidebarFile: (path: string) => ipcRenderer.invoke('open-sidebar-file', path),
   openDraft: (id: string) => ipcRenderer.invoke('open-draft', id),
   removeRecentFile: (path: string) => ipcRenderer.invoke('remove-recent-file', path),
+  removeWorkdirFile: (path: string) => ipcRenderer.invoke('remove-workdir-file', path),
   getPathForFile: (file: File) => webUtils.getPathForFile(file),
   openExternal: (url: string) => ipcRenderer.send('open-external', url),
   onFileChanged: (callback: (content: string) => void) => {

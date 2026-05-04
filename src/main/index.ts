@@ -39,6 +39,7 @@ import {
   canTogglePinnedFile,
   migratePinnedDraftToFile,
   normalizeSidebarTab,
+  removePinnedFile,
   reorderWorkspacePaths,
   togglePinnedItem,
 } from './workbench-state'
@@ -1000,6 +1001,61 @@ async function removeDraftForAllWindows(triggerWin: BrowserWindow, draftId: stri
   return createSidebarSnapshot(triggerWin)
 }
 
+function removeFormalFileReferences(filePath: string): void {
+  sidebarState.recentFiles = removeRecentFile(sidebarState.recentFiles, filePath)
+  sidebarState.pinnedItems = removePinnedFile(sidebarState.pinnedItems, filePath)
+  delete sidebarState.fileTitleOverrides[filePath]
+  persistSidebarState()
+}
+
+async function removeWorkdirFileForAllWindows(triggerWin: BrowserWindow, filePath: string): Promise<SidebarSnapshot> {
+  if (!isPathInsideWorkdir(filePath)) {
+    return createSidebarSnapshot(triggerWin)
+  }
+
+  if (!existsSync(filePath)) {
+    removeFormalFileReferences(filePath)
+    await refreshWorkdirEntries()
+    broadcastSidebarState()
+    return createSidebarSnapshot(triggerWin)
+  }
+
+  const result = await dialog.showMessageBox(triggerWin, {
+    type: 'warning',
+    buttons: ['移到废纸篓', '取消'],
+    defaultId: 1,
+    cancelId: 1,
+    title: '删除工作目录文件',
+    message: `删除 ${basename(filePath)}？`,
+    detail: '这个文件会从当前工作区文件夹移动到系统废纸篓。',
+  })
+
+  if (result.response !== 0) {
+    return createSidebarSnapshot(triggerWin)
+  }
+
+  try {
+    await shell.trashItem(filePath)
+  } catch {
+    return createSidebarSnapshot(triggerWin)
+  }
+
+  removeFormalFileReferences(filePath)
+
+  for (const win of BrowserWindow.getAllWindows()) {
+    const state = getState(win)
+    if (state.documentKind !== 'file' || state.filePath !== filePath) continue
+    setBlankDocumentState(win)
+    if (!win.isDestroyed()) {
+      win.webContents.send('new-file')
+    }
+  }
+
+  await refreshWorkdirEntries()
+  broadcastSidebarState()
+  return createSidebarSnapshot(triggerWin)
+}
+
 // IPC Handlers
 
 ipcMain.on('open-external', (_event, url: string) => {
@@ -1374,6 +1430,13 @@ ipcMain.handle('remove-recent-file', async (_event, filePath: string) => {
   persistSidebarState()
   broadcastSidebarState()
   return true
+})
+
+ipcMain.handle('remove-workdir-file', async (event, filePath: string) => {
+  const win = getWinFromEvent(event)
+  if (!win) return null
+  if (typeof filePath !== 'string') return createSidebarSnapshot(win)
+  return removeWorkdirFileForAllWindows(win, filePath)
 })
 
 ipcMain.handle('save-file', async (event, content: string) => {

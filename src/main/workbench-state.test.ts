@@ -7,6 +7,7 @@ import {
   normalizePinnedItems,
   normalizeSidebarTab,
   normalizeWorkspacePaths,
+  removePinnedFile,
   reorderWorkspacePaths,
   samePinnedItem,
   togglePinnedItem,
@@ -94,5 +95,16 @@ describe('pinned item helpers', () => {
       currentFilePath: null,
       pinnedItems: [{ kind: 'file', filePath: '/pinned-only.md' }],
     })).toBe(true)
+  })
+
+  it('removes a deleted formal file from pinned items without touching draft pins', () => {
+    expect(removePinnedFile([
+      { kind: 'draft', draftId: 'd1' },
+      { kind: 'file', filePath: '/workspace/a.md' },
+      { kind: 'file', filePath: '/workspace/b.md' },
+    ], '/workspace/a.md')).toEqual([
+      { kind: 'draft', draftId: 'd1' },
+      { kind: 'file', filePath: '/workspace/b.md' },
+    ])
   })
 })

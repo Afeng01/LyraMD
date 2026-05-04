@@ -1076,6 +1076,8 @@ async function init(): Promise<void> {
       button.dataset.removeDraftId = item.id
     } else if (item.source === 'recent') {
       button.dataset.removeRecentPath = item.filePath
+    } else if (item.source === 'workdir') {
+      button.dataset.removeWorkdirPath = item.filePath
     } else {
       return null
     }
@@ -1753,6 +1755,22 @@ img{max-width:100%}
       renderSidebar()
       api.removeRecentFile(filePath).then((removed) => {
         if (!removed) syncSidebarState()
+      }).catch(() => syncSidebarState())
+      return
+    }
+
+    const removeWorkdirButton = target?.closest('[data-remove-workdir-path]') as HTMLElement | null
+    if (removeWorkdirButton) {
+      event.preventDefault()
+      event.stopPropagation()
+      const filePath = removeWorkdirButton.dataset.removeWorkdirPath
+      if (!filePath) return
+      api.removeWorkdirFile(filePath).then((state) => {
+        if (state) {
+          setSidebarState(state)
+          return
+        }
+        syncSidebarState()
       }).catch(() => syncSidebarState())
       return
     }

@@ -39,6 +39,7 @@ import { createSettingsDialogController } from './settings-dialog'
 import {
   resolvePinnedItems,
   resolvePinControl,
+  resolveRemoveActionPlan,
   resolveRemoveControl,
   resolveVisibleTabItems,
   resolveWorkspaceLabel,
@@ -1066,20 +1067,21 @@ async function init(): Promise<void> {
   }
 
   const createRemoveButton = (item: SidebarItem): HTMLButtonElement | null => {
+    const plan = resolveRemoveActionPlan(item)
+    if (!plan) return null
+
     const control = resolveRemoveControl(item.title)
     const button = document.createElement('button')
     button.type = 'button'
     button.className = 'row-action-button remove-action-button'
     button.title = control.title
 
-    if (item.kind === 'draft') {
-      button.dataset.removeDraftId = item.id
-    } else if (item.source === 'recent') {
-      button.dataset.removeRecentPath = item.filePath
-    } else if (item.source === 'workdir') {
-      button.dataset.removeWorkdirPath = item.filePath
-    } else {
-      return null
+    if (plan.kind === 'draft') {
+      button.dataset.removeDraftId = plan.draftId
+    } else if (plan.kind === 'recent') {
+      button.dataset.removeRecentPath = plan.filePath
+    } else if (plan.kind === 'workdir') {
+      button.dataset.removeWorkdirPath = plan.filePath
     }
     button.setAttribute('aria-label', control.ariaLabel)
     button.appendChild(createIconSvg([
@@ -1765,7 +1767,7 @@ img{max-width:100%}
       event.stopPropagation()
       const filePath = removeWorkdirButton.dataset.removeWorkdirPath
       if (!filePath) return
-      api.removeWorkdirFile(filePath).then((state) => {
+      flushAutoSave().then(() => api.removeWorkdirFile(filePath)).then((state) => {
         if (state) {
           setSidebarState(state)
           return

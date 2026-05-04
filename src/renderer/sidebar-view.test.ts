@@ -7,6 +7,7 @@ import {
   resolvePinnedItems,
   resolvePinControl,
   resolveRemoveControl,
+  resolveRemoveActionPlan,
   resolveVisibleTabItems,
   resolveWorkspaceLabel,
   shouldScrollWorkspaces,
@@ -87,6 +88,21 @@ describe('pinned view helpers', () => {
       title: '删除 数字一的对话',
       ariaLabel: '删除 数字一的对话',
       icon: 'trash',
+    })
+  })
+
+  it('requires autosave flush before removing a workdir file', () => {
+    expect(resolveRemoveActionPlan({
+      kind: 'file',
+      filePath: '/workspace/a.md',
+      title: 'a.md',
+      active: true,
+      pinned: false,
+      source: 'workdir',
+    })).toEqual({
+      kind: 'workdir',
+      filePath: '/workspace/a.md',
+      flushAutosaveFirst: true,
     })
   })
 

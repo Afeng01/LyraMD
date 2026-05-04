@@ -31,6 +31,11 @@ export interface RemoveControl {
   icon: 'trash'
 }
 
+export type RemoveActionPlan =
+  | { kind: 'draft'; draftId: string; flushAutosaveFirst: false }
+  | { kind: 'recent'; filePath: string; flushAutosaveFirst: false }
+  | { kind: 'workdir'; filePath: string; flushAutosaveFirst: true }
+
 export function resolveWorkspaceLabel(workspacePath: string | null): string {
   if (!workspacePath) return '选择目录'
   return basename(workspacePath)
@@ -63,6 +68,22 @@ export function resolveRemoveControl(title: string): RemoveControl {
     ariaLabel: `删除 ${title}`,
     icon: 'trash',
   }
+}
+
+export function resolveRemoveActionPlan(item: SidebarItem): RemoveActionPlan | null {
+  if (item.kind === 'draft') {
+    return { kind: 'draft', draftId: item.id, flushAutosaveFirst: false }
+  }
+
+  if (item.source === 'recent') {
+    return { kind: 'recent', filePath: item.filePath, flushAutosaveFirst: false }
+  }
+
+  if (item.source === 'workdir') {
+    return { kind: 'workdir', filePath: item.filePath, flushAutosaveFirst: true }
+  }
+
+  return null
 }
 
 export function resolvePinnedItems(state: SidebarState): SidebarItem[] {

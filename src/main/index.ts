@@ -24,6 +24,7 @@ import { DEFAULT_APP_SETTINGS, loadAppSettings, updateAppSettings, type AppSetti
 import { shouldRemoveSourceAfterSaveAs } from './save-as'
 import { buildTitleSyncPath, decideTitleSync } from './title-sync'
 import { scanWorkdir, type WorkdirEntry } from './workdir'
+import { summarizeAgentChange } from './agent-change-summary'
 
 // Custom themes directory
 const appDataDir = join(app.getPath('home'), '.lyramd')
@@ -508,9 +509,11 @@ function watchFile(win: BrowserWindow, state: WindowState): void {
       readFile(filePath, 'utf-8')
         .then((data) => {
           if (consumeIgnoredWatchedContent(state.ignoredWatchedContents, data)) return
+          const previousContent = state.lastSyncedContent ?? ''
           const syncDecision = reconcileWatchedContent(state.lastSyncedContent, data)
           state.lastSyncedContent = syncDecision.nextSyncedContent
           if (!syncDecision.shouldPropagate) return
+          const changeSummary = summarizeAgentChange(previousContent, data)
 
           // Agent activity detection
           const now = Date.now()
@@ -536,6 +539,7 @@ function watchFile(win: BrowserWindow, state: WindowState): void {
             state.displayTitle = resolveFileDisplayTitle(state.filePath, data)
             updateTitle(win)
           }
+          if (!win.isDestroyed()) win.webContents.send('agent-change-summary', changeSummary)
           if (!win.isDestroyed()) win.webContents.send('file-changed', data)
           if (!win.isDestroyed()) sendSidebarState(win)
         })

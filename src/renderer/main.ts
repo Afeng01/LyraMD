@@ -26,6 +26,7 @@ import {
   releaseQueuedContent,
   resolveIncomingContentDecision,
 } from './editor/content-sync'
+import { createAgentChangeAutoDismiss } from './agent-change-autodismiss'
 import {
   decideAutosaveBehavior,
   getDocumentViewportKey,
@@ -35,7 +36,7 @@ import {
 } from './editor/session-ux'
 import { createSettingsDialogController } from './settings-dialog'
 import { applyTheme, loadSavedTheme } from './themes/theme-manager'
-import type { AppSettings, SidebarState } from '../preload/index'
+import type { AgentChangePreviewLine, AgentChangeSummary, AppSettings, SidebarState } from '../preload/index'
 import './themes/base.css'
 
 type TitleEditingAPI = typeof window.electronAPI & {
@@ -361,6 +362,12 @@ async function init(): Promise<void> {
   const searchContextPrev = document.getElementById('search-context-prev') as HTMLDivElement | null
   const searchContextCurrent = document.getElementById('search-context-current') as HTMLDivElement | null
   const searchContextNext = document.getElementById('search-context-next') as HTMLDivElement | null
+  const agentChangePanel = document.getElementById('agent-change-panel') as HTMLDivElement | null
+  const agentChangeToggle = document.getElementById('agent-change-toggle') as HTMLButtonElement | null
+  const agentChangeStats = document.getElementById('agent-change-stats') as HTMLSpanElement | null
+  const agentChangeDetails = document.getElementById('agent-change-details') as HTMLDivElement | null
+  const agentChangeList = document.getElementById('agent-change-list') as HTMLDivElement | null
+  const agentChangeDismiss = document.getElementById('agent-change-dismiss') as HTMLButtonElement | null
 
   const updateEditorPlaceholder = (content: string): void => {
     if (!editorPlaceholder) return
@@ -425,8 +432,9 @@ async function init(): Promise<void> {
   let immediateSaveInFlight = false
   let pendingImmediateSaveContent: string | null = null
   let immediateSavePromise: Promise<void> | null = null
-  let deferredIncomingContent: { content: string; scrollTop: number } | null = null
+  let deferredIncomingContent: { content: string; scrollTop: number; agentChangeSummary: AgentChangeSummary | null } | null = null
   const recentLocalEchoes = new Map<string, number>()
+  let queuedAgentChangeSummary: AgentChangeSummary | null = null
 
   const hasPendingImmediateSave = (): boolean => immediateSaveInFlight || pendingImmediateSaveContent !== null
 
@@ -440,6 +448,7 @@ async function init(): Promise<void> {
   const resetLocalEchoState = (): void => {
     recentLocalEchoes.clear()
     deferredIncomingContent = null
+    queuedAgentChangeSummary = null
   }
 
   const closeTitleSyncPrompt = (): void => {
@@ -477,7 +486,7 @@ async function init(): Promise<void> {
   const processIncomingDocumentContent = (
     content: string,
     scrollTop: number,
-    options: { allowDefer: boolean },
+    options: { allowDefer: boolean; agentChangeSummary?: AgentChangeSummary | null },
   ): void => {
     const decision = resolveIncomingContentDecision({
       currentContent: getMarkdown(),
@@ -489,20 +498,32 @@ async function init(): Promise<void> {
     if (decision === 'ignore') return
 
     if (decision === 'defer') {
-      deferredIncomingContent = { content, scrollTop }
+      deferredIncomingContent = {
+        content,
+        scrollTop,
+        agentChangeSummary: options.agentChangeSummary ?? null,
+      }
       return
     }
 
     deferredIncomingContent = null
     applyProgrammaticDocumentContent(content, scrollTop)
+    agentChangeSummary = options.agentChangeSummary ?? null
+    agentChangeExpanded = false
+    renderAgentChangePanel()
+    if (hasAgentChangeSummary(agentChangeSummary)) {
+      agentChangeAutoDismiss.schedule()
+    } else {
+      agentChangeAutoDismiss.clear()
+    }
   }
 
   const flushDeferredIncomingContent = (): void => {
     if (!deferredIncomingContent || hasPendingImmediateSave()) return
 
-    const { content, scrollTop } = deferredIncomingContent
+    const { content, scrollTop, agentChangeSummary } = deferredIncomingContent
     deferredIncomingContent = null
-    processIncomingDocumentContent(content, scrollTop, { allowDefer: false })
+    processIncomingDocumentContent(content, scrollTop, { allowDefer: false, agentChangeSummary })
   }
 
   const runImmediateAutoSave = async (): Promise<void> => {
@@ -738,6 +759,7 @@ async function init(): Promise<void> {
       const snapshot = await api.beginBlankDocument().catch(() => null)
       if (snapshot) setSidebarState(snapshot)
       resetLocalEchoState()
+      clearAgentChangePanel()
       applyProgrammaticDocumentContent('', 0)
       focusEditorAtLastSelection()
     })
@@ -779,6 +801,76 @@ async function init(): Promise<void> {
   let searchPanelOpen = false
   let searchInputComposing = false
   let searchQueryMemory: SearchMemoryState = {}
+  let agentChangeSummary: AgentChangeSummary | null = null
+  let agentChangeExpanded = false
+  const agentChangeAutoDismiss = createAgentChangeAutoDismiss(() => {
+    clearAgentChangePanel()
+  })
+
+  const hasAgentChangeSummary = (summary: AgentChangeSummary | null): summary is AgentChangeSummary => {
+    return !!summary && (summary.addedLines > 0 || summary.removedLines > 0 || summary.changedLines > 0)
+  }
+
+  const formatAgentChangeStats = (summary: AgentChangeSummary): string => {
+    const parts: string[] = []
+    if (summary.addedLines > 0) parts.push(`+${summary.addedLines}`)
+    if (summary.removedLines > 0) parts.push(`-${summary.removedLines}`)
+    if (summary.changedLines > 0) parts.push(`~${summary.changedLines}`)
+    return parts.join(' ')
+  }
+
+  const formatAgentChangePreviewText = (line: AgentChangePreviewLine): string => {
+    if (line.type === 'added') return `+ ${line.text}`
+    if (line.type === 'removed') return `- ${line.text}`
+    return `${line.previousText ?? ''} -> ${line.text}`
+  }
+
+  const renderAgentChangePanel = (): void => {
+    if (!agentChangePanel || !agentChangeToggle || !agentChangeStats || !agentChangeDetails || !agentChangeList) return
+
+    if (!hasAgentChangeSummary(agentChangeSummary)) {
+      agentChangePanel.hidden = true
+      agentChangeToggle.setAttribute('aria-expanded', 'false')
+      agentChangeDetails.hidden = true
+      clearElement(agentChangeList)
+      return
+    }
+
+    agentChangePanel.hidden = false
+    agentChangeStats.textContent = formatAgentChangeStats(agentChangeSummary)
+    agentChangeToggle.setAttribute('aria-expanded', agentChangeExpanded ? 'true' : 'false')
+    agentChangeDetails.hidden = !agentChangeExpanded
+    clearElement(agentChangeList)
+
+    for (const previewLine of agentChangeSummary.preview) {
+      const row = document.createElement('div')
+      row.className = `agent-change-line ${previewLine.type}`
+
+      const lineNumber = document.createElement('span')
+      lineNumber.className = 'agent-change-line-number'
+      lineNumber.textContent = String(previewLine.lineNumber)
+      row.appendChild(lineNumber)
+
+      const text = document.createElement('span')
+      text.className = 'agent-change-line-text'
+      text.title = formatAgentChangePreviewText(previewLine)
+      text.textContent = formatAgentChangePreviewText(previewLine)
+      row.appendChild(text)
+
+      agentChangeList.appendChild(row)
+    }
+
+    if (agentChangeSummary.truncated) {
+      agentChangeList.appendChild(createTextBlock('agent-change-truncated', '还有更多变更'))
+    }
+  }
+
+  const clearAgentChangePanel = (): void => {
+    agentChangeAutoDismiss.clear()
+    agentChangeSummary = null
+    agentChangeExpanded = false
+    renderAgentChangePanel()
+  }
 
   const renderSearchPreviewText = (
     target: HTMLDivElement | null,
@@ -1308,6 +1400,7 @@ img{max-width:100%}
   })
   api.onNewFile(() => {
     resetLocalEchoState()
+    clearAgentChangePanel()
     applyProgrammaticDocumentContent('', 0)
   })
   api.onNewFileInWindow(() => {
@@ -1315,13 +1408,16 @@ img{max-width:100%}
   })
   api.onFileOpened((data) => {
     resetLocalEchoState()
+    clearAgentChangePanel()
     titleEditActive = false
     closeTitleSyncPrompt()
     applyProgrammaticDocumentContent(data.content)
   })
   api.onFileChanged((content) => {
     const currentScrollTop = editorShell?.scrollTop ?? 0
-    processIncomingDocumentContent(content, currentScrollTop, { allowDefer: true })
+    const agentChangeSummary = queuedAgentChangeSummary
+    queuedAgentChangeSummary = null
+    processIncomingDocumentContent(content, currentScrollTop, { allowDefer: true, agentChangeSummary })
   })
   api.onSetTheme(async (theme) => {
     applyTheme(theme)
@@ -1352,6 +1448,9 @@ img{max-width:100%}
   api.onAgentActivity((state) => {
     if (agentDot) agentDot.className = state === 'idle' ? '' : state
   })
+  api.onAgentChangeSummary((summary) => {
+    queuedAgentChangeSummary = summary
+  })
 
   api.onSidebarState((state) => {
     setSidebarState(state)
@@ -1367,6 +1466,18 @@ img{max-width:100%}
   settingsToggle?.addEventListener('click', () => {
     closeTitleSyncPrompt()
     settingsDialog.toggle()
+  })
+
+  agentChangeToggle?.addEventListener('click', () => {
+    agentChangeExpanded = !agentChangeExpanded
+    renderAgentChangePanel()
+    if (agentChangeExpanded && hasAgentChangeSummary(agentChangeSummary)) {
+      agentChangeAutoDismiss.schedule()
+    }
+  })
+
+  agentChangeDismiss?.addEventListener('click', () => {
+    clearAgentChangePanel()
   })
 
   drawerBackdrop?.addEventListener('click', () => {

@@ -30,6 +30,23 @@ export interface TitleSyncPromptPayload {
   suggestedFilePath: string
 }
 
+export type AgentChangePreviewType = 'added' | 'removed' | 'changed'
+
+export interface AgentChangePreviewLine {
+  type: AgentChangePreviewType
+  lineNumber: number
+  text: string
+  previousText?: string
+}
+
+export interface AgentChangeSummary {
+  addedLines: number
+  removedLines: number
+  changedLines: number
+  preview: AgentChangePreviewLine[]
+  truncated: boolean
+}
+
 export interface SidebarState {
   sidebarOpen: boolean
   sidebarWidth: number
@@ -98,6 +115,7 @@ export interface ElectronAPI {
   onSetCustomCSS: (callback: (css: string) => void) => void
   onMenuImportTheme: (callback: () => void) => void
   onAgentActivity: (callback: (state: string) => void) => void
+  onAgentChangeSummary: (callback: (summary: AgentChangeSummary) => void) => void
   onSidebarState: (callback: (state: SidebarState) => void) => void
   onZoomChange: (callback: (data: { delta?: number; level?: number }) => void) => void
 }
@@ -177,6 +195,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onAgentActivity: (callback: (state: string) => void) => {
     ipcRenderer.on('agent-activity', (_event, state) => callback(state))
+  },
+  onAgentChangeSummary: (callback: (summary: AgentChangeSummary) => void) => {
+    ipcRenderer.on('agent-change-summary', (_event, summary) => callback(summary))
   },
   onSidebarState: (callback: (state: SidebarState) => void) => {
     ipcRenderer.on('sidebar-state', (_event, state) => callback(state))

@@ -81,6 +81,9 @@ export function resolveVisibleTabItems(state: SidebarState, tab: SidebarTab = st
   if (tab === 'recent') {
     return state.recentFiles.map((filePath) => createFileItem(state, filePath, 'recent'))
   }
+  if (tab === 'workdir') {
+    return state.workdirEntries.map((entry) => createFileItem(state, entry.absolutePath, 'workdir'))
+  }
 
   return state.draftEntries.map((draft) => createDraftItem(state, draft.id, draft.displayTitle))
 }

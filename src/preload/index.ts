@@ -17,7 +17,7 @@ export interface DraftEntry {
 export type DocumentKind = 'blank' | 'draft' | 'file'
 export type TitleSyncMode = 'ask' | 'always' | 'never'
 export type SaveAsMode = 'switch' | 'move'
-export type SidebarTab = 'drafts' | 'recent'
+export type SidebarTab = 'drafts' | 'recent' | 'workdir'
 export type PinnedItem =
   | { kind: 'draft'; draftId: string }
   | { kind: 'file'; filePath: string }
@@ -90,6 +90,7 @@ export interface ElectronAPI {
   setSidebarWidth: (width: number) => Promise<number>
   chooseWorkdir: () => Promise<SidebarState | null>
   selectWorkspace: (path: string) => Promise<SidebarState | null>
+  reorderWorkspaces: (sourcePath: string, targetPath: string) => Promise<SidebarState | null>
   chooseDraftDirectory: () => Promise<SidebarState | null>
   skipDraftOnboarding: () => Promise<SidebarState | null>
   openSidebarFile: (path: string) => Promise<boolean>
@@ -148,6 +149,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setSidebarWidth: (width: number) => ipcRenderer.invoke('set-sidebar-width', width),
   chooseWorkdir: () => ipcRenderer.invoke('choose-workdir'),
   selectWorkspace: (path: string) => ipcRenderer.invoke('select-workspace', path),
+  reorderWorkspaces: (sourcePath: string, targetPath: string) => ipcRenderer.invoke('reorder-workspaces', sourcePath, targetPath),
   chooseDraftDirectory: () => ipcRenderer.invoke('choose-draft-directory'),
   skipDraftOnboarding: () => ipcRenderer.invoke('skip-draft-onboarding'),
   openSidebarFile: (path: string) => ipcRenderer.invoke('open-sidebar-file', path),

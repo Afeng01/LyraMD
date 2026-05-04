@@ -356,6 +356,7 @@ async function init(): Promise<void> {
   const pinnedList = document.getElementById('pinned-list') as HTMLDivElement | null
   const draftsTab = document.getElementById('drafts-tab') as HTMLButtonElement | null
   const recentTab = document.getElementById('recent-tab') as HTMLButtonElement | null
+  const workdirTab = document.getElementById('workdir-tab') as HTMLButtonElement | null
   const libraryList = document.getElementById('library-list') as HTMLDivElement | null
   const currentFile = document.getElementById('current-file')
   const draftsList = document.getElementById('drafts-list')
@@ -1200,9 +1201,11 @@ async function init(): Promise<void> {
         item.type = 'button'
         item.className = 'workspace-item'
         item.dataset.workspacePath = workspacePath
+        item.draggable = true
         item.title = workspacePath
         item.classList.toggle('active', workspacePath === sidebarState.workdirPath)
-        item.textContent = resolveWorkspaceLabel(workspacePath)
+        item.appendChild(createTextBlock('workspace-item-label', resolveWorkspaceLabel(workspacePath)))
+        item.appendChild(createTextBlock('workspace-drag-handle', '⋮⋮'))
         workspacesList.appendChild(item)
       }
     }
@@ -1232,13 +1235,21 @@ async function init(): Promise<void> {
       recentTab.classList.toggle('active', activeTab === 'recent')
       recentTab.setAttribute('aria-selected', activeTab === 'recent' ? 'true' : 'false')
     }
+    if (workdirTab) {
+      workdirTab.classList.toggle('active', activeTab === 'workdir')
+      workdirTab.setAttribute('aria-selected', activeTab === 'workdir' ? 'true' : 'false')
+    }
 
     clearElement(libraryList)
     const tabItems = resolveVisibleTabItems(sidebarState, activeTab)
     if (tabItems.length === 0) {
       libraryList.appendChild(createTextBlock(
         'sidebar-empty',
-        activeTab === 'drafts' ? '未命名草稿会在开始输入后出现在这里' : '还没有最近文件',
+        activeTab === 'drafts'
+          ? '未命名草稿会在开始输入后出现在这里'
+          : activeTab === 'workdir'
+            ? (sidebarState.workdirPath ? '这个工作目录里没有 Markdown 文件' : '先选择一个工作区')
+            : '还没有最近文件',
       ))
       return
     }
@@ -1493,6 +1504,57 @@ img{max-width:100%}
 
   recentTab?.addEventListener('click', () => {
     selectSidebarTab('recent')
+  })
+
+  workdirTab?.addEventListener('click', () => {
+    selectSidebarTab('workdir')
+  })
+
+  document.addEventListener('dragstart', (event) => {
+    const target = event.target as HTMLElement | null
+    const workspaceButton = target?.closest('[data-workspace-path]') as HTMLElement | null
+    if (!workspaceButton) return
+    const workspacePath = workspaceButton.dataset.workspacePath
+    if (!workspacePath || !event.dataTransfer) return
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('application/x-colamd-workspace', workspacePath)
+  })
+
+  document.addEventListener('dragover', (event) => {
+    const target = event.target as HTMLElement | null
+    const workspaceButton = target?.closest('[data-workspace-path]') as HTMLElement | null
+    if (!workspaceButton || !event.dataTransfer) return
+    if (!event.dataTransfer.types.includes('application/x-colamd-workspace')) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+    workspaceButton.classList.add('drag-over')
+  })
+
+  document.addEventListener('dragleave', (event) => {
+    const target = event.target as HTMLElement | null
+    target?.closest('[data-workspace-path]')?.classList.remove('drag-over')
+  })
+
+  document.addEventListener('dragend', () => {
+    document.querySelectorAll('.workspace-item.drag-over').forEach((element) => {
+      element.classList.remove('drag-over')
+    })
+  })
+
+  document.addEventListener('drop', (event) => {
+    const target = event.target as HTMLElement | null
+    const workspaceButton = target?.closest('[data-workspace-path]') as HTMLElement | null
+    if (!workspaceButton || !event.dataTransfer) return
+    const sourcePath = event.dataTransfer.getData('application/x-colamd-workspace')
+    const targetPath = workspaceButton.dataset.workspacePath
+    document.querySelectorAll('.workspace-item.drag-over').forEach((element) => {
+      element.classList.remove('drag-over')
+    })
+    if (!sourcePath || !targetPath || sourcePath === targetPath) return
+    event.preventDefault()
+    api.reorderWorkspaces(sourcePath, targetPath).then((state) => {
+      if (state) setSidebarState(state)
+    }).catch(() => syncSidebarState())
   })
 
   onboardingChoose?.addEventListener('click', () => {

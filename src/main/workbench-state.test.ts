@@ -7,6 +7,7 @@ import {
   normalizePinnedItems,
   normalizeSidebarTab,
   normalizeWorkspacePaths,
+  reorderWorkspacePaths,
   samePinnedItem,
   togglePinnedItem,
 } from './workbench-state'
@@ -20,19 +21,29 @@ describe('normalizeSidebarTab', () => {
   it('preserves the recent tab when explicitly persisted', () => {
     expect(normalizeSidebarTab('recent')).toBe('recent')
   })
+
+  it('preserves the workdir tab when explicitly persisted', () => {
+    expect(normalizeSidebarTab('workdir')).toBe('workdir')
+  })
 })
 
 describe('workspace path helpers', () => {
-  it('adds new workspaces to the front and trims to the supported maximum', () => {
-    expect(addWorkspacePath(['/a', '/b'], '/c', 2)).toEqual(['/c', '/a'])
+  it('adds new workspaces at the end and trims to the supported maximum', () => {
+    expect(addWorkspacePath(['/a', '/b'], '/c', 2)).toEqual(['/b', '/c'])
+    expect(addWorkspacePath(['/a', '/b'], '/c', 3)).toEqual(['/a', '/b', '/c'])
   })
 
-  it('moves an existing workspace to the front without duplicating it', () => {
-    expect(addWorkspacePath(['/a', '/b', '/c'], '/b', 5)).toEqual(['/b', '/a', '/c'])
+  it('keeps existing workspace order when selecting an existing workspace', () => {
+    expect(addWorkspacePath(['/a', '/b', '/c'], '/b', 5)).toEqual(['/a', '/b', '/c'])
   })
 
   it('normalizes persisted workspaces and includes the active legacy workdir', () => {
-    expect(normalizeWorkspacePaths(['/a', 12, '/b'], '/active')).toEqual(['/active', '/a', '/b'])
+    expect(normalizeWorkspacePaths(['/a', 12, '/b'], '/active')).toEqual(['/a', '/b', '/active'])
+  })
+
+  it('reorders workspace paths by drag source and target', () => {
+    expect(reorderWorkspacePaths(['/a', '/b', '/c'], '/c', '/a')).toEqual(['/c', '/a', '/b'])
+    expect(reorderWorkspacePaths(['/a', '/b', '/c'], '/a', '/c')).toEqual(['/b', '/a', '/c'])
   })
 })
 

@@ -39,6 +39,7 @@ import {
   canTogglePinnedFile,
   migratePinnedDraftToFile,
   normalizeSidebarTab,
+  reorderWorkspacePaths,
   togglePinnedItem,
 } from './workbench-state'
 
@@ -1241,6 +1242,19 @@ ipcMain.handle('select-workspace', async (event, workspacePath: string) => {
   sidebarState.workspacePaths = addWorkspacePath(sidebarState.workspacePaths, workspacePath)
   sidebarState.workdirExpanded = true
   await refreshWorkdirEntries()
+  persistSidebarState()
+  broadcastSidebarState()
+  return createSidebarSnapshot(win)
+})
+
+ipcMain.handle('reorder-workspaces', async (event, sourcePath: string, targetPath: string) => {
+  const win = getWinFromEvent(event)
+  if (!win) return null
+  if (typeof sourcePath !== 'string' || typeof targetPath !== 'string') {
+    return createSidebarSnapshot(win)
+  }
+
+  sidebarState.workspacePaths = reorderWorkspacePaths(sidebarState.workspacePaths, sourcePath, targetPath)
   persistSidebarState()
   broadcastSidebarState()
   return createSidebarSnapshot(win)

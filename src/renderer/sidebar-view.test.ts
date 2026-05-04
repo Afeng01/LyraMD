@@ -171,4 +171,36 @@ describe('tab view helpers', () => {
       },
     ])
   })
+
+  it('shows files from the active workdir tab', () => {
+    const state = createSidebarState({
+      currentFilePath: '/workspace/folder/b.md',
+      activeSidebarTab: 'workdir',
+      workdirEntries: [
+        { absolutePath: '/workspace/a.md', relativePath: 'a.md' },
+        { absolutePath: '/workspace/folder/b.md', relativePath: 'folder/b.md' },
+      ],
+      pinnedItems: [{ kind: 'file', filePath: '/workspace/a.md' }],
+      fileTitleOverrides: { '/workspace/folder/b.md': 'B 文稿' },
+    })
+
+    expect(resolveVisibleTabItems(state, 'workdir')).toEqual([
+      {
+        kind: 'file',
+        filePath: '/workspace/a.md',
+        title: 'a.md',
+        active: false,
+        pinned: true,
+        source: 'workdir',
+      },
+      {
+        kind: 'file',
+        filePath: '/workspace/folder/b.md',
+        title: 'B 文稿',
+        active: true,
+        pinned: false,
+        source: 'workdir',
+      },
+    ])
+  })
 })

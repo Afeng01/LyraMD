@@ -1,4 +1,4 @@
-export type SidebarTab = 'drafts' | 'recent'
+export type SidebarTab = 'drafts' | 'recent' | 'workdir'
 
 export type PinnedItem =
   | { kind: 'draft'; draftId: string }
@@ -7,6 +7,7 @@ export type PinnedItem =
 export const DEFAULT_MAX_WORKSPACES = 8
 
 export function normalizeSidebarTab(value: unknown): SidebarTab {
+  if (value === 'workdir') return 'workdir'
   return value === 'recent' ? 'recent' : 'drafts'
 }
 
@@ -17,8 +18,8 @@ export function addWorkspacePath(
 ): string[] {
   const trimmedPath = nextPath.trim()
   if (!trimmedPath) return paths.slice(0, maxWorkspaces)
-  const existing = paths.filter((path) => path !== trimmedPath)
-  return [trimmedPath, ...existing].slice(0, maxWorkspaces)
+  if (paths.includes(trimmedPath)) return paths.slice(0, maxWorkspaces)
+  return [...paths, trimmedPath].slice(-maxWorkspaces)
 }
 
 export function normalizeWorkspacePaths(
@@ -39,6 +40,21 @@ export function normalizeWorkspacePaths(
   return activePath
     ? addWorkspacePath(uniquePaths, activePath, maxWorkspaces)
     : uniquePaths.slice(0, maxWorkspaces)
+}
+
+export function reorderWorkspacePaths(paths: string[], sourcePath: string, targetPath: string): string[] {
+  if (sourcePath === targetPath) return paths
+  if (!paths.includes(sourcePath) || !paths.includes(targetPath)) return paths
+
+  const withoutSource = paths.filter((path) => path !== sourcePath)
+  const targetIndex = withoutSource.indexOf(targetPath)
+  if (targetIndex === -1) return paths
+
+  return [
+    ...withoutSource.slice(0, targetIndex),
+    sourcePath,
+    ...withoutSource.slice(targetIndex),
+  ]
 }
 
 export function normalizePinnedItems(value: unknown): PinnedItem[] {

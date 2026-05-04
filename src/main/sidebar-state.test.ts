@@ -102,7 +102,7 @@ describe('normalizeSidebarState', () => {
         draftOnboardingCompleted: 'yes',
         workdirPath: '/active',
         workspacePaths: ['/a', 123, '/active'],
-        activeSidebarTab: 'recent',
+        activeSidebarTab: 'workdir',
         pinnedItems: [
           { kind: 'draft', draftId: 'draft-a' },
           { kind: 'file', filePath: '/tmp/a.md' },
@@ -125,12 +125,12 @@ describe('normalizeSidebarState', () => {
         pinnedExpanded: false,
         recentFilesExpanded: true,
         workdirPath: '/active',
-        workspacePaths: ['/active', '/a'],
+        workspacePaths: ['/a', '/active'],
         pinnedItems: [
           { kind: 'draft', draftId: 'draft-a' },
           { kind: 'file', filePath: '/tmp/a.md' },
         ],
-        activeSidebarTab: 'recent',
+        activeSidebarTab: 'workdir',
         draftDirectoryPath: null,
         draftOnboardingCompleted: false,
         draftEntries: [

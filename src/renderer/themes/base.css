@@ -494,9 +494,9 @@ html, body {
   font-size: 12.5px;
   font-weight: 500;
   text-align: left;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   -webkit-app-region: no-drag;
 }
 
@@ -510,6 +510,33 @@ html, body {
   border-color: color-mix(in srgb, var(--link-color) 32%, transparent 68%);
   color: var(--link-color);
   font-weight: 600;
+}
+
+.workspace-item.drag-over {
+  border-color: color-mix(in srgb, var(--link-color) 42%, transparent 58%);
+  background: color-mix(in srgb, var(--selection-bg) 58%, transparent 42%);
+}
+
+.workspace-item-label {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-drag-handle {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  opacity: 0;
+  cursor: grab;
+}
+
+.workspace-item:hover .workspace-drag-handle,
+.workspace-item:focus-visible .workspace-drag-handle,
+.workspace-item.drag-over .workspace-drag-handle {
+  opacity: 0.76;
 }
 
 .workspace-item.empty {
@@ -528,7 +555,7 @@ html, body {
 .sidebar-tabs {
   min-width: 0;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   padding: 2px;
   border: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent 30%);
   border-radius: 8px;
@@ -576,6 +603,7 @@ html, body {
   gap: 3px;
   transform: translateY(-50%);
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
   transition: opacity 0.12s ease;
 }
@@ -583,6 +611,7 @@ html, body {
 .sidebar-item-row:hover .sidebar-row-actions,
 .sidebar-item-row:focus-within .sidebar-row-actions {
   opacity: 1;
+  visibility: visible;
   pointer-events: auto;
 }
 

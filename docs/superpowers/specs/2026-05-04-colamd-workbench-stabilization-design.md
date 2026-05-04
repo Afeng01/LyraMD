@@ -25,7 +25,7 @@ This pass includes:
 1. Draft save semantics.
 2. Draft title to draft filename sync.
 3. Workspace history display.
-4. Left sidebar structure: workspaces, pinned, drafts/recent.
+4. Left sidebar structure: workspaces, pinned, drafts/recent/workdir.
 5. Right outline panel.
 6. Minimal copy updates for onboarding and save prompts.
 
@@ -96,7 +96,7 @@ The left sidebar answers: what am I working on?
 ```text
 Workspaces
 Pinned
-[ Drafts ] [ Recent ]
+[ Drafts ] [ Recent ] [ Workdir ]
 List content
 ```
 
@@ -106,6 +106,8 @@ List content
 - The workspace area has its own `工作区` header and a small `+` action on the right.
 - After selection, the workspace list shows folder names, not `工作目录`.
 - Previously opened workspaces are retained.
+- Workspace history keeps first-added order; clicking a workspace switches the active workspace without moving it.
+- Workspace rows can be dragged to reorder the saved workspace history.
 - If there are one to three workspaces, display them compactly.
 - If there are more than three, keep a fixed-height scrollable list.
 - The active workspace is highlighted.
@@ -142,12 +144,13 @@ Drafts and Recent do not need a separate "clear/manage" button; removal is avail
 
 If a pinned draft is saved as a formal file, the pinned entry migrates to the new file path.
 
-### Drafts / Recent Tabs
+### Drafts / Recent / Workdir Tabs
 
 - The default tab is Drafts.
 - If Drafts is empty, the UI may show an empty state and a gentle affordance to switch to Recent, but it should not silently change the user-selected tab.
 - Drafts contains unarchived drafts only.
 - Recent contains formal files only and keeps up to 20 entries.
+- Workdir contains Markdown files from the currently selected workspace, using the current workspace watcher to stay fresh.
 - Drafts and Recent stay separate because they represent different document states.
 
 ## Right Outline Panel
@@ -195,8 +198,9 @@ The C phase should start only after this release stabilizes document identity, s
 - Manual draft title changes rename the underlying draft file.
 - Pinned draft entries survive draft rename.
 - Pinned draft entries migrate when the draft becomes a formal file.
-- The left sidebar shows Workspaces, Pinned, and Drafts/Recent in that order.
+- The left sidebar shows Workspaces, Pinned, and Drafts/Recent/Workdir in that order.
 - The workspace section is a complete area with `工作区`, a right-side `+`, and selected folder rows.
+- Clicking a workspace does not reorder it; drag the row handle to change workspace order.
 - Pin controls are icon buttons inside each document row.
 - Row removal controls sit next to pin controls; no separate clear/manage button is shown.
 - Row action icons appear on hover/focus, not permanently.

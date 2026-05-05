@@ -17,7 +17,7 @@ html, body {
 }
 
 #app-shell {
-  --sidebar-width: 336px;
+  --sidebar-width: 280px;
   height: 100vh;
   display: flex;
   flex-direction: column;

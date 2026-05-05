@@ -7,7 +7,8 @@ import {
 } from './workbench-state'
 
 export const DEFAULT_MAX_RECENT_FILES = 20
-export const DEFAULT_SIDEBAR_WIDTH = 336
+export const DEFAULT_SIDEBAR_WIDTH = 280
+export const LEGACY_ROOMY_SIDEBAR_WIDTH = 336
 export const MIN_SIDEBAR_WIDTH = 220
 export const MAX_SIDEBAR_WIDTH = 460
 
@@ -102,6 +103,14 @@ export function clampSidebarWidth(width: number): number {
   return Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, Math.round(width)))
 }
 
+function normalizeSidebarWidth(width: unknown): number {
+  if (typeof width !== 'number') return DEFAULT_SIDEBAR_WIDTH
+  const clampedWidth = clampSidebarWidth(width)
+  return clampedWidth === LEGACY_ROOMY_SIDEBAR_WIDTH
+    ? DEFAULT_SIDEBAR_WIDTH
+    : clampedWidth
+}
+
 export function pushRecentFile(
   recentFiles: string[],
   filePath: string,
@@ -131,7 +140,7 @@ export function normalizeSidebarState(value: unknown): PersistedSidebarState {
 
   return {
     sidebarOpen: candidate.sidebarOpen === true,
-    sidebarWidth: clampSidebarWidth(typeof candidate.sidebarWidth === 'number' ? candidate.sidebarWidth : DEFAULT_SIDEBAR_WIDTH),
+    sidebarWidth: normalizeSidebarWidth(candidate.sidebarWidth),
     draftsExpanded: candidate.draftsExpanded !== false,
     workdirExpanded: candidate.workdirExpanded !== false,
     pinnedExpanded: candidate.pinnedExpanded !== false,

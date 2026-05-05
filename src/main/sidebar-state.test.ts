@@ -13,9 +13,9 @@ import {
 } from './sidebar-state'
 
 describe('sidebar defaults', () => {
-  it('uses the roomier default width for fresh sessions', () => {
-    expect(DEFAULT_SIDEBAR_WIDTH).toBe(336)
-    expect(DEFAULT_SIDEBAR_STATE.sidebarWidth).toBe(336)
+  it('uses a compact default width for fresh sessions', () => {
+    expect(DEFAULT_SIDEBAR_WIDTH).toBe(280)
+    expect(DEFAULT_SIDEBAR_STATE.sidebarWidth).toBe(280)
   })
 
   it('keeps twenty recent files by default', () => {
@@ -71,7 +71,7 @@ describe('normalizeSidebarState', () => {
   it('fills in defaults for new sidebar preferences', () => {
     expect(normalizeSidebarState({ recentFiles: ['a.md'] })).toEqual({
       sidebarOpen: false,
-      sidebarWidth: 336,
+      sidebarWidth: 280,
       draftsExpanded: true,
       workdirExpanded: true,
       pinnedExpanded: true,
@@ -119,7 +119,7 @@ describe('normalizeSidebarState', () => {
       },
     })).toEqual({
       sidebarOpen: false,
-        sidebarWidth: 336,
+        sidebarWidth: 280,
         draftsExpanded: false,
         workdirExpanded: true,
         pinnedExpanded: false,
@@ -149,7 +149,12 @@ describe('clampSidebarWidth', () => {
     expect(clampSidebarWidth(120)).toBe(220)
     expect(clampSidebarWidth(320)).toBe(320)
     expect(clampSidebarWidth(560)).toBe(460)
-    expect(clampSidebarWidth(Number.NaN)).toBe(336)
+    expect(clampSidebarWidth(Number.NaN)).toBe(280)
+  })
+
+  it('migrates the old roomy default to the compact workbench width', () => {
+    expect(normalizeSidebarState({ sidebarWidth: 336 }).sidebarWidth).toBe(280)
+    expect(normalizeSidebarState({ sidebarWidth: 275 }).sidebarWidth).toBe(275)
   })
 })
 

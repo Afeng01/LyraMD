@@ -5,6 +5,12 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      include_experimental_platforms:
+        description: 'Build Windows/Linux preview artifacts'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   build:
@@ -20,6 +26,10 @@ jobs:
             platform: linux
 
     runs-on: ${{ matrix.os }}
+    if: >-
+      github.event_name == 'push' && matrix.platform == 'mac'
+      || github.event_name == 'workflow_dispatch'
+      && (matrix.platform == 'mac' || inputs.include_experimental_platforms)
 
     steps:
       - uses: actions/checkout@v4
@@ -59,6 +69,7 @@ jobs:
   release:
     needs: build
     runs-on: ubuntu-latest
+    if: github.event_name == 'push'
     permissions:
       contents: write
 

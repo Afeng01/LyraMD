@@ -50,9 +50,11 @@ Code signing and notarization are different. Signing identifies who produced an 
 
 ## Install on Windows
 
-Download the latest `LyraMD-Setup-*-x64.exe` from [Releases](https://github.com/Afeng01/LyraMD/releases), run the installer, and follow the NSIS setup flow.
+Windows support is currently a preview path and still needs real-device smoke testing before public release. The v1.2.0 formal release is macOS-first.
 
-Windows beta builds are currently distributed without code signing. On first launch, Microsoft Defender SmartScreen may show an "unknown publisher" warning. Only install builds downloaded from the official GitHub Releases page, and use **More info > Run anyway** only if you trust this unsigned beta build.
+When a preview installer is attached, download `LyraMD-Setup-*-x64.exe` from [Releases](https://github.com/Afeng01/LyraMD/releases), run the installer, and follow the NSIS setup flow.
+
+Windows preview builds are currently distributed without code signing. On first launch, Microsoft Defender SmartScreen may show an "unknown publisher" warning. Only install builds downloaded from the official GitHub Releases page, and use **More info > Run anyway** only if you trust this unsigned preview build.
 
 For a public Windows release, code signing is recommended so users can install LyraMD without the unsigned publisher warning.
 

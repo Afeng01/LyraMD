@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, rm, writeFile } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
 
-import { scanWorkdir } from './workdir'
+import { scanWorkdir, shouldRefreshWorkdirForWatchEvent } from './workdir'
 
 describe('scanWorkdir', () => {
   const tempDirs: string[] = []
@@ -40,5 +40,18 @@ describe('scanWorkdir', () => {
         relativePath: 'z-last.md',
       },
     ])
+  })
+})
+
+describe('shouldRefreshWorkdirForWatchEvent', () => {
+  it('refreshes on markdown file changes and unknown filenames', () => {
+    expect(shouldRefreshWorkdirForWatchEvent('note.md')).toBe(true)
+    expect(shouldRefreshWorkdirForWatchEvent('note.markdown')).toBe(true)
+    expect(shouldRefreshWorkdirForWatchEvent(undefined)).toBe(true)
+  })
+
+  it('ignores obvious non-markdown file changes', () => {
+    expect(shouldRefreshWorkdirForWatchEvent('image.png')).toBe(false)
+    expect(shouldRefreshWorkdirForWatchEvent('notes.txt')).toBe(false)
   })
 })

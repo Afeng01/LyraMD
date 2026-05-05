@@ -70,15 +70,37 @@ html, body {
   transition: all 0.18s ease;
 }
 
+#outline-toggle {
+  position: absolute;
+  top: 12px;
+  left: 140px;
+  width: 28px;
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  opacity: 0.7;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.18s ease;
+}
+
 #sidebar-toggle:hover,
-#settings-toggle:hover {
+#settings-toggle:hover,
+#outline-toggle:hover,
+#outline-toggle.active {
   opacity: 1;
   background: color-mix(in srgb, var(--text-muted) 10%, transparent 90%);
   border-color: color-mix(in srgb, var(--border-color) 40%, transparent 60%);
 }
 
 #sidebar-toggle svg,
-#settings-toggle svg {
+#settings-toggle svg,
+#outline-toggle svg {
   width: 16px;
   height: 16px;
   display: block;
@@ -191,6 +213,33 @@ html, body {
   margin-top: 18px;
 }
 
+#workspaces-section {
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 72%, transparent 28%);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-color) 94%, var(--border-color) 6%);
+}
+
+#workspaces-section .sidebar-section-header {
+  margin-bottom: 8px;
+}
+
+#workspaces-section .sidebar-section-title::before {
+  display: none;
+}
+
+#workspaces-section .sidebar-section-title {
+  padding-left: 0;
+  color: var(--text-muted);
+}
+
+#workspace-add {
+  width: 26px;
+  height: 26px;
+  border-color: transparent;
+  background: transparent;
+}
+
 .sidebar-label {
   margin: 0 0 8px;
   font-size: 12px;
@@ -204,7 +253,7 @@ html, body {
 .sidebar-list-item,
 #workdir-body,
 .sidebar-empty-action,
-.recent-remove-button {
+.row-action-button {
   -webkit-app-region: no-drag;
 }
 
@@ -320,7 +369,8 @@ html, body {
 
 .sidebar-section-toggle,
 .sidebar-section-title,
-.sidebar-inline-button {
+.sidebar-inline-button,
+.sidebar-icon-button {
   -webkit-app-region: no-drag;
   border: none;
   background: transparent;
@@ -399,6 +449,215 @@ html, body {
   background: transparent;
 }
 
+.sidebar-icon-button {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent 30%);
+  border-radius: 7px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.sidebar-icon-button:hover {
+  color: var(--text-color);
+  background: color-mix(in srgb, var(--selection-bg) 24%, transparent 76%);
+}
+
+.workspace-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: none;
+}
+
+.workspace-list.scrollable {
+  max-height: 168px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.workspace-item {
+  width: 100%;
+  min-height: 34px;
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-color);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  -webkit-app-region: no-drag;
+}
+
+.workspace-item:hover {
+  background: color-mix(in srgb, var(--selection-bg) 28%, transparent 72%);
+  border-color: color-mix(in srgb, var(--border-color) 72%, transparent 28%);
+}
+
+.workspace-item.active {
+  background: color-mix(in srgb, var(--selection-bg) 48%, transparent 52%);
+  border-color: color-mix(in srgb, var(--link-color) 32%, transparent 68%);
+  color: var(--link-color);
+  font-weight: 600;
+}
+
+.workspace-item.drag-over {
+  border-color: color-mix(in srgb, var(--link-color) 42%, transparent 58%);
+  background: color-mix(in srgb, var(--selection-bg) 58%, transparent 42%);
+}
+
+.workspace-item-label {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-drag-handle {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  opacity: 0;
+  cursor: grab;
+}
+
+.workspace-item:hover .workspace-drag-handle,
+.workspace-item:focus-visible .workspace-drag-handle,
+.workspace-item.drag-over .workspace-drag-handle {
+  opacity: 0.76;
+}
+
+.workspace-item.empty {
+  border-style: dashed;
+  color: var(--text-muted);
+}
+
+.sidebar-library-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.sidebar-tabs {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 2px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent 30%);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-color) 88%, var(--border-color) 12%);
+  -webkit-app-region: no-drag;
+}
+
+.sidebar-tabs button {
+  min-width: 0;
+  min-height: 26px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sidebar-tabs button.active {
+  background: color-mix(in srgb, var(--selection-bg) 54%, transparent 46%);
+  color: var(--text-color);
+}
+
+.sidebar-item-row {
+  position: relative;
+  min-width: 0;
+}
+
+.sidebar-item-row .sidebar-list-item {
+  padding-right: 42px;
+}
+
+.sidebar-item-row.with-remove .sidebar-list-item {
+  padding-right: 70px;
+}
+
+.sidebar-row-actions {
+  position: absolute;
+  top: 50%;
+  right: 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  transform: translateY(-50%);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+
+.sidebar-item-row:hover .sidebar-row-actions,
+.sidebar-item-row:focus-within .sidebar-row-actions {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.row-action-button {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-app-region: no-drag;
+  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+
+.row-action-button:hover,
+.row-action-button.active {
+  color: var(--link-color);
+  background: color-mix(in srgb, var(--selection-bg) 30%, transparent 70%);
+  border-color: color-mix(in srgb, var(--link-color) 20%, transparent 80%);
+}
+
+.row-action-button svg {
+  display: block;
+}
+
+.remove-action-button:hover {
+  color: var(--link-color);
+  background: color-mix(in srgb, var(--selection-bg) 34%, transparent 66%);
+}
+
+.remove-action-button.confirm-delete,
+.remove-action-button.confirm-delete:hover {
+  color: #c62828;
+  background: color-mix(in srgb, #c62828 14%, transparent 86%);
+  border-color: color-mix(in srgb, #c62828 30%, transparent 70%);
+}
+
+#pinned-section.collapsed #pinned-list {
+  display: none;
+}
+
 .workdir-name {
   min-width: 0;
   max-width: 168px;
@@ -453,23 +712,6 @@ html, body {
   background: color-mix(in srgb, var(--bg-color) 90%, var(--border-color) 10%);
 }
 
-.recent-remove-button {
-  width: 18px;
-  height: 18px;
-  border: 1px solid color-mix(in srgb, #d45a4f 48%, transparent 52%);
-  border-radius: 50%;
-  background: color-mix(in srgb, #d45a4f 10%, transparent 90%);
-  color: #d45a4f;
-  font-size: 14px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.recent-remove-button:hover {
-  color: #fff;
-  background: #d45a4f;
-}
-
 #editor-shell {
   min-width: 0;
   flex: 1;
@@ -477,6 +719,80 @@ html, body {
   width: 100%;
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+#outline-panel {
+  width: 246px;
+  min-width: 246px;
+  max-width: 246px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--border-color);
+  background: color-mix(in srgb, var(--bg-color) 95%, var(--border-color) 5%);
+  padding: 16px 12px;
+  overflow-y: auto;
+  -webkit-app-region: no-drag;
+}
+
+.outline-panel-header {
+  margin-bottom: 10px;
+  padding: 2px 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.outline-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.outline-item {
+  width: 100%;
+  min-height: 30px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-color);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.outline-item.level-2 {
+  padding-left: 20px;
+  color: var(--text-muted);
+}
+
+.outline-item:hover {
+  background: color-mix(in srgb, var(--selection-bg) 28%, transparent 72%);
+  border-color: color-mix(in srgb, var(--border-color) 72%, transparent 28%);
+}
+
+.outline-empty {
+  padding: 9px;
+  border: 1px dashed var(--border-color);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--bg-color) 94%, var(--border-color) 6%);
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@media (max-width: 980px) {
+  #outline-panel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 16;
+    box-shadow: -8px 0 24px rgba(15, 23, 42, 0.10);
+  }
 }
 
 #editor-stage {

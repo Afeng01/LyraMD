@@ -81,6 +81,10 @@ describe('buildTitleSyncPath', () => {
     expect(buildTitleSyncPath('/tmp/old.markdown', '新标题')).toBe('/tmp/新标题.markdown')
   })
 
+  it('does not duplicate the extension when the edited title already includes it', () => {
+    expect(buildTitleSyncPath('/tmp/old.md', '新标题.md')).toBe('/tmp/新标题.md')
+  })
+
   it('returns null when the title becomes empty after sanitization', () => {
     expect(buildTitleSyncPath('/tmp/old.md', '////')).toBeNull()
   })

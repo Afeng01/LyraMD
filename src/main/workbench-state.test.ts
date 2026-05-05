@@ -1,0 +1,123 @@
+import { describe, expect, it } from 'vitest'
+
+import {
+  addWorkspacePath,
+  canTogglePinnedFile,
+  migratePinnedDraftToFile,
+  normalizePinnedItems,
+  normalizeSidebarTab,
+  normalizeWorkspacePaths,
+  removePinnedFile,
+  replacePinnedFilePath,
+  reorderWorkspacePaths,
+  samePinnedItem,
+  togglePinnedItem,
+} from './workbench-state'
+
+describe('normalizeSidebarTab', () => {
+  it('defaults to drafts for unknown values', () => {
+    expect(normalizeSidebarTab(undefined)).toBe('drafts')
+    expect(normalizeSidebarTab('bad')).toBe('drafts')
+  })
+
+  it('preserves the recent tab when explicitly persisted', () => {
+    expect(normalizeSidebarTab('recent')).toBe('recent')
+  })
+
+  it('preserves the workdir tab when explicitly persisted', () => {
+    expect(normalizeSidebarTab('workdir')).toBe('workdir')
+  })
+})
+
+describe('workspace path helpers', () => {
+  it('adds new workspaces at the end and trims to the supported maximum', () => {
+    expect(addWorkspacePath(['/a', '/b'], '/c', 2)).toEqual(['/b', '/c'])
+    expect(addWorkspacePath(['/a', '/b'], '/c', 3)).toEqual(['/a', '/b', '/c'])
+  })
+
+  it('keeps existing workspace order when selecting an existing workspace', () => {
+    expect(addWorkspacePath(['/a', '/b', '/c'], '/b', 5)).toEqual(['/a', '/b', '/c'])
+  })
+
+  it('normalizes persisted workspaces and includes the active legacy workdir', () => {
+    expect(normalizeWorkspacePaths(['/a', 12, '/b'], '/active')).toEqual(['/a', '/b', '/active'])
+  })
+
+  it('reorders workspace paths by drag source and target', () => {
+    expect(reorderWorkspacePaths(['/a', '/b', '/c'], '/c', '/a')).toEqual(['/c', '/a', '/b'])
+    expect(reorderWorkspacePaths(['/a', '/b', '/c'], '/a', '/b')).toEqual(['/b', '/a', '/c'])
+    expect(reorderWorkspacePaths(['/a', '/b', '/c'], '/a', '/c')).toEqual(['/b', '/c', '/a'])
+  })
+})
+
+describe('pinned item helpers', () => {
+  it('normalizes only supported pinned item records', () => {
+    expect(normalizePinnedItems([
+      { kind: 'draft', draftId: 'd1' },
+      { kind: 'file', filePath: '/a.md' },
+      { kind: 'draft', draftId: '' },
+      { kind: 'file', filePath: '' },
+      { kind: 'workspace', path: '/ignored' },
+      null,
+    ])).toEqual([
+      { kind: 'draft', draftId: 'd1' },
+      { kind: 'file', filePath: '/a.md' },
+    ])
+  })
+
+  it('compares pinned items by kind and identity', () => {
+    expect(samePinnedItem({ kind: 'draft', draftId: 'd1' }, { kind: 'draft', draftId: 'd1' })).toBe(true)
+    expect(samePinnedItem({ kind: 'draft', draftId: 'd1' }, { kind: 'file', filePath: '/d1.md' })).toBe(false)
+    expect(samePinnedItem({ kind: 'file', filePath: '/a.md' }, { kind: 'file', filePath: '/a.md' })).toBe(true)
+  })
+
+  it('toggles pinned items without duplicates', () => {
+    expect(togglePinnedItem([], { kind: 'draft', draftId: 'd1' })).toEqual([
+      { kind: 'draft', draftId: 'd1' },
+    ])
+    expect(togglePinnedItem([{ kind: 'draft', draftId: 'd1' }], { kind: 'draft', draftId: 'd1' })).toEqual([])
+  })
+
+  it('migrates a pinned draft to a pinned file after formal save', () => {
+    expect(migratePinnedDraftToFile([
+      { kind: 'draft', draftId: 'd1' },
+      { kind: 'file', filePath: '/existing.md' },
+    ], 'd1', '/final.md')).toEqual([
+      { kind: 'file', filePath: '/final.md' },
+      { kind: 'file', filePath: '/existing.md' },
+    ])
+  })
+
+  it('allows a previously pinned file to be toggled even when it is no longer recent or in the active workspace', () => {
+    expect(canTogglePinnedFile({
+      filePath: '/pinned-only.md',
+      fileExists: true,
+      knownWorkdirFiles: [],
+      recentFiles: [],
+      currentFilePath: null,
+      pinnedItems: [{ kind: 'file', filePath: '/pinned-only.md' }],
+    })).toBe(true)
+  })
+
+  it('removes a deleted formal file from pinned items without touching draft pins', () => {
+    expect(removePinnedFile([
+      { kind: 'draft', draftId: 'd1' },
+      { kind: 'file', filePath: '/workspace/a.md' },
+      { kind: 'file', filePath: '/workspace/b.md' },
+    ], '/workspace/a.md')).toEqual([
+      { kind: 'draft', draftId: 'd1' },
+      { kind: 'file', filePath: '/workspace/b.md' },
+    ])
+  })
+
+  it('migrates pinned file paths after a formal file rename without creating duplicates', () => {
+    expect(replacePinnedFilePath([
+      { kind: 'draft', draftId: 'd1' },
+      { kind: 'file', filePath: '/workspace/old.md' },
+      { kind: 'file', filePath: '/workspace/new.md' },
+    ], '/workspace/old.md', '/workspace/new.md')).toEqual([
+      { kind: 'draft', draftId: 'd1' },
+      { kind: 'file', filePath: '/workspace/new.md' },
+    ])
+  })
+})

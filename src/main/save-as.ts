@@ -7,6 +7,10 @@ export interface SaveAsSourceCleanupInput {
   saveAsMode: SaveAsMode
 }
 
+export function shouldPromptForFormalSave(documentKind: SaveAsSourceCleanupInput['documentKind']): boolean {
+  return documentKind !== 'file'
+}
+
 export function shouldRemoveSourceAfterSaveAs({
   documentKind,
   currentPath,

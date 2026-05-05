@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog, Menu, shell } from 'electron'
-import { join, basename, relative } from 'path'
+import { join, basename, dirname, extname, relative } from 'path'
 import { readFile, writeFile, readdir, copyFile, mkdir, rename, unlink } from 'fs/promises'
-import { FSWatcher, existsSync, readdirSync } from 'fs'
+import { FSWatcher, existsSync, readdirSync, watch } from 'fs'
 import {
   clampSidebarWidth,
   filterMissingRecentFiles,
@@ -12,7 +12,17 @@ import {
   removeRecentFile,
   type PersistedSidebarState,
 } from './sidebar-state'
-import { deriveDocumentTitle, deriveDraftDisplayTitle, isBlankDocumentContent, promoteDraftEntries, upsertDraftEntry, type DraftEntry } from './drafts'
+import {
+  deriveDocumentTitle,
+  deriveDraftDisplayTitle,
+  isBlankDocumentContent,
+  promoteDraftEntries,
+  resolveManualDraftPath,
+  sanitizeMarkdownFileStem,
+  updateDraftEntryManualTitle,
+  upsertDraftEntry,
+  type DraftEntry,
+} from './drafts'
 import {
   consumeIgnoredWatchedContent,
   decideWatchEvent,
@@ -21,9 +31,20 @@ import {
   watchTargetFile,
 } from './file-sync'
 import { DEFAULT_APP_SETTINGS, loadAppSettings, updateAppSettings, type AppSettings } from './settings'
-import { shouldRemoveSourceAfterSaveAs } from './save-as'
+import { shouldPromptForFormalSave, shouldRemoveSourceAfterSaveAs } from './save-as'
 import { buildTitleSyncPath, decideTitleSync } from './title-sync'
-import { scanWorkdir, type WorkdirEntry } from './workdir'
+import { scanWorkdir, shouldRefreshWorkdirForWatchEvent, type WorkdirEntry } from './workdir'
+import { moveFileToTrashAndVerify } from './file-removal'
+import {
+  addWorkspacePath,
+  canTogglePinnedFile,
+  migratePinnedDraftToFile,
+  normalizeSidebarTab,
+  removePinnedFile,
+  replacePinnedFilePath,
+  reorderWorkspacePaths,
+  togglePinnedItem,
+} from './workbench-state'
 
 // Custom themes directory
 const appDataDir = join(app.getPath('home'), '.lyramd')
@@ -54,21 +75,20 @@ interface SidebarSnapshot extends PersistedSidebarState {
 
 let sidebarState: PersistedSidebarState = normalizeSidebarState(null)
 let workdirEntries: WorkdirEntry[] = []
+let workdirWatcher: FSWatcher | null = null
+let watchedWorkdirPath: string | null = null
+let workdirRefreshTimer: NodeJS.Timeout | null = null
 let persistedSessionState: PersistedSessionState = {
   lastActiveDocument: null,
 }
 let appSettings: AppSettings = DEFAULT_APP_SETTINGS
 
-function ensureAppDataDir(): void {
-  if (!existsSync(appDataDir)) {
-    mkdir(appDataDir, { recursive: true }).catch(() => {})
-  }
+async function ensureAppDataDir(): Promise<void> {
+  await mkdir(appDataDir, { recursive: true })
 }
 
-function ensureThemesDir(): void {
-  if (!existsSync(themesDir)) {
-    mkdir(themesDir, { recursive: true }).catch(() => {})
-  }
+async function ensureThemesDir(): Promise<void> {
+  await mkdir(themesDir, { recursive: true })
 }
 
 async function scanCustomThemes(): Promise<string[]> {
@@ -80,29 +100,91 @@ async function scanCustomThemes(): Promise<string[]> {
   }
 }
 
+function stopWatchingWorkdir(): void {
+  if (workdirRefreshTimer) {
+    clearTimeout(workdirRefreshTimer)
+    workdirRefreshTimer = null
+  }
+  if (workdirWatcher) {
+    workdirWatcher.close()
+    workdirWatcher = null
+  }
+  watchedWorkdirPath = null
+}
+
+function scheduleWorkdirRefresh(): void {
+  if (workdirRefreshTimer) clearTimeout(workdirRefreshTimer)
+  workdirRefreshTimer = setTimeout(() => {
+    workdirRefreshTimer = null
+    refreshWorkdirEntries()
+      .then(() => {
+        broadcastSidebarState()
+      })
+      .catch(() => {})
+  }, 160)
+}
+
+function watchWorkdirPath(workdirPath: string | null): void {
+  if (watchedWorkdirPath === workdirPath) return
+  stopWatchingWorkdir()
+  if (!workdirPath) return
+
+  const attachWatcher = (recursive: boolean): FSWatcher => watch(
+    workdirPath,
+    { recursive },
+    (_eventType, fileName) => {
+      if (!shouldRefreshWorkdirForWatchEvent(fileName)) return
+      scheduleWorkdirRefresh()
+    },
+  )
+
+  try {
+    workdirWatcher = attachWatcher(true)
+  } catch {
+    try {
+      workdirWatcher = attachWatcher(false)
+    } catch {
+      workdirWatcher = null
+      return
+    }
+  }
+  watchedWorkdirPath = workdirPath
+}
+
 async function refreshWorkdirEntries(): Promise<void> {
   if (!sidebarState.workdirPath) {
     workdirEntries = []
+    watchWorkdirPath(null)
     return
   }
 
   if (!existsSync(sidebarState.workdirPath)) {
+    sidebarState.workspacePaths = sidebarState.workspacePaths.filter((workspacePath) => workspacePath !== sidebarState.workdirPath)
     sidebarState.workdirPath = null
     workdirEntries = []
-    persistSidebarState()
+    watchWorkdirPath(null)
+    await persistSidebarState()
     return
   }
 
   try {
     workdirEntries = await scanWorkdir(sidebarState.workdirPath)
+    watchWorkdirPath(sidebarState.workdirPath)
   } catch {
     workdirEntries = []
+    watchWorkdirPath(null)
   }
 }
 
-function persistSidebarState(): void {
+let sidebarPersistQueue: Promise<void> = Promise.resolve()
+let sidebarQuitFlushStarted = false
+
+function persistSidebarState(): Promise<void> {
   const payload = JSON.stringify(sidebarState, null, 2)
-  writeFile(sidebarStatePath, payload, 'utf-8').catch(() => {})
+  sidebarPersistQueue = sidebarPersistQueue
+    .catch(() => {})
+    .then(() => writeFile(sidebarStatePath, payload, 'utf-8'))
+  return sidebarPersistQueue
 }
 
 function persistSessionState(): void {
@@ -120,7 +202,8 @@ async function loadSidebarState(): Promise<void> {
 
   sidebarState.recentFiles = filterMissingRecentFiles(sidebarState.recentFiles, (filePath) => existsSync(filePath))
   sidebarState.draftEntries = sidebarState.draftEntries.filter((entry) => existsSync(entry.path))
-  persistSidebarState()
+  sidebarState.workspacePaths = sidebarState.workspacePaths.filter((workspacePath) => existsSync(workspacePath))
+  await persistSidebarState()
   await refreshWorkdirEntries()
 }
 
@@ -303,15 +386,69 @@ async function renameCurrentFileToPath(win: BrowserWindow, nextPath: string): Pr
   const currentDisplayTitle = state.displayTitle
   await rename(previousPath, nextPath)
   moveFileTitleOverride(previousPath, nextPath)
+  sidebarState.pinnedItems = replacePinnedFilePath(sidebarState.pinnedItems, previousPath, nextPath)
+  await persistSidebarState()
   setFileDocumentState(win, nextPath, 'file', null)
   state.displayTitle = currentDisplayTitle
   updateTitle(win)
   replaceRecentFilePath(previousPath, nextPath)
+  await persistSidebarState()
   if (isPathInsideWorkdir(previousPath) || isPathInsideWorkdir(nextPath)) {
     await refreshWorkdirEntries()
   }
   broadcastSidebarState()
   return { path: nextPath }
+}
+
+async function renameFormalFileByTitleForAllWindows(
+  triggerWin: BrowserWindow,
+  previousPath: string,
+  nextTitle: string,
+): Promise<SidebarSnapshot> {
+  const trimmedTitle = nextTitle.trim()
+  const nextPath = buildTitleSyncPath(previousPath, trimmedTitle)
+  if (!trimmedTitle || !nextPath || previousPath === nextPath || !existsSync(previousPath) || existsSync(nextPath)) {
+    return createSidebarSnapshot(triggerWin)
+  }
+
+  const draftEntry = sidebarState.draftEntries.find((entry) => entry.path === previousPath)
+  if (draftEntry) {
+    try {
+      await applyManualDraftTitle(draftEntry, trimmedTitle)
+      broadcastSidebarState()
+    } catch {
+      return createSidebarSnapshot(triggerWin)
+    }
+    return createSidebarSnapshot(triggerWin)
+  }
+
+  const displayTitle = basename(nextPath, extname(nextPath))
+  try {
+    await rename(previousPath, nextPath)
+  } catch {
+    return createSidebarSnapshot(triggerWin)
+  }
+
+  delete sidebarState.fileTitleOverrides[previousPath]
+  sidebarState.fileTitleOverrides[nextPath] = displayTitle
+  sidebarState.pinnedItems = replacePinnedFilePath(sidebarState.pinnedItems, previousPath, nextPath)
+  replaceRecentFilePath(previousPath, nextPath)
+  await persistSidebarState()
+
+  for (const window of BrowserWindow.getAllWindows()) {
+    const state = getState(window)
+    if (state.documentKind !== 'file' || state.filePath !== previousPath) continue
+    setFileDocumentState(window, nextPath, 'file', null)
+    state.displayTitle = displayTitle
+    updateTitle(window)
+  }
+
+  if (isPathInsideWorkdir(previousPath) || isPathInsideWorkdir(nextPath)) {
+    await refreshWorkdirEntries()
+  }
+
+  broadcastSidebarState()
+  return createSidebarSnapshot(triggerWin)
 }
 
 function updateDraftEntry(entry: DraftEntry): void {
@@ -324,6 +461,36 @@ function updateDraftEntry(entry: DraftEntry): void {
 function removeDraftEntry({ draftId, draftPath }: { draftId?: string | null; draftPath?: string | null }): void {
   sidebarState.draftEntries = promoteDraftEntries(sidebarState.draftEntries, { draftId, draftPath })
   persistSidebarState()
+}
+
+async function applyManualDraftTitle(draftEntry: DraftEntry, nextTitle: string): Promise<DraftEntry> {
+  const trimmedTitle = nextTitle.trim()
+  const previousPath = draftEntry.path
+  const nextPath = resolveManualDraftPath(
+    dirname(previousPath),
+    trimmedTitle,
+    (candidatePath) => candidatePath !== previousPath && existsSync(candidatePath),
+  )
+
+  if (nextPath !== previousPath) {
+    await rename(previousPath, nextPath)
+  }
+
+  const nextEntry = updateDraftEntryManualTitle(draftEntry, trimmedTitle, nextPath, Date.now())
+  updateDraftEntry(nextEntry)
+
+  for (const window of BrowserWindow.getAllWindows()) {
+    const state = getState(window)
+    const pointsAtDraft = state.documentKind === 'draft'
+      && (state.draftId === draftEntry.id || state.filePath === previousPath)
+    if (!pointsAtDraft) continue
+
+    setFileDocumentState(window, nextEntry.path, 'draft', nextEntry.id)
+    state.displayTitle = nextEntry.displayTitle
+    updateTitle(window)
+  }
+
+  return nextEntry
 }
 
 function setBlankDocumentState(win: BrowserWindow): void {
@@ -443,6 +610,11 @@ function updateTitle(win: BrowserWindow): void {
 
 function suggestFileName(win: BrowserWindow, content?: string): string | undefined {
   const state = getState(win)
+  if (state.documentKind === 'draft') {
+    return sanitizeMarkdownFileStem(
+      state.displayTitle || (content ? deriveDocumentTitle(content, '未命名草稿') : '未命名草稿'),
+    )
+  }
   if (state.filePath) return basename(state.filePath, '.md')
   if (!content) return undefined
   // Extract first heading or first non-empty line
@@ -706,6 +878,8 @@ async function saveFileAsForWindow(win: BrowserWindow, nextPath: string, content
       }
 
       removeDraftEntry({ draftId: sourceDraftId, draftPath: sourcePath })
+      sidebarState.pinnedItems = migratePinnedDraftToFile(sidebarState.pinnedItems, sourceDraftId, nextPath)
+      await persistSidebarState()
       recordIgnoredWatchedContent(state.ignoredWatchedContents, content)
       setFileDocumentState(win, nextPath, 'file', null)
       state.lastSyncedContent = content
@@ -830,18 +1004,28 @@ function beginBlankDocumentSession(win: BrowserWindow): SidebarSnapshot {
 
 async function clearDraftsForAllWindows(triggerWin: BrowserWindow): Promise<SidebarSnapshot> {
   const draftEntries = [...sidebarState.draftEntries]
+  const removedEntries: DraftEntry[] = []
 
   for (const entry of draftEntries) {
-    if (!existsSync(entry.path)) continue
-    await shell.trashItem(entry.path)
+    if (!existsSync(entry.path)) {
+      removedEntries.push(entry)
+      continue
+    }
+    const didRemove = await moveFileToTrashAndVerify(entry.path, {
+      trashItem: (targetPath) => shell.trashItem(targetPath),
+      exists: (targetPath) => existsSync(targetPath),
+    })
+    if (didRemove) removedEntries.push(entry)
   }
 
-  sidebarState.draftEntries = []
-  persistSidebarState()
+  sidebarState.draftEntries = sidebarState.draftEntries.filter((entry) => (
+    !removedEntries.some((removedEntry) => removedEntry.id === entry.id)
+  ))
+  await persistSidebarState()
 
   for (const win of BrowserWindow.getAllWindows()) {
     const state = getState(win)
-    if (!state.filePath || !draftEntries.some((entry) => entry.path === state.filePath)) continue
+    if (!state.filePath || !removedEntries.some((entry) => entry.path === state.filePath)) continue
     setBlankDocumentState(win)
     if (!win.isDestroyed()) {
       win.webContents.send('new-file')
@@ -863,7 +1047,15 @@ async function removeDraftForAllWindows(triggerWin: BrowserWindow, draftId: stri
   }
 
   if (existsSync(draftEntry.path)) {
-    await shell.trashItem(draftEntry.path)
+    const didRemove = await moveFileToTrashAndVerify(draftEntry.path, {
+      trashItem: (targetPath) => shell.trashItem(targetPath),
+      exists: (targetPath) => existsSync(targetPath),
+    })
+    if (!didRemove) {
+      await refreshWorkdirEntries()
+      broadcastSidebarState()
+      return createSidebarSnapshot(triggerWin)
+    }
   }
 
   removeDraftEntry({ draftId: draftEntry.id, draftPath: draftEntry.path })
@@ -881,6 +1073,52 @@ async function removeDraftForAllWindows(triggerWin: BrowserWindow, draftId: stri
     await refreshWorkdirEntries()
   }
 
+  broadcastSidebarState()
+  return createSidebarSnapshot(triggerWin)
+}
+
+async function removeFormalFileReferences(filePath: string): Promise<void> {
+  sidebarState.recentFiles = removeRecentFile(sidebarState.recentFiles, filePath)
+  sidebarState.pinnedItems = removePinnedFile(sidebarState.pinnedItems, filePath)
+  delete sidebarState.fileTitleOverrides[filePath]
+  await persistSidebarState()
+}
+
+async function removeWorkdirFileForAllWindows(triggerWin: BrowserWindow, filePath: string): Promise<SidebarSnapshot> {
+  if (!isPathInsideWorkdir(filePath)) {
+    return createSidebarSnapshot(triggerWin)
+  }
+
+  if (!existsSync(filePath)) {
+    await removeFormalFileReferences(filePath)
+    await refreshWorkdirEntries()
+    broadcastSidebarState()
+    return createSidebarSnapshot(triggerWin)
+  }
+
+  const didRemove = await moveFileToTrashAndVerify(filePath, {
+    trashItem: (targetPath) => shell.trashItem(targetPath),
+    exists: (targetPath) => existsSync(targetPath),
+  })
+
+  if (!didRemove) {
+    await refreshWorkdirEntries()
+    broadcastSidebarState()
+    return createSidebarSnapshot(triggerWin)
+  }
+
+  await removeFormalFileReferences(filePath)
+
+  for (const win of BrowserWindow.getAllWindows()) {
+    const state = getState(win)
+    if (state.documentKind !== 'file' || state.filePath !== filePath) continue
+    setBlankDocumentState(win)
+    if (!win.isDestroyed()) {
+      win.webContents.send('new-file')
+    }
+  }
+
+  await refreshWorkdirEntries()
   broadcastSidebarState()
   return createSidebarSnapshot(triggerWin)
 }
@@ -963,15 +1201,12 @@ ipcMain.handle('update-current-draft-title', async (event, nextTitle: string) =>
     return createSidebarSnapshot(win)
   }
 
-  const nextEntry = {
-    ...draftEntry,
-    displayTitle: trimmedTitle,
-    manualTitle: trimmedTitle,
-    updatedAt: Date.now(),
+  try {
+    await applyManualDraftTitle(draftEntry, trimmedTitle)
+  } catch {
+    return createSidebarSnapshot(win)
   }
-  updateDraftEntry(nextEntry)
-  state.displayTitle = trimmedTitle
-  updateTitle(win)
+
   broadcastSidebarState()
   return createSidebarSnapshot(win)
 })
@@ -1001,20 +1236,10 @@ ipcMain.handle('update-draft-title-by-id', async (event, draftId: string, nextTi
     return createSidebarSnapshot(win)
   }
 
-  const nextEntry = {
-    ...draftEntry,
-    displayTitle: trimmedTitle,
-    manualTitle: trimmedTitle,
-    updatedAt: Date.now(),
-  }
-  updateDraftEntry(nextEntry)
-
-  for (const window of BrowserWindow.getAllWindows()) {
-    const state = getState(window)
-    if (state.documentKind === 'draft' && state.draftId === draftId) {
-      state.displayTitle = trimmedTitle
-      updateTitle(window)
-    }
+  try {
+    await applyManualDraftTitle(draftEntry, trimmedTitle)
+  } catch {
+    return createSidebarSnapshot(win)
   }
 
   broadcastSidebarState()
@@ -1041,6 +1266,16 @@ ipcMain.handle('update-file-title-by-path', async (event, filePath: string, next
 
   broadcastSidebarState()
   return createSidebarSnapshot(win)
+})
+
+ipcMain.handle('rename-file-by-path-from-title', async (event, filePath: string, nextTitle: string) => {
+  const win = getWinFromEvent(event)
+  if (!win) return null
+  if (typeof filePath !== 'string' || typeof nextTitle !== 'string') {
+    return createSidebarSnapshot(win)
+  }
+
+  return renameFormalFileByTitleForAllWindows(win, filePath, nextTitle)
 })
 
 ipcMain.handle('rename-current-file-from-title', async (event, nextTitle: string) => {
@@ -1086,6 +1321,13 @@ ipcMain.handle('toggle-workdir-expanded', async () => {
   return sidebarState.workdirExpanded
 })
 
+ipcMain.handle('toggle-pinned-expanded', async () => {
+  sidebarState.pinnedExpanded = !sidebarState.pinnedExpanded
+  persistSidebarState()
+  broadcastSidebarState()
+  return sidebarState.pinnedExpanded
+})
+
 ipcMain.handle('toggle-recent-files-expanded', async () => {
   sidebarState.recentFilesExpanded = !sidebarState.recentFilesExpanded
   persistSidebarState()
@@ -1111,9 +1353,84 @@ ipcMain.handle('choose-workdir', async (event) => {
   if (result.canceled || result.filePaths.length === 0) return null
 
   sidebarState.workdirPath = result.filePaths[0]
+  sidebarState.workspacePaths = addWorkspacePath(sidebarState.workspacePaths, sidebarState.workdirPath)
   sidebarState.workdirExpanded = true
   await refreshWorkdirEntries()
+  await persistSidebarState()
+  broadcastSidebarState()
+  return createSidebarSnapshot(win)
+})
+
+ipcMain.handle('select-workspace', async (event, workspacePath: string) => {
+  const win = getWinFromEvent(event)
+  if (!win) return null
+  if (typeof workspacePath !== 'string' || !existsSync(workspacePath)) {
+    sidebarState.workspacePaths = sidebarState.workspacePaths.filter((candidate) => existsSync(candidate))
+    await persistSidebarState()
+    broadcastSidebarState()
+    return createSidebarSnapshot(win)
+  }
+
+  sidebarState.workdirPath = workspacePath
+  sidebarState.workspacePaths = addWorkspacePath(sidebarState.workspacePaths, workspacePath)
+  sidebarState.workdirExpanded = true
+  await refreshWorkdirEntries()
+  await persistSidebarState()
+  broadcastSidebarState()
+  return createSidebarSnapshot(win)
+})
+
+ipcMain.handle('reorder-workspaces', async (event, sourcePath: string, targetPath: string) => {
+  const win = getWinFromEvent(event)
+  if (!win) return null
+  if (typeof sourcePath !== 'string' || typeof targetPath !== 'string') {
+    return createSidebarSnapshot(win)
+  }
+
+  sidebarState.workspacePaths = reorderWorkspacePaths(sidebarState.workspacePaths, sourcePath, targetPath)
+  await persistSidebarState()
+  broadcastSidebarState()
+  return createSidebarSnapshot(win)
+})
+
+ipcMain.handle('set-active-sidebar-tab', async (event, tab: string) => {
+  const win = getWinFromEvent(event)
+  if (!win) return null
+  sidebarState.activeSidebarTab = normalizeSidebarTab(tab)
   persistSidebarState()
+  broadcastSidebarState()
+  return createSidebarSnapshot(win)
+})
+
+ipcMain.handle('toggle-pinned-draft', async (event, draftId: string) => {
+  const win = getWinFromEvent(event)
+  if (!win) return null
+  if (typeof draftId !== 'string' || !sidebarState.draftEntries.some((entry) => entry.id === draftId)) {
+    return createSidebarSnapshot(win)
+  }
+
+  sidebarState.pinnedItems = togglePinnedItem(sidebarState.pinnedItems, { kind: 'draft', draftId })
+  await persistSidebarState()
+  broadcastSidebarState()
+  return createSidebarSnapshot(win)
+})
+
+ipcMain.handle('toggle-pinned-file', async (event, filePath: string) => {
+  const win = getWinFromEvent(event)
+  if (!win) return null
+  if (typeof filePath !== 'string' || !canTogglePinnedFile({
+    filePath,
+    fileExists: existsSync(filePath),
+    knownWorkdirFiles: workdirEntries.map((entry) => entry.absolutePath),
+    recentFiles: sidebarState.recentFiles,
+    currentFilePath: getState(win).filePath,
+    pinnedItems: sidebarState.pinnedItems,
+  })) {
+    return createSidebarSnapshot(win)
+  }
+
+  sidebarState.pinnedItems = togglePinnedItem(sidebarState.pinnedItems, { kind: 'file', filePath })
+  await persistSidebarState()
   broadcastSidebarState()
   return createSidebarSnapshot(win)
 })
@@ -1192,25 +1509,33 @@ ipcMain.handle('remove-recent-file', async (_event, filePath: string) => {
   return true
 })
 
+ipcMain.handle('remove-workdir-file', async (event, filePath: string) => {
+  const win = getWinFromEvent(event)
+  if (!win) return null
+  if (typeof filePath !== 'string') return createSidebarSnapshot(win)
+  return removeWorkdirFileForAllWindows(win, filePath)
+})
+
 ipcMain.handle('save-file', async (event, content: string) => {
   const win = getWinFromEvent(event)
   if (!win) return false
   const state = getState(win)
-  if (state.documentKind === 'draft' && state.filePath) {
-    return saveToPath(win, state.filePath, content)
-  }
 
-  if (!state.filePath) {
+  if (shouldPromptForFormalSave(state.documentKind) || !state.filePath) {
     const result = await dialog.showSaveDialog(win, {
       defaultPath: suggestFileName(win, content),
+      message: state.documentKind === 'draft'
+        ? '保存后会成为正式文件，并从草稿中移出。草稿内容已自动保存。'
+        : undefined,
       filters: [
         { name: 'Markdown', extensions: ['md'] },
         { name: 'All Files', extensions: ['*'] }
       ]
     })
     if (result.canceled || !result.filePath) return false
-    state.filePath = result.filePath
+    return saveFileAsForWindow(win, result.filePath, content)
   }
+
   return saveToPath(win, state.filePath, content)
 })
 
@@ -1432,6 +1757,11 @@ function buildMenu(): void {
           accelerator: 'CmdOrCtrl+\\',
           click: () => { toggleSidebarForWindow(getFocusedWindow()) }
         },
+        {
+          label: 'Toggle Outline',
+          accelerator: 'CmdOrCtrl+Shift+O',
+          click: () => sendToFocused('menu-toggle-outline')
+        },
         { type: 'separator' },
         {
           label: 'Zoom In',
@@ -1483,9 +1813,8 @@ function buildMenu(): void {
 // App lifecycle
 
 app.whenReady().then(() => {
-  ensureAppDataDir()
-  ensureThemesDir()
-  Promise.all([loadSidebarState(), loadSessionState(), loadSettingsState()])
+  Promise.all([ensureAppDataDir(), ensureThemesDir()])
+    .then(() => Promise.all([loadSidebarState(), loadSessionState(), loadSettingsState()]))
     .catch(() => {})
     .finally(() => {
       buildMenu()
@@ -1523,6 +1852,21 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
+})
+
+app.on('before-quit', async (event) => {
+  stopWatchingWorkdir()
+  if (sidebarQuitFlushStarted) return
+
+  event.preventDefault()
+  sidebarQuitFlushStarted = true
+  try {
+    await persistSidebarState()
+  } catch {
+    // Quit should not be blocked by an app-data write failure.
+  } finally {
+    app.quit()
+  }
 })
 
 app.on('open-file', (event, filePath) => {

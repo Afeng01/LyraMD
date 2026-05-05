@@ -3,6 +3,7 @@ import {
   createEditor,
   focusEditorAtLastSelection,
   focusEditorPreservingSelection,
+  getOutlineItems,
   getHTML,
   getMarkdown,
   isEditorTextFocused,
@@ -10,6 +11,7 @@ import {
   nextSearchMatch,
   onUserEdit,
   previousSearchMatch,
+  scrollToOutlineItem,
   setMarkdown,
   setSearchQuery,
 } from './editor/editor'
@@ -34,8 +36,20 @@ import {
   shouldShowEmptyEditorPlaceholder,
 } from './editor/session-ux'
 import { createSettingsDialogController } from './settings-dialog'
+import {
+  resolvePinnedItems,
+  resolvePinControl,
+  resolveRemoveActionKey,
+  resolveRemoveActionPlan,
+  resolveRemoveControl,
+  resolveSidebarInlineTitleCommitAction,
+  resolveVisibleTabItems,
+  resolveWorkspaceLabel,
+  shouldScrollWorkspaces,
+  type SidebarItem,
+} from './sidebar-view'
 import { applyTheme, loadSavedTheme } from './themes/theme-manager'
-import type { AppSettings, SidebarState } from '../preload/index'
+import type { AppSettings, SidebarState, SidebarTab } from '../preload/index'
 import './themes/base.css'
 
 type TitleEditingAPI = typeof window.electronAPI & {
@@ -43,6 +57,7 @@ type TitleEditingAPI = typeof window.electronAPI & {
   updateCurrentFileTitle?: (nextTitle: string) => Promise<SidebarState | null>
   updateDraftTitleById?: (draftId: string, nextTitle: string) => Promise<SidebarState | null>
   updateFileTitleByPath?: (filePath: string, nextTitle: string) => Promise<SidebarState | null>
+  renameFileByPathFromTitle?: (filePath: string, nextTitle: string) => Promise<SidebarState | null>
   onMenuSettings?: (callback: () => void) => void
 }
 
@@ -161,7 +176,7 @@ function createFileItem(
   meta: string | null,
   currentFilePath: string | null,
   extraClass = '',
-  source: 'recent' | 'workdir' = 'recent',
+  source: 'recent' | 'workdir' | 'pinned' = 'recent',
 ): HTMLButtonElement {
   const item = document.createElement('button')
   item.type = 'button'
@@ -210,8 +225,6 @@ async function init(): Promise<void> {
   let appSettings = createDefaultSettings()
   let sidebarState: SidebarState | null = null
   let lastDocumentViewportKey: string | null = null
-  let managingDrafts = false
-  let managingRecentFiles = false
   let pendingBlankMaterialization = false
   let titleEditActive = false
   let titleEditValue = ''
@@ -225,7 +238,7 @@ async function init(): Promise<void> {
     | null = null
   let sidebarInlineTitleEdit:
     | { kind: 'draft'; draftId: string; value: string }
-    | { kind: 'file'; filePath: string; source: 'recent' | 'workdir'; value: string }
+    | { kind: 'file'; filePath: string; source: 'recent' | 'workdir' | 'pinned'; value: string }
     | null = null
   let pendingTitleEditRequest:
     | {
@@ -237,6 +250,8 @@ async function init(): Promise<void> {
         filePath: string
       }
     | null = null
+  let pendingRemoveActionKey: string | null = null
+  let pendingRemoveActionTimer: ReturnType<typeof setTimeout> | null = null
   const savedViewportOffsets = new Map<string, number>()
   let drawerOpenedByHover = false
   let drawerHoverOpenTimer: ReturnType<typeof setTimeout> | null = null
@@ -285,8 +300,6 @@ async function init(): Promise<void> {
       titleEditActive = false
       closeTitleSyncPrompt()
     }
-    if (state.draftEntries.length === 0) managingDrafts = false
-    if (state.recentFiles.length === 0) managingRecentFiles = false
     if (!state.isDrawerMode || !state.sidebarOpen) drawerOpenedByHover = false
     renderSidebar()
     schedulePlaceholderLayoutSync()
@@ -329,6 +342,7 @@ async function init(): Promise<void> {
   const appShell = document.getElementById('app-shell')
   const sidebarToggle = document.getElementById('sidebar-toggle') as HTMLButtonElement | null
   const settingsToggle = document.getElementById('settings-toggle') as HTMLButtonElement | null
+  const outlineToggle = document.getElementById('outline-toggle') as HTMLButtonElement | null
   const drawerBackdrop = document.getElementById('sidebar-drawer-backdrop') as HTMLDivElement | null
   const drawerEdgeTrigger = document.getElementById('drawer-edge-trigger') as HTMLDivElement | null
   const drawerShell = document.getElementById('sidebar-drawer-shell') as HTMLDivElement | null
@@ -338,11 +352,18 @@ async function init(): Promise<void> {
   const onboardingDirectoryPreview = document.getElementById('onboarding-directory-preview') as HTMLDivElement | null
   const currentFileNew = document.getElementById('current-file-new') as HTMLButtonElement | null
   const draftsToggle = document.getElementById('drafts-toggle') as HTMLButtonElement | null
-  const draftsClear = document.getElementById('drafts-clear') as HTMLButtonElement | null
   const recentFilesToggle = document.getElementById('recent-files-toggle') as HTMLButtonElement | null
-  const recentFilesClear = document.getElementById('recent-files-clear') as HTMLButtonElement | null
   const workdirToggle = document.getElementById('workdir-toggle') as HTMLButtonElement | null
   const workdirChange = document.getElementById('workdir-change') as HTMLButtonElement | null
+  const workspaceAdd = document.getElementById('workspace-add') as HTMLButtonElement | null
+  const workspacesList = document.getElementById('workspaces-list') as HTMLDivElement | null
+  const pinnedSection = document.getElementById('pinned-section') as HTMLElement | null
+  const pinnedToggle = document.getElementById('pinned-toggle') as HTMLButtonElement | null
+  const pinnedList = document.getElementById('pinned-list') as HTMLDivElement | null
+  const draftsTab = document.getElementById('drafts-tab') as HTMLButtonElement | null
+  const recentTab = document.getElementById('recent-tab') as HTMLButtonElement | null
+  const workdirTab = document.getElementById('workdir-tab') as HTMLButtonElement | null
+  const libraryList = document.getElementById('library-list') as HTMLDivElement | null
   const currentFile = document.getElementById('current-file')
   const draftsList = document.getElementById('drafts-list')
   const draftsSection = document.getElementById('drafts-section')
@@ -361,6 +382,8 @@ async function init(): Promise<void> {
   const searchContextPrev = document.getElementById('search-context-prev') as HTMLDivElement | null
   const searchContextCurrent = document.getElementById('search-context-current') as HTMLDivElement | null
   const searchContextNext = document.getElementById('search-context-next') as HTMLDivElement | null
+  const outlinePanel = document.getElementById('outline-panel') as HTMLElement | null
+  const outlineList = document.getElementById('outline-list') as HTMLDivElement | null
 
   const updateEditorPlaceholder = (content: string): void => {
     if (!editorPlaceholder) return
@@ -608,12 +631,14 @@ async function init(): Promise<void> {
 
     sidebarInlineTitleEdit = null
 
-    if (editTarget.kind === 'draft') {
+    const action = resolveSidebarInlineTitleCommitAction(editTarget)
+
+    if (action.kind === 'update-draft-title') {
       const snapshot = api.updateDraftTitleById
-        ? await api.updateDraftTitleById(editTarget.draftId, trimmedTitle).catch(() => null)
+        ? await api.updateDraftTitleById(action.draftId, trimmedTitle).catch(() => null)
         : (
             sidebarState?.currentDocumentKind === 'draft'
-            && sidebarState.currentDraftId === editTarget.draftId
+            && sidebarState.currentDraftId === action.draftId
             && api.updateCurrentDraftTitle
               ? await api.updateCurrentDraftTitle(trimmedTitle).catch(() => null)
               : null
@@ -623,11 +648,12 @@ async function init(): Promise<void> {
       return
     }
 
-    const snapshot = api.updateFileTitleByPath
-      ? await api.updateFileTitleByPath(editTarget.filePath, trimmedTitle).catch(() => null)
+    await flushAutoSave()
+    const snapshot = api.renameFileByPathFromTitle
+      ? await api.renameFileByPathFromTitle(action.filePath, trimmedTitle).catch(() => null)
       : (
           sidebarState?.currentDocumentKind === 'file'
-          && sidebarState.currentFilePath === editTarget.filePath
+          && sidebarState.currentFilePath === action.filePath
           && api.updateCurrentFileTitle
             ? await api.updateCurrentFileTitle(trimmedTitle).catch(() => null)
             : null
@@ -717,6 +743,7 @@ async function init(): Promise<void> {
     updateEditorPlaceholder(content)
     schedulePlaceholderLayoutSync()
     refreshSearchPanel()
+    if (outlinePanelOpen) renderOutlinePanel()
 
     if (!editorShell) return
     if (typeof nextScrollTop === 'number') {
@@ -751,6 +778,7 @@ async function init(): Promise<void> {
   onUserEdit(() => {
     const markdown = getMarkdown()
     updateEditorPlaceholder(markdown)
+    if (outlinePanelOpen) renderOutlinePanel()
 
     const decision = decideAutosaveBehavior(
       'user',
@@ -777,6 +805,7 @@ async function init(): Promise<void> {
   }, { passive: true })
 
   let searchPanelOpen = false
+  let outlinePanelOpen = false
   let searchInputComposing = false
   let searchQueryMemory: SearchMemoryState = {}
 
@@ -854,6 +883,45 @@ async function init(): Promise<void> {
 
   const refreshSearchPanel = (): void => {
     renderSearchPanel(getSearchState())
+  }
+
+  const renderOutlinePanel = (): void => {
+    if (!outlineList) return
+    clearElement(outlineList)
+
+    const items = getOutlineItems()
+    if (items.length === 0) {
+      outlineList.appendChild(createTextBlock('outline-empty', '当前文档没有一级或二级标题'))
+      return
+    }
+
+    for (const item of items) {
+      const button = document.createElement('button')
+      button.type = 'button'
+      button.className = `outline-item level-${item.level}`
+      button.dataset.outlineId = item.id
+      button.textContent = item.title
+      button.title = item.title
+      button.addEventListener('click', () => {
+        scrollToOutlineItem(item.id)
+      })
+      outlineList.appendChild(button)
+    }
+  }
+
+  const setOutlinePanelOpen = (open: boolean): void => {
+    outlinePanelOpen = open
+    appShell?.classList.toggle('outline-open', outlinePanelOpen)
+    outlineToggle?.classList.toggle('active', outlinePanelOpen)
+    if (outlinePanel) {
+      outlinePanel.hidden = !outlinePanelOpen
+      outlinePanel.setAttribute('aria-hidden', outlinePanelOpen ? 'false' : 'true')
+    }
+    if (outlinePanelOpen) renderOutlinePanel()
+  }
+
+  const toggleOutlinePanel = (): void => {
+    setOutlinePanelOpen(!outlinePanelOpen)
   }
 
   const focusSearchInputWithoutSelecting = (): void => {
@@ -963,16 +1031,186 @@ async function init(): Promise<void> {
     }, 160)
   }
 
+  const createIconSvg = (
+    paths: string[],
+    options: { filled?: boolean } = {},
+  ): SVGSVGElement => {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+    svg.setAttribute('viewBox', '0 0 18 18')
+    svg.setAttribute('width', '15')
+    svg.setAttribute('height', '15')
+    svg.setAttribute('aria-hidden', 'true')
+    svg.setAttribute('fill', options.filled ? 'currentColor' : 'none')
+    svg.setAttribute('stroke', 'currentColor')
+    svg.setAttribute('stroke-width', '1.45')
+    svg.setAttribute('stroke-linecap', 'round')
+    svg.setAttribute('stroke-linejoin', 'round')
+
+    for (const data of paths) {
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+      path.setAttribute('d', data)
+      svg.appendChild(path)
+    }
+
+    return svg
+  }
+
+  const createPinButton = (item: SidebarItem): HTMLButtonElement => {
+    const control = resolvePinControl(item.pinned, item.title)
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = `row-action-button pin-toggle-button${item.pinned ? ' active' : ''}`
+    button.title = control.title
+    if (item.kind === 'draft') {
+      button.dataset.pinDraftId = item.id
+    } else {
+      button.dataset.pinFilePath = item.filePath
+    }
+    button.setAttribute('aria-label', control.ariaLabel)
+    button.appendChild(createIconSvg(
+      ['M6.8 2.8h4.4l-.8 4.2 3 3v1H9.8l-.6 4.2H8.8L8.2 11H4.6v-1l3-3-.8-4.2Z', 'M9 11v4.2'],
+      { filled: control.icon === 'pin-filled' },
+    ))
+    return button
+  }
+
+  const clearPendingRemoveConfirmation = (): void => {
+    if (pendingRemoveActionTimer) {
+      clearTimeout(pendingRemoveActionTimer)
+      pendingRemoveActionTimer = null
+    }
+    pendingRemoveActionKey = null
+  }
+
+  const requestRemoveConfirmation = (actionKey: string): boolean => {
+    if (pendingRemoveActionKey === actionKey) {
+      clearPendingRemoveConfirmation()
+      return true
+    }
+
+    clearPendingRemoveConfirmation()
+    pendingRemoveActionKey = actionKey
+    pendingRemoveActionTimer = setTimeout(() => {
+      pendingRemoveActionKey = null
+      pendingRemoveActionTimer = null
+      renderSidebar()
+    }, 3500)
+    renderSidebar()
+    return false
+  }
+
+  const createRemoveButton = (item: SidebarItem): HTMLButtonElement | null => {
+    const plan = resolveRemoveActionPlan(item)
+    if (!plan) return null
+
+    const actionKey = resolveRemoveActionKey(plan)
+    const control = resolveRemoveControl(item.title, pendingRemoveActionKey === actionKey)
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = `row-action-button remove-action-button${control.tone === 'danger' ? ' confirm-delete' : ''}`
+    button.title = control.title
+
+    if (plan.kind === 'draft') {
+      button.dataset.removeDraftId = plan.draftId
+    } else if (plan.kind === 'recent') {
+      button.dataset.removeRecentPath = plan.filePath
+    } else if (plan.kind === 'workdir') {
+      button.dataset.removeWorkdirPath = plan.filePath
+    }
+    button.setAttribute('aria-label', control.ariaLabel)
+    button.appendChild(control.icon === 'check'
+      ? createIconSvg(['M4 9.5 7.3 12.8 14 5.8'])
+      : createIconSvg([
+          'M5 6h8',
+          'M7 6V4.5h4V6',
+          'M6 6l.5 8h5L12 6',
+        ]))
+    return button
+  }
+
+  const createWorkbenchItem = (item: SidebarItem, allowInlineEdit: boolean): HTMLElement => {
+    if (item.kind === 'draft') {
+      if (allowInlineEdit && sidebarInlineTitleEdit?.kind === 'draft' && sidebarInlineTitleEdit.draftId === item.id) {
+        return createSidebarInlineEditor(
+          `编辑 ${item.title} 的标题`,
+          sidebarInlineTitleEdit?.value ?? item.title,
+          (nextValue) => {
+            if (!sidebarInlineTitleEdit || sidebarInlineTitleEdit.kind !== 'draft') return
+            sidebarInlineTitleEdit.value = nextValue
+          },
+          () => {
+            void commitSidebarInlineTitleEdit()
+          },
+          () => {
+            cancelSidebarInlineTitleEdit()
+          },
+        )
+      }
+      return createDraftItem(item.id, item.title, sidebarState?.currentDraftId ?? null)
+    }
+
+    if (allowInlineEdit && sidebarInlineTitleEdit?.kind === 'file'
+      && sidebarInlineTitleEdit.filePath === item.filePath
+      && sidebarInlineTitleEdit.source === item.source
+    ) {
+      return createSidebarInlineEditor(
+        `编辑 ${item.title} 的标题`,
+        sidebarInlineTitleEdit?.value ?? item.title,
+        (nextValue) => {
+          if (!sidebarInlineTitleEdit || sidebarInlineTitleEdit.kind !== 'file') return
+          sidebarInlineTitleEdit.value = nextValue
+        },
+        () => {
+          void commitSidebarInlineTitleEdit()
+        },
+        () => {
+          cancelSidebarInlineTitleEdit()
+        },
+      )
+    }
+
+    return createFileItem(
+      item.filePath,
+      item.title,
+      null,
+      sidebarState?.currentFilePath ?? null,
+      item.source === 'workdir' ? 'workdir-item' : '',
+      item.source,
+    )
+  }
+
+  const appendWorkbenchRow = (
+    container: Element,
+    item: SidebarItem,
+    options: { allowInlineEdit: boolean; showRemove: boolean },
+  ): void => {
+    const row = document.createElement('div')
+    row.className = 'sidebar-item-row'
+    row.appendChild(createWorkbenchItem(item, options.allowInlineEdit))
+
+    const actions = document.createElement('div')
+    actions.className = 'sidebar-row-actions'
+    actions.appendChild(createPinButton(item))
+
+    if (options.showRemove) {
+      const remove = createRemoveButton(item)
+      if (remove) {
+        row.classList.add('with-remove')
+        actions.appendChild(remove)
+      }
+    }
+
+    row.appendChild(actions)
+    container.appendChild(row)
+  }
+
   const renderSidebar = (): void => {
-    if (!appShell || !currentFile || !draftsList || !recentFiles || !recentFilesSection || !workdirBody || !workdirSection || !sidebarState) return
+    if (!appShell || !workspacesList || !pinnedList || !libraryList || !sidebarState) return
 
     appShell.classList.toggle('sidebar-open', sidebarState.sidebarOpen)
     appShell.classList.toggle('drawer-mode', sidebarState.isDrawerMode)
     appShell.classList.toggle('drawer-open', sidebarState.isDrawerMode && sidebarState.sidebarOpen)
     appShell.style.setProperty('--sidebar-width', `${sidebarState.sidebarWidth}px`)
-    draftsSection?.classList.toggle('collapsed', !sidebarState.draftsExpanded)
-    recentFilesSection.classList.toggle('collapsed', !sidebarState.recentFilesExpanded)
-    workdirSection.classList.toggle('collapsed', !sidebarState.workdirExpanded)
     if (drawerBackdrop) {
       drawerBackdrop.hidden = !(sidebarState.isDrawerMode && sidebarState.sidebarOpen)
       drawerBackdrop.setAttribute('aria-hidden', sidebarState.isDrawerMode && sidebarState.sidebarOpen ? 'false' : 'true')
@@ -988,245 +1226,80 @@ async function init(): Promise<void> {
       onboardingDirectoryPreview.textContent = sidebarState.draftDirectoryPath ?? 'Documents/LyraMD Drafts'
     }
 
-    if (recentFilesClear) {
-      recentFilesClear.textContent = managingRecentFiles ? '完成' : '清除'
-      recentFilesClear.classList.toggle('active', managingRecentFiles)
-      recentFilesClear.disabled = sidebarState.recentFiles.length === 0
-    }
-
-    if (draftsClear) {
-      draftsClear.textContent = managingDrafts ? '完成' : '清除'
-      draftsClear.classList.toggle('active', managingDrafts)
-      draftsClear.disabled = sidebarState.draftEntries.length === 0
-    }
-
-    clearElement(currentFile)
-    currentFile.className = 'sidebar-list-item current-file-item'
-    const isEditableTitle = sidebarState.currentDocumentKind !== 'blank'
-    currentFile.classList.toggle('editable', isEditableTitle)
-    currentFile.classList.toggle('editing', titleEditActive)
-
-    if (titleEditActive && isEditableTitle) {
-      const input = document.createElement('input')
-      input.type = 'text'
-      input.className = 'current-file-title-input'
-      input.value = titleEditValue || currentDocumentTitle(sidebarState)
-      input.setAttribute('aria-label', '编辑当前文档标题')
-      input.addEventListener('click', (event) => {
-        event.stopPropagation()
-      })
-      input.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter') {
-          event.preventDefault()
-          void commitDocumentTitleChange(input.value)
-        } else if (event.key === 'Escape') {
-          event.preventDefault()
-          titleEditActive = false
-          titleEditValue = ''
-          renderSidebar()
-        }
-      })
-      input.addEventListener('blur', () => {
-        void commitDocumentTitleChange(input.value)
-      })
-      currentFile.appendChild(input)
-
-      const editMeta = document.createElement('div')
-      editMeta.className = 'current-file-edit-meta'
-      editMeta.textContent = 'Enter 保存，Esc 取消'
-      currentFile.appendChild(editMeta)
-
-      queueMicrotask(() => {
-        input.focus()
-        input.select()
-      })
-    } else {
-      const titleRow = document.createElement('div')
-      titleRow.className = 'current-file-title-row'
-      titleRow.appendChild(createTextBlock('sidebar-title', currentDocumentTitle(sidebarState)))
-      if (isEditableTitle) {
-        const hint = document.createElement('span')
-        hint.className = 'current-file-edit-hint'
-        hint.textContent = '双击改标题'
-        titleRow.appendChild(hint)
-      }
-      currentFile.appendChild(titleRow)
-      currentFile.appendChild(createTextBlock(
-        'sidebar-meta',
-        currentDocumentMeta(sidebarState),
-      ))
-    }
-
-    clearElement(draftsList)
-    if (sidebarState.draftEntries.length === 0) {
-      draftsList.appendChild(createTextBlock('sidebar-empty', '未命名草稿会在开始输入后出现在这里'))
-    } else {
-      for (const draft of sidebarState.draftEntries) {
-        let item: HTMLElement = createDraftItem(draft.id, draft.displayTitle, sidebarState.currentDraftId)
-        const isInlineEditing = sidebarInlineTitleEdit?.kind === 'draft' && sidebarInlineTitleEdit.draftId === draft.id
-        if (isInlineEditing) {
-          item = createSidebarInlineEditor(
-            `编辑 ${draft.displayTitle} 的标题`,
-            sidebarInlineTitleEdit?.value ?? draft.displayTitle,
-            (nextValue) => {
-              if (!sidebarInlineTitleEdit || sidebarInlineTitleEdit.kind !== 'draft') return
-              sidebarInlineTitleEdit.value = nextValue
-            },
-            () => {
-              void commitSidebarInlineTitleEdit()
-            },
-            () => {
-              cancelSidebarInlineTitleEdit()
-            },
-          )
-        }
-        if (!managingDrafts) {
-          draftsList.appendChild(item)
-          continue
-        }
-
-        const row = document.createElement('div')
-        row.className = 'sidebar-recent-row'
-        row.appendChild(item)
-
-        const remove = document.createElement('button')
-        remove.type = 'button'
-        remove.className = 'recent-remove-button'
-        remove.dataset.removeDraftId = draft.id
-        remove.setAttribute('data-remove-draft-id', draft.id)
-        remove.setAttribute('aria-label', `删除 ${draft.displayTitle}`)
-        remove.textContent = '−'
-        row.appendChild(remove)
-        draftsList.appendChild(row)
-      }
-    }
-
-    clearElement(recentFiles)
-    if (sidebarState.recentFilesExpanded) {
-      if (sidebarState.recentFiles.length === 0) {
-        recentFiles.appendChild(createTextBlock('sidebar-empty', '还没有最近文件'))
-      } else {
-        for (const filePath of sidebarState.recentFiles) {
-          let item: HTMLElement = createFileItem(
-            filePath,
-            sidebarState.fileTitleOverrides[filePath] ?? basename(filePath),
-            null,
-            sidebarState.currentFilePath,
-            '',
-            'recent',
-          )
-          const isInlineEditing = sidebarInlineTitleEdit?.kind === 'file'
-            && sidebarInlineTitleEdit.filePath === filePath
-            && sidebarInlineTitleEdit.source === 'recent'
-          if (isInlineEditing) {
-            item = createSidebarInlineEditor(
-              `编辑 ${basename(filePath)} 的标题`,
-              sidebarInlineTitleEdit?.value ?? sidebarState.fileTitleOverrides[filePath] ?? basename(filePath),
-              (nextValue) => {
-                if (!sidebarInlineTitleEdit || sidebarInlineTitleEdit.kind !== 'file') return
-                sidebarInlineTitleEdit.value = nextValue
-              },
-              () => {
-                void commitSidebarInlineTitleEdit()
-              },
-              () => {
-                cancelSidebarInlineTitleEdit()
-              },
-            )
-          }
-
-          if (!managingRecentFiles) {
-            recentFiles.appendChild(item)
-          } else {
-            const row = document.createElement('div')
-            row.className = 'sidebar-recent-row'
-            row.appendChild(item)
-
-            const remove = document.createElement('button')
-            remove.type = 'button'
-            remove.className = 'recent-remove-button'
-            remove.dataset.removeRecentPath = filePath
-            remove.setAttribute('aria-label', `删除 ${basename(filePath)}`)
-            remove.textContent = '−'
-            remove.addEventListener('click', (event) => {
-              event.preventDefault()
-              event.stopPropagation()
-              if (!sidebarState) return
-              sidebarState = {
-                ...sidebarState,
-                recentFiles: sidebarState.recentFiles.filter((entry) => entry !== filePath),
-              }
-              if (sidebarState.recentFiles.length === 0) managingRecentFiles = false
-              renderSidebar()
-              api.removeRecentFile(filePath).then((removed) => {
-                if (!removed) syncSidebarState()
-              }).catch(() => syncSidebarState())
-            })
-            row.appendChild(remove)
-            recentFiles.appendChild(row)
-          }
-        }
-      }
-    }
-
-    if (workdirName) {
-      workdirName.textContent = sidebarState.workdirPath ? basename(sidebarState.workdirPath) : ''
-      workdirName.title = sidebarState.workdirPath ?? ''
-    }
-
-    clearElement(workdirBody)
-    if (!sidebarState.workdirPath) {
+    clearElement(workspacesList)
+    workspacesList.classList.toggle('scrollable', shouldScrollWorkspaces(sidebarState.workspacePaths))
+    if (sidebarState.workspacePaths.length === 0) {
       const action = document.createElement('button')
       action.type = 'button'
       action.id = 'workdir-empty-action'
-      action.className = 'sidebar-empty-action'
-      action.textContent = '选择工作目录'
-      workdirBody.appendChild(action)
-      return
-    }
-
-    if (!sidebarState.workdirExpanded) {
-      return
-    }
-
-    if (sidebarState.workdirEntries.length === 0) {
-      renderEmpty(workdirBody, '这个目录里没有 Markdown 文件')
-      return
-    }
-
-    const workdirList = document.createElement('div')
-    workdirList.className = 'sidebar-list'
-    for (const entry of sidebarState.workdirEntries) {
-      let item: HTMLElement = createFileItem(
-        entry.absolutePath,
-        sidebarState.fileTitleOverrides[entry.absolutePath] ?? basename(entry.relativePath),
-        null,
-        sidebarState.currentFilePath,
-        'workdir-item',
-        'workdir',
-      )
-      const isInlineEditing = sidebarInlineTitleEdit?.kind === 'file'
-        && sidebarInlineTitleEdit.filePath === entry.absolutePath
-        && sidebarInlineTitleEdit.source === 'workdir'
-      if (isInlineEditing) {
-        item = createSidebarInlineEditor(
-          `编辑 ${basename(entry.relativePath)} 的标题`,
-          sidebarInlineTitleEdit?.value ?? sidebarState.fileTitleOverrides[entry.absolutePath] ?? basename(entry.relativePath),
-          (nextValue) => {
-            if (!sidebarInlineTitleEdit || sidebarInlineTitleEdit.kind !== 'file') return
-            sidebarInlineTitleEdit.value = nextValue
-          },
-          () => {
-            void commitSidebarInlineTitleEdit()
-          },
-          () => {
-            cancelSidebarInlineTitleEdit()
-          },
-        )
+      action.className = 'workspace-item empty'
+      action.textContent = '选择目录'
+      workspacesList.appendChild(action)
+    } else {
+      for (const workspacePath of sidebarState.workspacePaths) {
+        const item = document.createElement('button')
+        item.type = 'button'
+        item.className = 'workspace-item'
+        item.dataset.workspacePath = workspacePath
+        item.draggable = true
+        item.title = workspacePath
+        item.classList.toggle('active', workspacePath === sidebarState.workdirPath)
+        item.appendChild(createTextBlock('workspace-item-label', resolveWorkspaceLabel(workspacePath)))
+        item.appendChild(createTextBlock('workspace-drag-handle', '⋮⋮'))
+        workspacesList.appendChild(item)
       }
-      workdirList.appendChild(item)
     }
-    workdirBody.appendChild(workdirList)
+
+    pinnedSection?.classList.toggle('collapsed', !sidebarState.pinnedExpanded)
+    if (pinnedToggle) {
+      pinnedToggle.setAttribute('aria-expanded', sidebarState.pinnedExpanded ? 'true' : 'false')
+    }
+    clearElement(pinnedList)
+    if (sidebarState.pinnedExpanded) {
+      const pinnedItems = resolvePinnedItems(sidebarState)
+      if (pinnedItems.length === 0) {
+        pinnedList.appendChild(createTextBlock('sidebar-empty', '还没有置顶文稿'))
+      } else {
+        for (const item of pinnedItems) {
+          appendWorkbenchRow(pinnedList, item, { allowInlineEdit: false, showRemove: false })
+        }
+      }
+    }
+
+    const activeTab = sidebarState.activeSidebarTab
+    if (draftsTab) {
+      draftsTab.classList.toggle('active', activeTab === 'drafts')
+      draftsTab.setAttribute('aria-selected', activeTab === 'drafts' ? 'true' : 'false')
+    }
+    if (recentTab) {
+      recentTab.classList.toggle('active', activeTab === 'recent')
+      recentTab.setAttribute('aria-selected', activeTab === 'recent' ? 'true' : 'false')
+    }
+    if (workdirTab) {
+      workdirTab.classList.toggle('active', activeTab === 'workdir')
+      workdirTab.setAttribute('aria-selected', activeTab === 'workdir' ? 'true' : 'false')
+    }
+
+    clearElement(libraryList)
+    const tabItems = resolveVisibleTabItems(sidebarState, activeTab)
+    if (tabItems.length === 0) {
+      libraryList.appendChild(createTextBlock(
+        'sidebar-empty',
+        activeTab === 'drafts'
+          ? '未命名草稿会在开始输入后出现在这里'
+          : activeTab === 'workdir'
+            ? (sidebarState.workdirPath ? '这个工作目录里没有 Markdown 文件' : '先选择一个工作区')
+            : '还没有最近文件',
+      ))
+      return
+    }
+
+    for (const item of tabItems) {
+      appendWorkbenchRow(libraryList, item, {
+        allowInlineEdit: true,
+        showRemove: true,
+      })
+    }
   }
 
   sidebarState = await api.getSidebarState()
@@ -1369,6 +1442,14 @@ img{max-width:100%}
     settingsDialog.toggle()
   })
 
+  outlineToggle?.addEventListener('click', () => {
+    toggleOutlinePanel()
+  })
+
+  api.onMenuToggleOutline(() => {
+    toggleOutlinePanel()
+  })
+
   drawerBackdrop?.addEventListener('click', () => {
     if (sidebarState?.isDrawerMode && sidebarState.sidebarOpen) {
       clearDrawerHoverTimers()
@@ -1435,26 +1516,85 @@ img{max-width:100%}
     api.toggleDraftsExpanded().catch(() => {})
   })
 
-  draftsClear?.addEventListener('click', () => {
-    if (!sidebarState?.draftEntries.length) return
-    managingDrafts = !managingDrafts
-    if (!sidebarState.draftsExpanded) api.toggleDraftsExpanded().catch(() => {})
-    renderSidebar()
-  })
-
-  recentFilesClear?.addEventListener('click', () => {
-    if (!sidebarState?.recentFiles.length) return
-    managingRecentFiles = !managingRecentFiles
-    if (!sidebarState.recentFilesExpanded) api.toggleRecentFilesExpanded().catch(() => {})
-    renderSidebar()
-  })
-
   workdirToggle?.addEventListener('click', () => {
     api.toggleWorkdirExpanded().catch(() => {})
   })
 
+  pinnedToggle?.addEventListener('click', () => {
+    api.togglePinnedExpanded().catch(() => {})
+  })
+
   workdirChange?.addEventListener('click', () => {
     api.chooseWorkdir().catch(() => {})
+  })
+
+  workspaceAdd?.addEventListener('click', () => {
+    api.chooseWorkdir().catch(() => {})
+  })
+
+  const selectSidebarTab = (tab: SidebarTab): void => {
+    api.setActiveSidebarTab(tab).then((state) => {
+      if (state) setSidebarState(state)
+    }).catch(() => syncSidebarState())
+  }
+
+  draftsTab?.addEventListener('click', () => {
+    selectSidebarTab('drafts')
+  })
+
+  recentTab?.addEventListener('click', () => {
+    selectSidebarTab('recent')
+  })
+
+  workdirTab?.addEventListener('click', () => {
+    selectSidebarTab('workdir')
+  })
+
+  document.addEventListener('dragstart', (event) => {
+    const target = event.target as HTMLElement | null
+    const workspaceButton = target?.closest('[data-workspace-path]') as HTMLElement | null
+    if (!workspaceButton) return
+    const workspacePath = workspaceButton.dataset.workspacePath
+    if (!workspacePath || !event.dataTransfer) return
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('application/x-colamd-workspace', workspacePath)
+  })
+
+  document.addEventListener('dragover', (event) => {
+    const target = event.target as HTMLElement | null
+    const workspaceButton = target?.closest('[data-workspace-path]') as HTMLElement | null
+    if (!workspaceButton || !event.dataTransfer) return
+    if (!event.dataTransfer.types.includes('application/x-colamd-workspace')) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+    workspaceButton.classList.add('drag-over')
+  })
+
+  document.addEventListener('dragleave', (event) => {
+    const target = event.target as HTMLElement | null
+    target?.closest('[data-workspace-path]')?.classList.remove('drag-over')
+  })
+
+  document.addEventListener('dragend', () => {
+    document.querySelectorAll('.workspace-item.drag-over').forEach((element) => {
+      element.classList.remove('drag-over')
+    })
+  })
+
+  document.addEventListener('drop', (event) => {
+    const target = event.target as HTMLElement | null
+    const workspaceButton = target?.closest('[data-workspace-path]') as HTMLElement | null
+    if (!workspaceButton || !event.dataTransfer) return
+    const sourcePath = event.dataTransfer.getData('application/x-colamd-workspace')
+    const targetPath = workspaceButton.dataset.workspacePath
+    document.querySelectorAll('.workspace-item.drag-over').forEach((element) => {
+      element.classList.remove('drag-over')
+    })
+    if (!sourcePath || !targetPath || sourcePath === targetPath) return
+    event.preventDefault()
+    api.reorderWorkspaces(sourcePath, targetPath).then((state) => {
+      if (state) setSidebarState(state)
+    }).catch(() => syncSidebarState())
   })
 
   onboardingChoose?.addEventListener('click', () => {
@@ -1561,6 +1701,12 @@ img{max-width:100%}
       return
     }
 
+    if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'o') {
+      event.preventDefault()
+      toggleOutlinePanel()
+      return
+    }
+
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'l') {
       event.preventDefault()
       focusEditorAtLastSelection()
@@ -1589,17 +1735,41 @@ img{max-width:100%}
 
   document.addEventListener('click', (event) => {
     const target = event.target as HTMLElement | null
+    const pinDraftButton = target?.closest('[data-pin-draft-id]') as HTMLElement | null
+    if (pinDraftButton) {
+      event.preventDefault()
+      event.stopPropagation()
+      const draftId = pinDraftButton.dataset.pinDraftId
+      if (!draftId) return
+      api.togglePinnedDraft(draftId).then((state) => {
+        if (state) setSidebarState(state)
+      }).catch(() => syncSidebarState())
+      return
+    }
+
+    const pinFileButton = target?.closest('[data-pin-file-path]') as HTMLElement | null
+    if (pinFileButton) {
+      event.preventDefault()
+      event.stopPropagation()
+      const filePath = pinFileButton.dataset.pinFilePath
+      if (!filePath) return
+      api.togglePinnedFile(filePath).then((state) => {
+        if (state) setSidebarState(state)
+      }).catch(() => syncSidebarState())
+      return
+    }
+
     const removeDraftButton = target?.closest('[data-remove-draft-id]') as HTMLElement | null
     if (removeDraftButton) {
       event.preventDefault()
       event.stopPropagation()
       const draftId = removeDraftButton.dataset.removeDraftId
       if (!draftId || !sidebarState) return
+      if (!requestRemoveConfirmation(`draft:${draftId}`)) return
       sidebarState = {
         ...sidebarState,
         draftEntries: sidebarState.draftEntries.filter((entry) => entry.id !== draftId),
       }
-      if (sidebarState.draftEntries.length === 0) managingDrafts = false
       renderSidebar()
       api.removeDraft(draftId).then((state) => {
         if (state) {
@@ -1611,16 +1781,66 @@ img{max-width:100%}
       return
     }
 
+    const removeRecentButton = target?.closest('[data-remove-recent-path]') as HTMLElement | null
+    if (removeRecentButton) {
+      event.preventDefault()
+      event.stopPropagation()
+      const filePath = removeRecentButton.dataset.removeRecentPath
+      if (!filePath || !sidebarState) return
+      if (!requestRemoveConfirmation(`recent:${filePath}`)) return
+      sidebarState = {
+        ...sidebarState,
+        recentFiles: sidebarState.recentFiles.filter((entry) => entry !== filePath),
+      }
+      renderSidebar()
+      api.removeRecentFile(filePath).then((removed) => {
+        if (!removed) syncSidebarState()
+      }).catch(() => syncSidebarState())
+      return
+    }
+
+    const removeWorkdirButton = target?.closest('[data-remove-workdir-path]') as HTMLElement | null
+    if (removeWorkdirButton) {
+      event.preventDefault()
+      event.stopPropagation()
+      const filePath = removeWorkdirButton.dataset.removeWorkdirPath
+      if (!filePath) return
+      if (!requestRemoveConfirmation(`workdir:${filePath}`)) return
+      flushAutoSave().then(() => api.removeWorkdirFile(filePath)).then((state) => {
+        if (state) {
+          setSidebarState(state)
+          return
+        }
+        syncSidebarState()
+      }).catch(() => syncSidebarState())
+      return
+    }
+
+    if (pendingRemoveActionKey) {
+      clearPendingRemoveConfirmation()
+      renderSidebar()
+    }
+
     if (searchPanelOpen && searchPanel && !target?.closest('#search-panel')) {
       closeSearchPanel()
       focusEditorAtLastSelection()
       return
     }
 
+    const workspaceButton = target?.closest('[data-workspace-path]') as HTMLElement | null
+    if (workspaceButton) {
+      event.preventDefault()
+      const workspacePath = workspaceButton.dataset.workspacePath
+      if (!workspacePath) return
+      api.selectWorkspace(workspacePath).then((state) => {
+        if (state) setSidebarState(state)
+      }).catch(() => syncSidebarState())
+      return
+    }
+
     const draftButton = target?.closest('[data-draft-id]') as HTMLElement | null
     if (draftButton) {
       if (event.detail > 1) return
-      if (managingDrafts) return
       const draftId = draftButton.dataset.draftId
       if (draftId) {
         persistCurrentViewportOffset()
@@ -1634,7 +1854,6 @@ img{max-width:100%}
     const fileButton = target?.closest('[data-file-path]') as HTMLElement | null
     if (fileButton) {
       if (event.detail > 1) return
-      if (managingRecentFiles) return
       const filePath = fileButton.dataset.filePath
       if (filePath) {
         persistCurrentViewportOffset()
@@ -1655,7 +1874,7 @@ img{max-width:100%}
     const target = event.target as HTMLElement | null
 
     const draftButton = target?.closest('[data-draft-id]') as HTMLElement | null
-    if (draftButton && !managingDrafts) {
+    if (draftButton) {
       const draftId = draftButton.dataset.draftId
       if (!draftId) return
       event.preventDefault()
@@ -1670,9 +1889,13 @@ img{max-width:100%}
     }
 
     const fileButton = target?.closest('[data-file-path]') as HTMLElement | null
-    if (fileButton && !managingRecentFiles) {
+    if (fileButton) {
       const filePath = fileButton.dataset.filePath
-      const source = fileButton.dataset.sidebarSource === 'workdir' ? 'workdir' : 'recent'
+      const source = fileButton.dataset.sidebarSource === 'workdir'
+        ? 'workdir'
+        : fileButton.dataset.sidebarSource === 'pinned'
+          ? 'pinned'
+          : 'recent'
       if (!filePath) return
       event.preventDefault()
       sidebarInlineTitleEdit = {

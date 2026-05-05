@@ -116,6 +116,51 @@ export function promoteDraftEntries(entries: DraftEntry[], { draftId, draftPath 
   })
 }
 
+export function sanitizeMarkdownFileStem(title: string, fallback = '未命名草稿'): string {
+  const stem = title
+    .trim()
+    .replace(/[/\\:*?"<>|]/g, '')
+    .replace(/\s+/g, ' ')
+    .slice(0, 80)
+    .trim()
+
+  return stem || fallback
+}
+
+export function resolveManualDraftPath(
+  draftDirectoryPath: string,
+  title: string,
+  exists: (candidatePath: string) => boolean,
+): string {
+  const stem = sanitizeMarkdownFileStem(title)
+  let suffix = 1
+  let candidatePath = join(draftDirectoryPath, `${stem}.md`)
+
+  while (exists(candidatePath)) {
+    suffix += 1
+    candidatePath = join(draftDirectoryPath, `${stem}-${suffix}.md`)
+  }
+
+  return candidatePath
+}
+
+export function updateDraftEntryManualTitle(
+  entry: DraftEntry,
+  title: string,
+  nextPath: string,
+  now: number,
+): DraftEntry {
+  const displayTitle = title.trim()
+
+  return {
+    ...entry,
+    path: nextPath,
+    updatedAt: now,
+    displayTitle,
+    manualTitle: displayTitle,
+  }
+}
+
 function createDraftEntry(draftDirectoryPath: string, content: string, now: number, suffix?: number): DraftEntry {
   const fileName = createDraftFileName(now, suffix)
 

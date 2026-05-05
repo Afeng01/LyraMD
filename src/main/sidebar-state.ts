@@ -1,4 +1,12 @@
-export const DEFAULT_MAX_RECENT_FILES = 10
+import {
+  normalizePinnedItems,
+  normalizeSidebarTab,
+  normalizeWorkspacePaths,
+  type PinnedItem,
+  type SidebarTab,
+} from './workbench-state'
+
+export const DEFAULT_MAX_RECENT_FILES = 20
 export const DEFAULT_SIDEBAR_WIDTH = 336
 export const MIN_SIDEBAR_WIDTH = 220
 export const MAX_SIDEBAR_WIDTH = 460
@@ -8,8 +16,12 @@ export interface PersistedSidebarState {
   sidebarWidth: number
   draftsExpanded: boolean
   workdirExpanded: boolean
+  pinnedExpanded: boolean
   recentFilesExpanded: boolean
   workdirPath: string | null
+  workspacePaths: string[]
+  pinnedItems: PinnedItem[]
+  activeSidebarTab: SidebarTab
   draftDirectoryPath: string | null
   draftOnboardingCompleted: boolean
   draftEntries: DraftEntryRecord[]
@@ -31,8 +43,12 @@ export const DEFAULT_SIDEBAR_STATE: PersistedSidebarState = {
   sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
   draftsExpanded: true,
   workdirExpanded: true,
+  pinnedExpanded: true,
   recentFilesExpanded: true,
   workdirPath: null,
+  workspacePaths: [],
+  pinnedItems: [],
+  activeSidebarTab: 'drafts',
   draftDirectoryPath: null,
   draftOnboardingCompleted: false,
   draftEntries: [],
@@ -111,14 +127,19 @@ export function normalizeSidebarState(value: unknown): PersistedSidebarState {
   if (!value || typeof value !== 'object') return { ...DEFAULT_SIDEBAR_STATE }
 
   const candidate = value as Partial<PersistedSidebarState>
+  const workdirPath = typeof candidate.workdirPath === 'string' ? candidate.workdirPath : null
 
   return {
     sidebarOpen: candidate.sidebarOpen === true,
     sidebarWidth: clampSidebarWidth(typeof candidate.sidebarWidth === 'number' ? candidate.sidebarWidth : DEFAULT_SIDEBAR_WIDTH),
     draftsExpanded: candidate.draftsExpanded !== false,
     workdirExpanded: candidate.workdirExpanded !== false,
+    pinnedExpanded: candidate.pinnedExpanded !== false,
     recentFilesExpanded: candidate.recentFilesExpanded !== false,
-    workdirPath: typeof candidate.workdirPath === 'string' ? candidate.workdirPath : null,
+    workdirPath,
+    workspacePaths: normalizeWorkspacePaths(candidate.workspacePaths, workdirPath),
+    pinnedItems: normalizePinnedItems(candidate.pinnedItems),
+    activeSidebarTab: normalizeSidebarTab(candidate.activeSidebarTab),
     draftDirectoryPath: typeof candidate.draftDirectoryPath === 'string' ? candidate.draftDirectoryPath : null,
     draftOnboardingCompleted: candidate.draftOnboardingCompleted === true,
     draftEntries: Array.isArray(candidate.draftEntries)

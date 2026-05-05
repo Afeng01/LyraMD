@@ -28,6 +28,13 @@
           <line x1="17" y1="16" x2="23" y2="16"></line>
         </svg>
       </button>
+      <button id="outline-toggle" type="button" aria-label="打开大纲" title="打开大纲 (Cmd/Ctrl+Shift+O)">
+        <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="4" y1="4" x2="14" y2="4"></line>
+          <line x1="6" y1="9" x2="14" y2="9"></line>
+          <line x1="8" y1="14" x2="14" y2="14"></line>
+        </svg>
+      </button>
       <div id="agent-dot"></div>
     </div>
     <div id="workspace">
@@ -35,50 +42,53 @@
       <div id="drawer-edge-trigger" aria-hidden="true"></div>
       <div id="sidebar-drawer-shell">
         <aside id="sidebar">
-          <section class="sidebar-section">
+          <section id="workspaces-section" class="sidebar-section">
             <div class="sidebar-section-header">
               <div class="sidebar-section-title static">
-                <span>当前</span>
+                <span>工作区</span>
               </div>
-              <button id="current-file-new" type="button" class="sidebar-inline-button">新建</button>
+              <button id="workspace-add" type="button" class="sidebar-icon-button" aria-label="新建或选择工作区" title="新建或选择工作区">+</button>
             </div>
-            <div id="current-file" class="sidebar-card">
-              <div class="sidebar-title">Untitled</div>
-              <div class="sidebar-meta">当前未打开文件</div>
-            </div>
+            <div id="workspaces-list" class="workspace-list"></div>
           </section>
 
-          <section id="drafts-section" class="sidebar-section">
+          <section id="pinned-section" class="sidebar-section">
             <div class="sidebar-section-header">
-              <button id="drafts-toggle" type="button" class="sidebar-section-toggle">
-                <span>草稿</span>
+              <button id="pinned-toggle" type="button" class="sidebar-section-toggle" aria-expanded="true">
+                <span>置顶</span>
               </button>
-              <button id="drafts-clear" type="button" class="sidebar-inline-button">清除</button>
             </div>
-            <div id="drafts-list" class="sidebar-list">
-              <div class="sidebar-empty">未命名草稿会在开始输入后出现在这里</div>
-            </div>
+            <div id="pinned-list" class="sidebar-list"></div>
           </section>
 
-          <section id="recent-files-section" class="sidebar-section">
-            <div class="sidebar-section-header">
-              <button id="recent-files-toggle" type="button" class="sidebar-section-toggle">
-                <span>最近</span>
-              </button>
-              <button id="recent-files-clear" type="button" class="sidebar-inline-button">清除</button>
+          <section id="library-section" class="sidebar-section">
+            <div class="sidebar-library-header">
+              <div id="sidebar-tabs" class="sidebar-tabs" role="tablist" aria-label="文稿列表">
+                <button id="drafts-tab" type="button" data-sidebar-tab="drafts" role="tab">草稿</button>
+                <button id="recent-tab" type="button" data-sidebar-tab="recent" role="tab">最近</button>
+                <button id="workdir-tab" type="button" data-sidebar-tab="workdir" role="tab">工作目录</button>
+              </div>
+              <button id="current-file-new" type="button" class="sidebar-icon-button" aria-label="新建草稿">+</button>
             </div>
-            <div id="recent-files" class="sidebar-list"></div>
+            <div id="library-list" class="sidebar-list"></div>
           </section>
 
-          <section id="workdir-section" class="sidebar-section">
-            <div class="sidebar-section-header">
-              <button id="workdir-toggle" type="button" class="sidebar-section-toggle">
-                <span>工作目录</span>
-              </button>
-              <span id="workdir-name" class="workdir-name"></span>
-              <button id="workdir-change" type="button" class="sidebar-inline-button">更换</button>
-            </div>
-            <div id="workdir-body"></div>
+          <section id="legacy-sidebar-elements" hidden aria-hidden="true">
+            <div id="current-file"></div>
+            <button id="drafts-toggle" type="button"></button>
+            <button id="recent-files-toggle" type="button"></button>
+            <button id="workdir-toggle" type="button"></button>
+            <button id="workdir-change" type="button"></button>
+            <section id="drafts-section">
+              <div id="drafts-list"></div>
+            </section>
+            <section id="recent-files-section">
+              <div id="recent-files"></div>
+            </section>
+            <section id="workdir-section">
+              <span id="workdir-name"></span>
+              <div id="workdir-body"></div>
+            </section>
           </section>
         </aside>
         <div id="sidebar-resizer" aria-hidden="true"></div>
@@ -122,6 +132,10 @@
           <div id="editor"></div>
         </div>
       </main>
+      <aside id="outline-panel" hidden aria-hidden="true">
+        <div class="outline-panel-header">大纲</div>
+        <div id="outline-list" class="outline-list"></div>
+      </aside>
     </div>
 
     <div id="onboarding-overlay" hidden aria-hidden="true">
@@ -133,7 +147,7 @@
           <p class="overlay-kicker">欢迎使用 ColaMD</p>
           <h2 id="onboarding-title">选择默认草稿位置</h2>
           <p id="onboarding-copy">
-            未命名文档在开始输入后会自动进入草稿体系，避免切换或关闭时丢失内容。
+            未命名内容会自动保存为草稿。按保存时，会选择正式位置并移出草稿。
           </p>
         </div>
         <div id="onboarding-directory-preview">Documents/LyraMD Drafts</div>
@@ -290,6 +304,10 @@
                   <div class="settings-shortcut-item">
                     <span class="settings-shortcut-label">切换侧边栏</span>
                     <kbd class="settings-shortcut-key">Cmd/Ctrl+\</kbd>
+                  </div>
+                  <div class="settings-shortcut-item">
+                    <span class="settings-shortcut-label">打开大纲</span>
+                    <kbd class="settings-shortcut-key">Cmd/Ctrl+Shift+O</kbd>
                   </div>
                 </div>
               </section>

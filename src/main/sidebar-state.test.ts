@@ -17,6 +17,14 @@ describe('sidebar defaults', () => {
     expect(DEFAULT_SIDEBAR_WIDTH).toBe(336)
     expect(DEFAULT_SIDEBAR_STATE.sidebarWidth).toBe(336)
   })
+
+  it('keeps twenty recent files by default', () => {
+    expect(DEFAULT_SIDEBAR_STATE.recentFiles).toHaveLength(0)
+    expect(pushRecentFile(
+      Array.from({ length: 20 }, (_, index) => `${index}.md`),
+      'new.md',
+    )).toHaveLength(20)
+  })
 })
 
 describe('pushRecentFile', () => {
@@ -66,8 +74,12 @@ describe('normalizeSidebarState', () => {
       sidebarWidth: 336,
       draftsExpanded: true,
       workdirExpanded: true,
+      pinnedExpanded: true,
       recentFilesExpanded: true,
       workdirPath: null,
+      workspacePaths: [],
+      pinnedItems: [],
+      activeSidebarTab: 'drafts',
       draftDirectoryPath: null,
       draftOnboardingCompleted: false,
       draftEntries: [],
@@ -78,19 +90,28 @@ describe('normalizeSidebarState', () => {
 
   it('trims persisted recent files to the supported maximum', () => {
     expect(normalizeSidebarState({
-      recentFiles: Array.from({ length: 12 }, (_, index) => `${index}.md`),
-    }).recentFiles).toHaveLength(10)
+      recentFiles: Array.from({ length: 24 }, (_, index) => `${index}.md`),
+    }).recentFiles).toHaveLength(20)
   })
 
   it('sanitizes invalid draft persistence fields', () => {
-    expect(normalizeSidebarState({
-      draftsExpanded: false,
-      draftDirectoryPath: 123,
-      draftOnboardingCompleted: 'yes',
-      draftEntries: [
-        { id: 'ok', path: '/tmp/a.md', createdAt: 1, updatedAt: 2, displayTitle: 'OK' },
-        { id: 'missing-path', createdAt: 1, updatedAt: 2, displayTitle: 'Missing' },
-        'bad-entry',
+      expect(normalizeSidebarState({
+        draftsExpanded: false,
+        pinnedExpanded: false,
+        draftDirectoryPath: 123,
+        draftOnboardingCompleted: 'yes',
+        workdirPath: '/active',
+        workspacePaths: ['/a', 123, '/active'],
+        activeSidebarTab: 'workdir',
+        pinnedItems: [
+          { kind: 'draft', draftId: 'draft-a' },
+          { kind: 'file', filePath: '/tmp/a.md' },
+          { kind: 'workspace', path: '/tmp' },
+        ],
+        draftEntries: [
+          { id: 'ok', path: '/tmp/a.md', createdAt: 1, updatedAt: 2, displayTitle: 'OK' },
+          { id: 'missing-path', createdAt: 1, updatedAt: 2, displayTitle: 'Missing' },
+          'bad-entry',
       ],
       fileTitleOverrides: {
         '/tmp/a.md': 'A',
@@ -98,16 +119,23 @@ describe('normalizeSidebarState', () => {
       },
     })).toEqual({
       sidebarOpen: false,
-      sidebarWidth: 336,
-      draftsExpanded: false,
-      workdirExpanded: true,
-      recentFilesExpanded: true,
-      workdirPath: null,
-      draftDirectoryPath: null,
-      draftOnboardingCompleted: false,
-      draftEntries: [
-        { id: 'ok', path: '/tmp/a.md', createdAt: 1, updatedAt: 2, displayTitle: 'OK' },
-      ],
+        sidebarWidth: 336,
+        draftsExpanded: false,
+        workdirExpanded: true,
+        pinnedExpanded: false,
+        recentFilesExpanded: true,
+        workdirPath: '/active',
+        workspacePaths: ['/a', '/active'],
+        pinnedItems: [
+          { kind: 'draft', draftId: 'draft-a' },
+          { kind: 'file', filePath: '/tmp/a.md' },
+        ],
+        activeSidebarTab: 'workdir',
+        draftDirectoryPath: null,
+        draftOnboardingCompleted: false,
+        draftEntries: [
+          { id: 'ok', path: '/tmp/a.md', createdAt: 1, updatedAt: 2, displayTitle: 'OK' },
+        ],
       recentFiles: [],
       fileTitleOverrides: {
         '/tmp/a.md': 'A',

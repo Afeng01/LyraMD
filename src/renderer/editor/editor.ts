@@ -30,6 +30,12 @@ import {
   type SearchMatchPreview,
 } from './search'
 import { resolveActiveMatchAfterRefresh } from './search-memory'
+import {
+  createOutlineId,
+  normalizeHeadingText,
+  shouldIncludeHeadingLevel,
+  type OutlineItem,
+} from './outline'
 
 import '@milkdown/kit/prose/view/style/prosemirror.css'
 
@@ -277,6 +283,25 @@ export function previousSearchMatch(): SearchState {
   return searchState
 }
 
+export function getOutlineItems(): OutlineItem[] {
+  return withEditorView((view) => collectOutlineItems(view.state.doc)) ?? []
+}
+
+export function scrollToOutlineItem(id: string): boolean {
+  return withEditorView((view) => {
+    const item = collectOutlineItems(view.state.doc).find((candidate) => candidate.id === id)
+    if (!item) return false
+
+    const selection = createSafeTextSelection(view.state.doc, item.pos + 1, item.pos + 1)
+    if (!selection) return false
+
+    isManagedSelectionChange = true
+    view.dispatch(view.state.tr.setSelection(selection).scrollIntoView())
+    view.focus()
+    return true
+  }) ?? false
+}
+
 export function activateSearchMatch(index: number): SearchState {
   withEditorView((view) => {
     const search = getProsemirrorSearchState(view.state)
@@ -467,6 +492,28 @@ function buildTextIndex(doc: ProseNode): {
   })
 
   return { text, segments }
+}
+
+function collectOutlineItems(doc: ProseNode): OutlineItem[] {
+  const items: OutlineItem[] = []
+
+  doc.descendants((node, pos) => {
+    if (node.type.name !== 'heading') return
+
+    const level = Number(node.attrs.level)
+    if (!shouldIncludeHeadingLevel(level)) return
+
+    items.push({
+      id: createOutlineId(pos, items.length),
+      level,
+      title: normalizeHeadingText(node.textContent),
+      pos,
+    })
+
+    return false
+  })
+
+  return items
 }
 
 function resolveOffsetsFromDocRange(

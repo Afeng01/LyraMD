@@ -65,6 +65,19 @@ export function decideWatchEvent(eventType: string): WatchEventDecision {
   }
 }
 
+export function shouldHandleTargetFileWatchEvent(
+  eventType: string,
+  changedName: string | Buffer | null | undefined,
+  targetName: string,
+): boolean {
+  const normalizedChangedName = normalizeChangedName(changedName)
+  if (normalizedChangedName && normalizedChangedName !== targetName) {
+    return false
+  }
+
+  return decideWatchEvent(eventType).shouldReadFile
+}
+
 export function watchTargetFile(
   filePath: string,
   onEvent: (eventType: string) => void,
@@ -73,15 +86,7 @@ export function watchTargetFile(
   const targetName = basename(filePath)
 
   return watch(parentDir, (eventType, changedName) => {
-    const normalizedChangedName = normalizeChangedName(changedName)
-    if (normalizedChangedName && normalizedChangedName !== targetName) {
-      return
-    }
-
-    if (!normalizedChangedName && eventType !== 'rename') {
-      return
-    }
-
+    if (!shouldHandleTargetFileWatchEvent(eventType, changedName, targetName)) return
     onEvent(eventType)
   })
 }

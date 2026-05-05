@@ -1,4 +1,4 @@
-import { mkdtemp, rename, rm, writeFile } from 'fs/promises'
+import { mkdtemp, readFile, rename, rm, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { describe, expect, it, vi } from 'vitest'
@@ -9,6 +9,7 @@ import {
   normalizeChangedName,
   reconcileWatchedContent,
   recordIgnoredWatchedContent,
+  shouldHandleTargetFileWatchEvent,
 } from './file-sync'
 import * as fileSync from './file-sync'
 
@@ -95,6 +96,18 @@ describe('normalizeChangedName', () => {
   })
 })
 
+describe('shouldHandleTargetFileWatchEvent', () => {
+  it('handles readable target events when the OS omits the changed file name', () => {
+    expect(shouldHandleTargetFileWatchEvent('change', undefined, 'note.md')).toBe(true)
+    expect(shouldHandleTargetFileWatchEvent('rename', undefined, 'note.md')).toBe(true)
+  })
+
+  it('keeps filtering unrelated files when the OS reports a file name', () => {
+    expect(shouldHandleTargetFileWatchEvent('change', 'other.md', 'note.md')).toBe(false)
+    expect(shouldHandleTargetFileWatchEvent('change', 'note.md', 'note.md')).toBe(true)
+  })
+})
+
 describe('watchTargetFile', () => {
   it('continues reporting changes after an atomic rename replacement', async () => {
     const watchTargetFile = (fileSync as Record<string, unknown>).watchTargetFile as
@@ -138,5 +151,44 @@ describe('watchTargetFile', () => {
 
     expect(normalizeChangedName('other.md')).not.toBe(targetName)
     expect(normalizeChangedName(undefined)).toBeNull()
+  })
+
+  it('allows debounced readers to observe the final content after quick writes', async () => {
+    const watchTargetFile = (fileSync as Record<string, unknown>).watchTargetFile as
+      | undefined
+      | ((filePath: string, onEvent: (eventType: string) => void) => { close(): void })
+
+    expect(watchTargetFile).toBeTypeOf('function')
+
+    const tempDir = await mkdtemp(join(tmpdir(), 'lyramd-file-sync-'))
+    const filePath = join(tempDir, 'rapid.md')
+    const observedContents: string[] = []
+    let timer: ReturnType<typeof setTimeout> | null = null
+
+    await writeFile(filePath, '# first\n', 'utf-8')
+    const watcher = watchTargetFile!(filePath, () => {
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => {
+        readFile(filePath, 'utf-8')
+          .then((content) => {
+            observedContents.push(content)
+          })
+          .catch(() => {})
+      }, 100)
+    })
+
+    try {
+      await sleep(50)
+      await writeFile(filePath, '# second\n', 'utf-8')
+      await writeFile(filePath, '# final\n', 'utf-8')
+
+      await vi.waitFor(() => {
+        expect(observedContents.at(-1)).toBe('# final\n')
+      }, { timeout: 3000, interval: 50 })
+    } finally {
+      if (timer) clearTimeout(timer)
+      watcher.close()
+      await rm(tempDir, { recursive: true, force: true })
+    }
   })
 })

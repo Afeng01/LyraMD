@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 
 import { buildTitleSyncPath, decideTitleSync, sanitizeTitleToFileStem } from './title-sync'
+import { createWindowOptions } from './window-platform'
 
 describe('sanitizeTitleToFileStem', () => {
   it('removes unsupported path characters', () => {
@@ -92,8 +91,11 @@ describe('buildTitleSyncPath', () => {
 
 describe('macOS window chrome', () => {
   it('uses a tighter traffic light offset so the hidden inset title bar does not feel oversized', () => {
-    const file = readFileSync(join(process.cwd(), 'src/main/index.ts'), 'utf8')
+    const options = createWindowOptions({
+      platform: 'darwin',
+      preloadPath: '/app/dist/preload/index.js',
+    })
 
-    expect(file).toContain("trafficLightPosition: { x: 14, y: 14 }")
+    expect(options.trafficLightPosition).toEqual({ x: 14, y: 14 })
   })
 })

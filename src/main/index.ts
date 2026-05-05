@@ -177,6 +177,7 @@ async function refreshWorkdirEntries(): Promise<void> {
 }
 
 let sidebarPersistQueue: Promise<void> = Promise.resolve()
+let sidebarQuitFlushStarted = false
 
 function persistSidebarState(): Promise<void> {
   const payload = JSON.stringify(sidebarState, null, 2)
@@ -1355,7 +1356,7 @@ ipcMain.handle('choose-workdir', async (event) => {
   sidebarState.workspacePaths = addWorkspacePath(sidebarState.workspacePaths, sidebarState.workdirPath)
   sidebarState.workdirExpanded = true
   await refreshWorkdirEntries()
-  persistSidebarState()
+  await persistSidebarState()
   broadcastSidebarState()
   return createSidebarSnapshot(win)
 })
@@ -1365,7 +1366,7 @@ ipcMain.handle('select-workspace', async (event, workspacePath: string) => {
   if (!win) return null
   if (typeof workspacePath !== 'string' || !existsSync(workspacePath)) {
     sidebarState.workspacePaths = sidebarState.workspacePaths.filter((candidate) => existsSync(candidate))
-    persistSidebarState()
+    await persistSidebarState()
     broadcastSidebarState()
     return createSidebarSnapshot(win)
   }
@@ -1374,7 +1375,7 @@ ipcMain.handle('select-workspace', async (event, workspacePath: string) => {
   sidebarState.workspacePaths = addWorkspacePath(sidebarState.workspacePaths, workspacePath)
   sidebarState.workdirExpanded = true
   await refreshWorkdirEntries()
-  persistSidebarState()
+  await persistSidebarState()
   broadcastSidebarState()
   return createSidebarSnapshot(win)
 })
@@ -1387,7 +1388,7 @@ ipcMain.handle('reorder-workspaces', async (event, sourcePath: string, targetPat
   }
 
   sidebarState.workspacePaths = reorderWorkspacePaths(sidebarState.workspacePaths, sourcePath, targetPath)
-  persistSidebarState()
+  await persistSidebarState()
   broadcastSidebarState()
   return createSidebarSnapshot(win)
 })
@@ -1853,8 +1854,19 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
-app.on('before-quit', () => {
+app.on('before-quit', async (event) => {
   stopWatchingWorkdir()
+  if (sidebarQuitFlushStarted) return
+
+  event.preventDefault()
+  sidebarQuitFlushStarted = true
+  try {
+    await persistSidebarState()
+  } catch {
+    // Quit should not be blocked by an app-data write failure.
+  } finally {
+    app.quit()
+  }
 })
 
 app.on('open-file', (event, filePath) => {

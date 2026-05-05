@@ -36,7 +36,7 @@ jobs:
           path: |
             release/*.dmg
             release/*.zip
-            release/*.yml
+            release/latest-mac.yml
           if-no-files-found: error
 
   build-preview:

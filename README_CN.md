@@ -47,6 +47,14 @@ LyraMD 目前没有做 Apple 公证，因为公证需要付费 Apple Developer �
 
 签名和公证不是一回事。签名用于标识 App 的发布者；公证是 Apple 对 App 做安全扫描并盖章。面向公开分发时，签名并公证体验最好。当前项目暂时不做公证。
 
+## Windows 安装与打开
+
+从 [Releases](https://github.com/Afeng01/LyraMD/releases) 下载最新的 `LyraMD-Setup-*-x64.exe`，运行安装器，并按 NSIS 安装流程完成安装。
+
+Windows beta 版本目前暂不做代码签名。第一次启动时，Microsoft Defender SmartScreen 可能会提示“未知发布者”。只安装官方 GitHub Releases 页面下载的构建；如果你信任这个 unsigned beta build，可以选择 **更多信息 > 仍要运行**。
+
+面向公开 Windows 发版时，建议补 Windows code signing，避免用户遇到 unsigned publisher 警告。
+
 ## 构建
 
 ```bash

@@ -33,8 +33,10 @@ mac:
 
 win:
   target:
-    - nsis
-  icon: resources/icon.png
+    - target: nsis
+      arch:
+        - x64
+  icon: resources/icon.ico
 
 linux:
   target:
@@ -44,5 +46,10 @@ linux:
   icon: resources/icon.png
 
 nsis:
+  artifactName: ${productName}-Setup-${version}-${arch}.${ext}
   oneClick: false
   allowToChangeInstallationDirectory: true
+  shortcutName: LyraMD
+  uninstallDisplayName: LyraMD
+  installerIcon: resources/icon.ico
+  uninstallerIcon: resources/icon.ico

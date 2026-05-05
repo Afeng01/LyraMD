@@ -35,6 +35,8 @@ import { shouldPromptForFormalSave, shouldRemoveSourceAfterSaveAs } from './save
 import { buildTitleSyncPath, decideTitleSync } from './title-sync'
 import { scanWorkdir, shouldRefreshWorkdirForWatchEvent, type WorkdirEntry } from './workdir'
 import { moveFileToTrashAndVerify } from './file-removal'
+import { createWindowOptions } from './window-platform'
+import { decideSecondInstanceAction, extractMarkdownLaunchPaths } from './windows-launch'
 import {
   addWorkspacePath,
   canTogglePinnedFile,
@@ -260,6 +262,15 @@ interface WindowState {
 
 const windowStates = new Map<number, WindowState>()
 let pendingFilePaths: string[] = []
+const hasSingleInstanceLock = app.requestSingleInstanceLock()
+
+if (!hasSingleInstanceLock) {
+  app.quit()
+} else {
+  app.on('second-instance', (_event, argv) => {
+    handleSecondInstanceLaunch(argv)
+  })
+}
 
 function getState(win: BrowserWindow): WindowState {
   let state = windowStates.get(win.id)
@@ -288,6 +299,43 @@ function getState(win: BrowserWindow): WindowState {
 
 function getWinFromEvent(event: Electron.IpcMainInvokeEvent): BrowserWindow | null {
   return BrowserWindow.fromWebContents(event.sender)
+}
+
+function queuePendingFilePaths(filePaths: string[]): void {
+  for (const filePath of filePaths) {
+    if (!pendingFilePaths.includes(filePath)) {
+      pendingFilePaths.push(filePath)
+    }
+  }
+}
+
+function focusFirstWindow(): void {
+  const win = BrowserWindow.getAllWindows()[0]
+  if (!win) return
+  if (win.isMinimized()) win.restore()
+  win.focus()
+}
+
+function openLaunchFilePath(filePath: string): void {
+  if (app.isReady()) {
+    openFile(filePath)
+  } else {
+    queuePendingFilePaths([filePath])
+  }
+}
+
+function handleSecondInstanceLaunch(argv: string[]): void {
+  const filePaths = extractMarkdownLaunchPaths(argv, { isPackaged: app.isPackaged })
+  const action = decideSecondInstanceAction(filePaths)
+
+  if (action.kind === 'open-files') {
+    for (const filePath of action.filePaths) {
+      openLaunchFilePath(filePath)
+    }
+    return
+  }
+
+  focusFirstWindow()
 }
 
 function isDrawerModeForWindow(win: BrowserWindow): boolean {
@@ -529,20 +577,10 @@ function isPathInsideWorkdir(filePath: string): boolean {
 }
 
 function createWindow(initialDocument?: { filePath: string; documentKind?: Exclude<DocumentKind, 'blank'>; draftId?: string | null }): BrowserWindow {
-  const win = new BrowserWindow({
-    width: 1120,
-    height: 720,
-    minWidth: 560,
-    minHeight: 400,
-    titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 14, y: 14 },
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: false
-    }
-  })
+  const win = new BrowserWindow(createWindowOptions({
+    platform: process.platform,
+    preloadPath: join(__dirname, '../preload/index.js'),
+  }))
 
   const state = getState(win)
 
@@ -1812,43 +1850,40 @@ function buildMenu(): void {
 
 // App lifecycle
 
-app.whenReady().then(() => {
-  Promise.all([ensureAppDataDir(), ensureThemesDir()])
-    .then(() => Promise.all([loadSidebarState(), loadSessionState(), loadSettingsState()]))
-    .catch(() => {})
-    .finally(() => {
-      buildMenu()
+if (hasSingleInstanceLock) {
+  app.whenReady().then(() => {
+    Promise.all([ensureAppDataDir(), ensureThemesDir()])
+      .then(() => Promise.all([loadSidebarState(), loadSessionState(), loadSettingsState()]))
+      .catch(() => {})
+      .finally(() => {
+        buildMenu()
 
-      // Check command line args for file paths
-      const args = process.argv.slice(app.isPackaged ? 1 : 2)
-      const fileArgs = args.filter((arg) => !arg.startsWith('-'))
-      if (fileArgs.length > 0) {
-        pendingFilePaths = fileArgs
-      }
+        queuePendingFilePaths(extractMarkdownLaunchPaths(process.argv, { isPackaged: app.isPackaged }))
 
-      if (pendingFilePaths.length > 0) {
-        for (const fp of pendingFilePaths) {
-          createWindow({ filePath: fp, documentKind: 'file' })
+        if (pendingFilePaths.length > 0) {
+          for (const fp of pendingFilePaths) {
+            createWindow({ filePath: fp, documentKind: 'file' })
+          }
+          pendingFilePaths = []
+        } else if (
+          persistedSessionState.lastActiveDocument?.kind === 'draft'
+          && existsSync(persistedSessionState.lastActiveDocument.filePath)
+        ) {
+          createWindow({
+            filePath: persistedSessionState.lastActiveDocument.filePath,
+            documentKind: 'draft',
+            draftId: persistedSessionState.lastActiveDocument.draftId ?? null,
+          })
+        } else {
+          createWindow()
         }
-        pendingFilePaths = []
-      } else if (
-        persistedSessionState.lastActiveDocument?.kind === 'draft'
-        && existsSync(persistedSessionState.lastActiveDocument.filePath)
-      ) {
-        createWindow({
-          filePath: persistedSessionState.lastActiveDocument.filePath,
-          documentKind: 'draft',
-          draftId: persistedSessionState.lastActiveDocument.draftId ?? null,
-        })
-      } else {
-        createWindow()
-      }
 
-      app.on('activate', () => {
-        if (BrowserWindow.getAllWindows().length === 0) createWindow()
+        app.on('activate', () => {
+          if (BrowserWindow.getAllWindows().length === 0) createWindow()
+        })
       })
-    })
-})
+  })
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()

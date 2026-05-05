@@ -47,6 +47,14 @@ You can also right-click `LyraMD.app` and choose **Open** for the first launch.
 
 Code signing and notarization are different. Signing identifies who produced an app; notarization is Apple's security scan and approval step. For public distribution outside the App Store, a signed and notarized build gives the smoothest user experience. This project currently ships without notarization.
 
+## Install on Windows
+
+Download the latest `LyraMD-Setup-*-x64.exe` from [Releases](https://github.com/Afeng01/LyraMD/releases), run the installer, and follow the NSIS setup flow.
+
+Windows beta builds are currently distributed without code signing. On first launch, Microsoft Defender SmartScreen may show an "unknown publisher" warning. Only install builds downloaded from the official GitHub Releases page, and use **More info > Run anyway** only if you trust this unsigned beta build.
+
+For a public Windows release, code signing is recommended so users can install LyraMD without the unsigned publisher warning.
+
 ## Build
 
 ```bash

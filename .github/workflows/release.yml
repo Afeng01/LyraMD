@@ -35,6 +35,15 @@ jobs:
       - name: Build distributables
         run: npx electron-builder --${{ matrix.platform }} --publish never
 
+      - name: Assert Windows installer exists
+        if: matrix.platform == 'win'
+        shell: pwsh
+        run: |
+          $installers = Get-ChildItem -Path release -Filter *.exe
+          if ($installers.Count -eq 0) {
+            throw "No Windows .exe installer was produced in release/"
+          }
+
       - uses: actions/upload-artifact@v4
         with:
           name: dist-${{ matrix.platform }}

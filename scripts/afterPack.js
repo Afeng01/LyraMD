@@ -1,10 +1,13 @@
 const { execSync } = require('child_process')
+const { existsSync } = require('fs')
 const path = require('path')
 
 exports.default = async function (context) {
-  if (process.platform !== 'darwin') return
+  if (context.electronPlatformName !== 'darwin' || process.platform !== 'darwin') return
 
   const appPath = path.join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`)
+  if (!existsSync(appPath)) return
+
   console.log(`Cleaning extended attributes and resource forks from ${appPath}`)
   // Remove extended attributes
   execSync(`xattr -cr "${appPath}"`)

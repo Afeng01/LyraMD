@@ -21,17 +21,42 @@ export type SidebarTab = 'drafts' | 'recent' | 'workdir'
 export type PinnedItem =
   | { kind: 'draft'; draftId: string }
   | { kind: 'file'; filePath: string }
+export type ShortcutAction = 'save' | 'saveAs' | 'settings' | 'search' | 'toggleSidebar' | 'toggleOutline' | 'cleanCjkTypography'
+export type ShortcutMap = Record<ShortcutAction, string>
 
 export interface AppSettings {
   titleSyncMode: TitleSyncMode
   saveAsMode: SaveAsMode
   themeName: string
+  shortcuts: ShortcutMap
 }
 
 export interface TitleSyncPromptPayload {
   filePath: string
   currentTitle: string
   suggestedFilePath: string
+}
+
+export type AgentChangePreviewType = 'added' | 'removed' | 'changed'
+
+export interface AgentChangePreviewLine {
+  type: AgentChangePreviewType
+  lineNumber: number
+  text: string
+  previousText?: string
+}
+
+export interface AgentChangeSummary {
+  addedLines: number
+  removedLines: number
+  changedLines: number
+  preview: AgentChangePreviewLine[]
+  truncated: boolean
+}
+
+export interface AgentChangePayload {
+  previousContent: string
+  summary: AgentChangeSummary
 }
 
 export interface SidebarState {
@@ -107,6 +132,8 @@ export interface ElectronAPI {
   onMenuOpen: (callback: () => void) => void
   onMenuSave: (callback: () => void) => void
   onMenuSaveAs: (callback: () => void) => void
+  onMenuSearch: (callback: () => void) => void
+  onMenuCleanCjkTypography: (callback: () => void) => void
   onMenuSettings: (callback: () => void) => void
   onMenuToggleOutline: (callback: () => void) => void
   onMenuExportPDF: (callback: () => void) => void
@@ -115,6 +142,7 @@ export interface ElectronAPI {
   onSetCustomCSS: (callback: (css: string) => void) => void
   onMenuImportTheme: (callback: () => void) => void
   onAgentActivity: (callback: (state: string) => void) => void
+  onAgentChangeSummary: (callback: (payload: AgentChangePayload) => void) => void
   onSidebarState: (callback: (state: SidebarState) => void) => void
   onZoomChange: (callback: (data: { delta?: number; level?: number }) => void) => void
 }
@@ -182,6 +210,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onMenuSaveAs: (callback: () => void) => {
     ipcRenderer.on('menu-save-as', () => callback())
   },
+  onMenuSearch: (callback: () => void) => {
+    ipcRenderer.on('menu-search', () => callback())
+  },
+  onMenuCleanCjkTypography: (callback: () => void) => {
+    ipcRenderer.on('menu-clean-cjk-typography', () => callback())
+  },
   onMenuSettings: (callback: () => void) => {
     ipcRenderer.on('menu-settings', () => callback())
   },
@@ -205,6 +239,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onAgentActivity: (callback: (state: string) => void) => {
     ipcRenderer.on('agent-activity', (_event, state) => callback(state))
+  },
+  onAgentChangeSummary: (callback: (payload: AgentChangePayload) => void) => {
+    ipcRenderer.on('agent-change-summary', (_event, payload) => callback(payload))
   },
   onSidebarState: (callback: (state: SidebarState) => void) => {
     ipcRenderer.on('sidebar-state', (_event, state) => callback(state))

@@ -30,11 +30,12 @@ import {
   recordIgnoredWatchedContent,
   watchTargetFile,
 } from './file-sync'
-import { DEFAULT_APP_SETTINGS, loadAppSettings, updateAppSettings, type AppSettings } from './settings'
+import { DEFAULT_SHORTCUTS, DEFAULT_APP_SETTINGS, loadAppSettings, updateAppSettings, type AppSettings, type ShortcutAction } from './settings'
 import { shouldPromptForFormalSave, shouldRemoveSourceAfterSaveAs } from './save-as'
 import { buildTitleSyncPath, decideTitleSync } from './title-sync'
 import { scanWorkdir, shouldRefreshWorkdirForWatchEvent, type WorkdirEntry } from './workdir'
 import { moveFileToTrashAndVerify } from './file-removal'
+import { summarizeAgentChange } from './agent-change-summary'
 import {
   addWorkspacePath,
   canTogglePinnedFile,
@@ -680,9 +681,11 @@ function watchFile(win: BrowserWindow, state: WindowState): void {
       readFile(filePath, 'utf-8')
         .then((data) => {
           if (consumeIgnoredWatchedContent(state.ignoredWatchedContents, data)) return
+          const previousContent = state.lastSyncedContent ?? ''
           const syncDecision = reconcileWatchedContent(state.lastSyncedContent, data)
           state.lastSyncedContent = syncDecision.nextSyncedContent
           if (!syncDecision.shouldPropagate) return
+          const changeSummary = summarizeAgentChange(previousContent, data)
 
           // Agent activity detection
           const now = Date.now()
@@ -707,6 +710,12 @@ function watchFile(win: BrowserWindow, state: WindowState): void {
           } else if (state.documentKind === 'file' && state.filePath) {
             state.displayTitle = resolveFileDisplayTitle(state.filePath, data)
             updateTitle(win)
+          }
+          if (!win.isDestroyed()) {
+            win.webContents.send('agent-change-summary', {
+              previousContent,
+              summary: changeSummary,
+            })
           }
           if (!win.isDestroyed()) win.webContents.send('file-changed', data)
           if (!win.isDestroyed()) sendSidebarState(win)
@@ -1188,6 +1197,7 @@ ipcMain.handle('update-settings', async (event, patch: Partial<AppSettings>) => 
   const win = getWinFromEvent(event)
   if (!win) return null
   appSettings = await updateAppSettings(settingsPath, appSettings, patch ?? {})
+  buildMenu()
   return appSettings
 })
 
@@ -1652,6 +1662,10 @@ function sendToFocused(channel: string, ...args: unknown[]): void {
   if (win) win.webContents.send(channel, ...args)
 }
 
+function shortcutFor(action: ShortcutAction): string {
+  return appSettings.shortcuts[action] ?? DEFAULT_SHORTCUTS[action]
+}
+
 function buildMenu(): void {
   const isMac = process.platform === 'darwin'
 
@@ -1716,12 +1730,12 @@ function buildMenu(): void {
         { type: 'separator' },
         {
           label: 'Save',
-          accelerator: 'CmdOrCtrl+S',
+          accelerator: shortcutFor('save'),
           click: () => sendToFocused('menu-save')
         },
         {
           label: 'Save As...',
-          accelerator: 'CmdOrCtrl+Shift+S',
+          accelerator: shortcutFor('saveAs'),
           click: () => sendToFocused('menu-save-as')
         },
         { type: 'separator' },
@@ -1746,7 +1760,18 @@ function buildMenu(): void {
         { role: 'cut' },
         { role: 'copy' },
         { role: 'paste' },
-        { role: 'selectAll' }
+        { role: 'selectAll' },
+        { type: 'separator' },
+        {
+          label: 'Find',
+          accelerator: shortcutFor('search'),
+          click: () => sendToFocused('menu-search')
+        },
+        {
+          label: 'Clean CJK Typography',
+          accelerator: shortcutFor('cleanCjkTypography'),
+          click: () => sendToFocused('menu-clean-cjk-typography')
+        }
       ]
     },
     {
@@ -1754,12 +1779,12 @@ function buildMenu(): void {
       submenu: [
         {
           label: 'Toggle Sidebar',
-          accelerator: 'CmdOrCtrl+\\',
+          accelerator: shortcutFor('toggleSidebar'),
           click: () => { toggleSidebarForWindow(getFocusedWindow()) }
         },
         {
           label: 'Toggle Outline',
-          accelerator: 'CmdOrCtrl+Shift+O',
+          accelerator: shortcutFor('toggleOutline'),
           click: () => sendToFocused('menu-toggle-outline')
         },
         { type: 'separator' },
@@ -1791,7 +1816,7 @@ function buildMenu(): void {
       submenu: [
         {
           label: 'Open Settings',
-          accelerator: 'CmdOrCtrl+,',
+          accelerator: shortcutFor('settings'),
           click: () => sendToFocused('menu-settings')
         }
       ]

@@ -8,14 +8,14 @@ describe('outline shortcut affordance', () => {
   const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
 
   it('keeps the outline shortcut wired in the native menu and renderer key handler', () => {
-    expect(main).toContain("accelerator: 'CmdOrCtrl+Shift+O'")
-    expect(renderer).toContain("event.key.toLowerCase() === 'o'")
+    expect(main).toContain("shortcutFor('toggleOutline')")
+    expect(renderer).toContain("shortcutFor(appSettings, 'toggleOutline')")
     expect(renderer).toContain('toggleOutlinePanel()')
   })
 
   it('shows the outline shortcut on the toolbar button and settings shortcut list', () => {
     expect(html).toMatch(/id="outline-toggle"[^>]*title="打开大纲 \(Cmd\/Ctrl\+Shift\+O\)"/)
     expect(html).toContain('<span class="settings-shortcut-label">打开大纲</span>')
-    expect(html).toContain('<kbd class="settings-shortcut-key">Cmd/Ctrl+Shift+O</kbd>')
+    expect(html).toContain('<kbd class="settings-shortcut-key" data-shortcut-action="toggleOutline">Cmd/Ctrl+Shift+O</kbd>')
   })
 })

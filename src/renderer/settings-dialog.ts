@@ -1,4 +1,4 @@
-import type { AppSettings, ElectronAPI, SaveAsMode, SidebarState, TitleSyncMode } from '../preload/index'
+import type { AppSettings, ElectronAPI, SaveAsMode, ShortcutAction, SidebarState, TitleSyncMode } from '../preload/index'
 import { applyTheme } from './themes/theme-manager'
 
 const BUILT_IN_THEMES = [
@@ -17,8 +17,36 @@ function getThemeSummary(themeName: string): string {
   return builtin ? `当前主题 · ${builtin.label}` : `当前主题 · ${themeName}`
 }
 
-function isMacPlatform(): boolean {
-  return navigator.platform.toLowerCase().includes('mac')
+function formatShortcutLabel(accelerator: string): string {
+  return accelerator.replace('CmdOrCtrl', 'Cmd/Ctrl')
+}
+
+function normalizeRecordedKey(key: string): string {
+  if (key === ' ') return 'Space'
+  if (key === 'Escape') return 'Esc'
+  if (key.length === 1) return key.toUpperCase()
+  return key
+}
+
+const SHORTCUT_ACTION_LABELS: Record<ShortcutAction, string> = {
+  save: '保存',
+  saveAs: '另存为',
+  settings: '打开设置',
+  search: '搜索',
+  toggleSidebar: '切换侧边栏',
+  toggleOutline: '打开大纲',
+  cleanCjkTypography: '清理中英排版',
+}
+
+export function resolveShortcutConflict(
+  shortcuts: Record<ShortcutAction, string>,
+  action: ShortcutAction,
+  accelerator: string,
+): ShortcutAction | null {
+  const conflict = Object.entries(shortcuts).find(([candidateAction, candidateAccelerator]) => (
+    candidateAction !== action && candidateAccelerator === accelerator
+  ))
+  return (conflict?.[0] as ShortcutAction | undefined) ?? null
 }
 
 export interface SettingsDialogController {
@@ -92,8 +120,9 @@ export function createSettingsDialogController({
     document.querySelectorAll<HTMLInputElement>('input[name="settings-save-as-mode"]'),
   )
   const shortcutKeys = Array.from(
-    document.querySelectorAll<HTMLElement>('.settings-shortcut-key'),
+    document.querySelectorAll<HTMLElement>('[data-shortcut-action]'),
   )
+  const shortcutConflict = document.getElementById('settings-shortcut-conflict') as HTMLDivElement | null
 
   let dialogOpen = false
   let activePane: SettingsPaneId = 'general'
@@ -126,21 +155,30 @@ export function createSettingsDialogController({
     }
   }
 
-  const formatKeyCombo = (event: KeyboardEvent): string => {
+  const clearShortcutConflict = (): void => {
+    if (!shortcutConflict) return
+    shortcutConflict.hidden = true
+    shortcutConflict.textContent = ''
+  }
+
+  const showShortcutConflict = (action: ShortcutAction): void => {
+    if (!shortcutConflict) return
+    shortcutConflict.hidden = false
+    shortcutConflict.textContent = `这个快捷键已经被「${SHORTCUT_ACTION_LABELS[action]}」使用`
+  }
+
+  const formatKeyCombo = (event: KeyboardEvent): string | null => {
     const parts: string[] = []
-    if (event.metaKey || (event.ctrlKey && !parts.includes('Ctrl'))) {
-      parts.push(isMacPlatform() && event.metaKey ? '⌘' : 'Ctrl')
-    }
+    if (event.metaKey || event.ctrlKey) parts.push('CmdOrCtrl')
     if (event.shiftKey) parts.push('Shift')
     if (event.altKey) parts.push('Alt')
-    
-    let key = event.key
-    if (key === ' ') key = 'Space'
-    if (key.length === 1) key = key.toUpperCase()
+
+    const key = normalizeRecordedKey(event.key)
     if (!['Control', 'Shift', 'Alt', 'Meta'].includes(key)) {
       parts.push(key)
     }
-    return parts.join('+')
+
+    return parts.length > 1 ? parts.join('+') : null
   }
 
   const render = (): void => {
@@ -168,11 +206,18 @@ export function createSettingsDialogController({
       button.classList.toggle('active', button.dataset.settingsTheme === activeTheme)
     }
 
+    for (const key of shortcutKeys) {
+      const action = key.dataset.shortcutAction as ShortcutAction | undefined
+      if (!action) continue
+      key.textContent = formatShortcutLabel(appSettings.shortcuts[action])
+    }
+
     renderPane()
   }
 
   const open = (): void => {
     dialogOpen = true
+    clearShortcutConflict()
     render()
     if (!overlay) return
     overlay.hidden = false
@@ -185,6 +230,7 @@ export function createSettingsDialogController({
   const close = (): void => {
     dialogOpen = false
     stopRecording()
+    clearShortcutConflict()
     if (!overlay) return
     overlay.hidden = true
     overlay.setAttribute('aria-hidden', 'true')
@@ -218,6 +264,27 @@ export function createSettingsDialogController({
     render()
   }
 
+  const updateShortcut = async (action: ShortcutAction, accelerator: string): Promise<void> => {
+    const current = getAppSettings()
+    const conflict = resolveShortcutConflict(current.shortcuts, action, accelerator)
+    if (conflict) {
+      render()
+      showShortcutConflict(conflict)
+      return
+    }
+
+    const nextShortcuts = {
+      ...current.shortcuts,
+      [action]: accelerator,
+    }
+    const next = (await api.updateSettings({ shortcuts: nextShortcuts }).catch(() => null)) ?? {
+      ...current,
+      shortcuts: nextShortcuts,
+    }
+    onAppSettingsChange(next)
+    render()
+  }
+
   overlay?.addEventListener('click', (event) => {
     if (event.target === overlay) close()
   })
@@ -234,16 +301,19 @@ export function createSettingsDialogController({
 
     if (event.key === 'Escape') {
       stopRecording()
+      clearShortcutConflict()
+      render()
       return
     }
 
     const combo = formatKeyCombo(event)
-    // Only save if a non-modifier key was pressed
-    if (!['Control', 'Shift', 'Alt', 'Meta'].includes(event.key)) {
-      recordingShortcut.textContent = combo
-      // Here you would typically call api.updateShortcut(...)
-      stopRecording()
-    }
+    const action = recordingShortcut.dataset.shortcutAction as ShortcutAction | undefined
+    if (!combo || !action) return
+
+    recordingShortcut.textContent = formatShortcutLabel(combo)
+    stopRecording()
+    clearShortcutConflict()
+    void updateShortcut(action, combo)
   }, true)
 
   for (const key of shortcutKeys) {
@@ -251,8 +321,12 @@ export function createSettingsDialogController({
       event.stopPropagation()
       if (recordingShortcut === key) {
         stopRecording()
+        clearShortcutConflict()
+        render()
       } else {
         stopRecording()
+        clearShortcutConflict()
+        render()
         recordingShortcut = key
         key.classList.add('recording')
         key.textContent = '录制中...'

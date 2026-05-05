@@ -11,6 +11,7 @@ LyraMD 基于 [ColaMD](https://github.com/marswaveai/ColaMD) 修改，是一个�
 ## 功能
 
 - **文件实时刷新**：AI agent 修改当前 Markdown 文件时，LyraMD 自动刷新内容。
+- **Agent 变更摘要**：外部修改到达时显示新增、删除、改写行数和简短预览，连续更新会合并，并可一键撤回。
 - **所见即所得 Markdown 编辑**：基于 Milkdown。
 - **轻量侧边栏**：当前文件、最近文件、工作目录导航。
 - **最近文件管理**：最多保留 10 条，可进入清除模式逐条移除。

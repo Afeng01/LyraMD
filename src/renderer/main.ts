@@ -16,6 +16,7 @@ import {
   setSearchQuery,
 } from './editor/editor'
 import { resolveSearchPanelPreview, type SearchState } from './editor/search'
+import { formatCjkTypography } from './editor/cjk-format'
 import {
   rememberQueryForDocument,
   resolveRememberedQuery,
@@ -28,6 +29,12 @@ import {
   releaseQueuedContent,
   resolveIncomingContentDecision,
 } from './editor/content-sync'
+import { createAgentChangeAutoDismiss } from './agent-change-autodismiss'
+import {
+  createAgentChangeSession,
+  mergeAgentChangeSession,
+  type AgentChangeSession,
+} from './agent-change-session'
 import {
   decideAutosaveBehavior,
   getDocumentViewportKey,
@@ -49,7 +56,7 @@ import {
   type SidebarItem,
 } from './sidebar-view'
 import { applyTheme, loadSavedTheme } from './themes/theme-manager'
-import type { AppSettings, SidebarState, SidebarTab } from '../preload/index'
+import type { AgentChangePayload, AgentChangePreviewLine, AgentChangeSummary, AppSettings, ShortcutAction, SidebarState, SidebarTab } from '../preload/index'
 import './themes/base.css'
 
 type TitleEditingAPI = typeof window.electronAPI & {
@@ -167,7 +174,50 @@ function currentDocumentMeta(state: SidebarState): string {
 }
 
 function createDefaultSettings(): AppSettings {
-  return { titleSyncMode: 'ask', saveAsMode: 'switch', themeName: 'elegant' }
+  return {
+    titleSyncMode: 'ask',
+    saveAsMode: 'switch',
+    themeName: 'elegant',
+    shortcuts: {
+      save: 'CmdOrCtrl+S',
+      saveAs: 'CmdOrCtrl+Shift+S',
+      settings: 'CmdOrCtrl+,',
+      search: 'CmdOrCtrl+F',
+      toggleSidebar: 'CmdOrCtrl+\\',
+      toggleOutline: 'CmdOrCtrl+Shift+O',
+      cleanCjkTypography: 'CmdOrCtrl+Shift+F',
+    },
+  }
+}
+
+function normalizeShortcutKey(key: string): string {
+  if (key === ' ') return 'Space'
+  if (key.length === 1) return key.toUpperCase()
+  return key
+}
+
+function eventMatchesShortcut(event: KeyboardEvent, accelerator: string): boolean {
+  const parts = accelerator.split('+').map((part) => part.trim()).filter(Boolean)
+  const key = parts.at(-1)
+  if (!key) return false
+
+  const needsPrimary = parts.includes('CmdOrCtrl') || parts.includes('CommandOrControl')
+  const needsShift = parts.includes('Shift')
+  const needsAlt = parts.includes('Alt') || parts.includes('Option')
+  const needsCtrl = parts.includes('Ctrl') || parts.includes('Control')
+  const needsMeta = parts.includes('Cmd') || parts.includes('Command') || parts.includes('Meta') || parts.includes('Super')
+  const primaryPressed = event.metaKey || event.ctrlKey
+
+  return normalizeShortcutKey(event.key) === key
+    && (needsPrimary ? primaryPressed : (!event.metaKey && !event.ctrlKey) || needsCtrl || needsMeta)
+    && event.shiftKey === needsShift
+    && event.altKey === needsAlt
+    && (!needsCtrl || event.ctrlKey)
+    && (!needsMeta || event.metaKey)
+}
+
+function shortcutFor(settings: AppSettings, action: ShortcutAction): string {
+  return settings.shortcuts[action] ?? createDefaultSettings().shortcuts[action]
 }
 
 function createFileItem(
@@ -384,6 +434,13 @@ async function init(): Promise<void> {
   const searchContextNext = document.getElementById('search-context-next') as HTMLDivElement | null
   const outlinePanel = document.getElementById('outline-panel') as HTMLElement | null
   const outlineList = document.getElementById('outline-list') as HTMLDivElement | null
+  const agentChangePanel = document.getElementById('agent-change-panel') as HTMLDivElement | null
+  const agentChangeToggle = document.getElementById('agent-change-toggle') as HTMLButtonElement | null
+  const agentChangeStats = document.getElementById('agent-change-stats') as HTMLSpanElement | null
+  const agentChangeDetails = document.getElementById('agent-change-details') as HTMLDivElement | null
+  const agentChangeList = document.getElementById('agent-change-list') as HTMLDivElement | null
+  const agentChangeRestore = document.getElementById('agent-change-restore') as HTMLButtonElement | null
+  const agentChangeDismiss = document.getElementById('agent-change-dismiss') as HTMLButtonElement | null
 
   const updateEditorPlaceholder = (content: string): void => {
     if (!editorPlaceholder) return
@@ -448,8 +505,9 @@ async function init(): Promise<void> {
   let immediateSaveInFlight = false
   let pendingImmediateSaveContent: string | null = null
   let immediateSavePromise: Promise<void> | null = null
-  let deferredIncomingContent: { content: string; scrollTop: number } | null = null
+  let deferredIncomingContent: { content: string; scrollTop: number; agentChangePayload: AgentChangePayload | null } | null = null
   const recentLocalEchoes = new Map<string, number>()
+  let queuedAgentChangePayload: AgentChangePayload | null = null
 
   const hasPendingImmediateSave = (): boolean => immediateSaveInFlight || pendingImmediateSaveContent !== null
 
@@ -463,6 +521,7 @@ async function init(): Promise<void> {
   const resetLocalEchoState = (): void => {
     recentLocalEchoes.clear()
     deferredIncomingContent = null
+    queuedAgentChangePayload = null
   }
 
   const closeTitleSyncPrompt = (): void => {
@@ -500,7 +559,7 @@ async function init(): Promise<void> {
   const processIncomingDocumentContent = (
     content: string,
     scrollTop: number,
-    options: { allowDefer: boolean },
+    options: { allowDefer: boolean; agentChangePayload?: AgentChangePayload | null },
   ): void => {
     const decision = resolveIncomingContentDecision({
       currentContent: getMarkdown(),
@@ -512,20 +571,35 @@ async function init(): Promise<void> {
     if (decision === 'ignore') return
 
     if (decision === 'defer') {
-      deferredIncomingContent = { content, scrollTop }
+      deferredIncomingContent = {
+        content,
+        scrollTop,
+        agentChangePayload: options.agentChangePayload ?? null,
+      }
       return
     }
 
     deferredIncomingContent = null
     applyProgrammaticDocumentContent(content, scrollTop)
+    if (options.agentChangePayload) {
+      agentChangeSession = agentChangeSession
+        ? mergeAgentChangeSession(agentChangeSession, options.agentChangePayload)
+        : createAgentChangeSession(options.agentChangePayload)
+      agentChangeExpanded = !hasShownAgentChangeHint
+      hasShownAgentChangeHint = true
+      renderAgentChangePanel()
+      agentChangeAutoDismiss.schedule()
+    } else {
+      clearAgentChangePanel()
+    }
   }
 
   const flushDeferredIncomingContent = (): void => {
     if (!deferredIncomingContent || hasPendingImmediateSave()) return
 
-    const { content, scrollTop } = deferredIncomingContent
+    const { content, scrollTop, agentChangePayload } = deferredIncomingContent
     deferredIncomingContent = null
-    processIncomingDocumentContent(content, scrollTop, { allowDefer: false })
+    processIncomingDocumentContent(content, scrollTop, { allowDefer: false, agentChangePayload })
   }
 
   const runImmediateAutoSave = async (): Promise<void> => {
@@ -765,6 +839,7 @@ async function init(): Promise<void> {
       const snapshot = await api.beginBlankDocument().catch(() => null)
       if (snapshot) setSidebarState(snapshot)
       resetLocalEchoState()
+      clearAgentChangePanel()
       applyProgrammaticDocumentContent('', 0)
       focusEditorAtLastSelection()
     })
@@ -808,6 +883,93 @@ async function init(): Promise<void> {
   let outlinePanelOpen = false
   let searchInputComposing = false
   let searchQueryMemory: SearchMemoryState = {}
+  let agentChangeSession: AgentChangeSession | null = null
+  let agentChangeExpanded = false
+  let hasShownAgentChangeHint = false
+  const agentChangeAutoDismiss = createAgentChangeAutoDismiss(() => {
+    clearAgentChangePanel()
+  })
+
+  const hasAgentChangeSession = (session: AgentChangeSession | null): session is AgentChangeSession => {
+    return !!session && (
+      session.summary.addedLines > 0
+      || session.summary.removedLines > 0
+      || session.summary.changedLines > 0
+    )
+  }
+
+  const formatAgentChangeStats = (summary: AgentChangeSummary): string => {
+    const parts: string[] = []
+    if (summary.addedLines > 0) parts.push(`+${summary.addedLines}`)
+    if (summary.removedLines > 0) parts.push(`-${summary.removedLines}`)
+    if (summary.changedLines > 0) parts.push(`~${summary.changedLines}`)
+    return parts.join(' ')
+  }
+
+  const formatAgentChangePreviewText = (line: AgentChangePreviewLine): string => {
+    if (line.type === 'added') return `+ ${line.text}`
+    if (line.type === 'removed') return `- ${line.text}`
+    return `${line.previousText ?? ''} -> ${line.text}`
+  }
+
+  const renderAgentChangePanel = (): void => {
+    if (!agentChangePanel || !agentChangeToggle || !agentChangeStats || !agentChangeDetails || !agentChangeList) return
+
+    if (!hasAgentChangeSession(agentChangeSession)) {
+      agentChangePanel.hidden = true
+      agentChangeToggle.setAttribute('aria-expanded', 'false')
+      agentChangeDetails.hidden = true
+      clearElement(agentChangeList)
+      return
+    }
+
+    agentChangePanel.hidden = false
+    const title = document.getElementById('agent-change-title') as HTMLSpanElement | null
+    if (title) title.textContent = agentChangeSession.updateCount > 1
+      ? `外部更新 ${agentChangeSession.updateCount} 次`
+      : '外部更新'
+    agentChangeStats.textContent = formatAgentChangeStats(agentChangeSession.summary)
+    agentChangeToggle.setAttribute('aria-expanded', agentChangeExpanded ? 'true' : 'false')
+    agentChangeDetails.hidden = !agentChangeExpanded
+    clearElement(agentChangeList)
+
+    for (const previewLine of agentChangeSession.summary.preview) {
+      const row = document.createElement('div')
+      row.className = `agent-change-line ${previewLine.type}`
+
+      const lineNumber = document.createElement('span')
+      lineNumber.className = 'agent-change-line-number'
+      lineNumber.textContent = String(previewLine.lineNumber)
+      row.appendChild(lineNumber)
+
+      const text = document.createElement('span')
+      text.className = 'agent-change-line-text'
+      text.title = formatAgentChangePreviewText(previewLine)
+      text.textContent = formatAgentChangePreviewText(previewLine)
+      row.appendChild(text)
+
+      agentChangeList.appendChild(row)
+    }
+
+    if (agentChangeSession.summary.truncated) {
+      agentChangeList.appendChild(createTextBlock('agent-change-truncated', '还有更多变更'))
+    }
+  }
+
+  const clearAgentChangePanel = (): void => {
+    agentChangeAutoDismiss.clear()
+    agentChangeSession = null
+    agentChangeExpanded = false
+    renderAgentChangePanel()
+  }
+
+  const restoreAgentChangeSession = (): void => {
+    if (!agentChangeSession) return
+    const previousContent = agentChangeSession.previousContent
+    applyProgrammaticDocumentContent(previousContent, editorShell?.scrollTop ?? 0)
+    void saveImmediately(previousContent)
+    clearAgentChangePanel()
+  }
 
   const renderSearchPreviewText = (
     target: HTMLDivElement | null,
@@ -1325,6 +1487,18 @@ async function init(): Promise<void> {
       api.saveFileAs(markdown, appSettings.saveAsMode).catch(() => {})
     })
   })
+  api.onMenuSearch(() => {
+    openSearchPanel()
+  })
+  api.onMenuCleanCjkTypography(() => {
+    void flushAutoSave().then(() => {
+      const markdown = getMarkdown()
+      const nextMarkdown = formatCjkTypography(markdown)
+      if (nextMarkdown === markdown) return
+      applyProgrammaticDocumentContent(nextMarkdown, editorShell?.scrollTop ?? 0)
+      void saveImmediately(nextMarkdown)
+    })
+  })
   api.onMenuSettings?.(() => {
     closeTitleSyncPrompt()
     settingsDialog.toggle()
@@ -1381,6 +1555,7 @@ img{max-width:100%}
   })
   api.onNewFile(() => {
     resetLocalEchoState()
+    clearAgentChangePanel()
     applyProgrammaticDocumentContent('', 0)
   })
   api.onNewFileInWindow(() => {
@@ -1388,13 +1563,16 @@ img{max-width:100%}
   })
   api.onFileOpened((data) => {
     resetLocalEchoState()
+    clearAgentChangePanel()
     titleEditActive = false
     closeTitleSyncPrompt()
     applyProgrammaticDocumentContent(data.content)
   })
   api.onFileChanged((content) => {
     const currentScrollTop = editorShell?.scrollTop ?? 0
-    processIncomingDocumentContent(content, currentScrollTop, { allowDefer: true })
+    const agentChangePayload = queuedAgentChangePayload
+    queuedAgentChangePayload = null
+    processIncomingDocumentContent(content, currentScrollTop, { allowDefer: true, agentChangePayload })
   })
   api.onSetTheme(async (theme) => {
     applyTheme(theme)
@@ -1425,6 +1603,9 @@ img{max-width:100%}
   api.onAgentActivity((state) => {
     if (agentDot) agentDot.className = state === 'idle' ? '' : state
   })
+  api.onAgentChangeSummary((payload) => {
+    queuedAgentChangePayload = payload
+  })
 
   api.onSidebarState((state) => {
     setSidebarState(state)
@@ -1448,6 +1629,22 @@ img{max-width:100%}
 
   api.onMenuToggleOutline(() => {
     toggleOutlinePanel()
+  })
+
+  agentChangeToggle?.addEventListener('click', () => {
+    agentChangeExpanded = !agentChangeExpanded
+    renderAgentChangePanel()
+    if (agentChangeExpanded && hasAgentChangeSession(agentChangeSession)) {
+      agentChangeAutoDismiss.schedule()
+    }
+  })
+
+  agentChangeRestore?.addEventListener('click', () => {
+    restoreAgentChangeSession()
+  })
+
+  agentChangeDismiss?.addEventListener('click', () => {
+    clearAgentChangePanel()
   })
 
   drawerBackdrop?.addEventListener('click', () => {
@@ -1695,13 +1892,13 @@ img{max-width:100%}
   })
 
   document.addEventListener('keydown', (event) => {
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
+    if (eventMatchesShortcut(event, shortcutFor(appSettings, 'search'))) {
       event.preventDefault()
       openSearchPanel()
       return
     }
 
-    if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'o') {
+    if (eventMatchesShortcut(event, shortcutFor(appSettings, 'toggleOutline'))) {
       event.preventDefault()
       toggleOutlinePanel()
       return

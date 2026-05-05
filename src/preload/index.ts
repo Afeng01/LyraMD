@@ -84,6 +84,7 @@ export interface SidebarState {
 }
 
 export interface ElectronAPI {
+  platform: NodeJS.Platform
   openFile: () => Promise<null>
   openFilePath: (path: string) => Promise<null>
   beginBlankDocument: () => Promise<SidebarState | null>
@@ -117,12 +118,17 @@ export interface ElectronAPI {
   chooseWorkdir: () => Promise<SidebarState | null>
   selectWorkspace: (path: string) => Promise<SidebarState | null>
   reorderWorkspaces: (sourcePath: string, targetPath: string) => Promise<SidebarState | null>
+  createWorkdirFile: () => Promise<SidebarState | null>
   chooseDraftDirectory: () => Promise<SidebarState | null>
   skipDraftOnboarding: () => Promise<SidebarState | null>
   openSidebarFile: (path: string) => Promise<boolean>
   openDraft: (id: string) => Promise<boolean>
   removeRecentFile: (path: string) => Promise<boolean>
   removeWorkdirFile: (path: string) => Promise<SidebarState | null>
+  createNewWindow: () => Promise<boolean>
+  minimizeWindow: () => Promise<boolean>
+  toggleMaximizeWindow: () => Promise<boolean>
+  closeWindow: () => Promise<boolean>
   getPathForFile: (file: File) => string
   openExternal: (url: string) => void
   onFileChanged: (callback: (content: string) => void) => void
@@ -148,6 +154,7 @@ export interface ElectronAPI {
 }
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  platform: process.platform,
   openFile: () => ipcRenderer.invoke('open-file'),
   openFilePath: (path: string) => ipcRenderer.invoke('open-file-path', path),
   beginBlankDocument: () => ipcRenderer.invoke('begin-blank-document'),
@@ -181,12 +188,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   chooseWorkdir: () => ipcRenderer.invoke('choose-workdir'),
   selectWorkspace: (path: string) => ipcRenderer.invoke('select-workspace', path),
   reorderWorkspaces: (sourcePath: string, targetPath: string) => ipcRenderer.invoke('reorder-workspaces', sourcePath, targetPath),
+  createWorkdirFile: () => ipcRenderer.invoke('create-workdir-file'),
   chooseDraftDirectory: () => ipcRenderer.invoke('choose-draft-directory'),
   skipDraftOnboarding: () => ipcRenderer.invoke('skip-draft-onboarding'),
   openSidebarFile: (path: string) => ipcRenderer.invoke('open-sidebar-file', path),
   openDraft: (id: string) => ipcRenderer.invoke('open-draft', id),
   removeRecentFile: (path: string) => ipcRenderer.invoke('remove-recent-file', path),
   removeWorkdirFile: (path: string) => ipcRenderer.invoke('remove-workdir-file', path),
+  createNewWindow: () => ipcRenderer.invoke('create-new-window'),
+  minimizeWindow: () => ipcRenderer.invoke('window-minimize'),
+  toggleMaximizeWindow: () => ipcRenderer.invoke('window-toggle-maximize'),
+  closeWindow: () => ipcRenderer.invoke('window-close'),
   getPathForFile: (file: File) => webUtils.getPathForFile(file),
   openExternal: (url: string) => ipcRenderer.send('open-external', url),
   onFileChanged: (callback: (content: string) => void) => {

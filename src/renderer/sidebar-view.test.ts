@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 import type { SidebarState } from '../preload/index'
 import {
@@ -244,5 +246,29 @@ describe('tab view helpers', () => {
         source: 'workdir',
       },
     ])
+  })
+})
+
+describe('library create action regression', () => {
+  it('routes the library plus button to workdir file creation on the workdir tab', () => {
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+    const preload = readFileSync(join(process.cwd(), 'src/preload/index.ts'), 'utf8')
+    const main = readFileSync(join(process.cwd(), 'src/main/index.ts'), 'utf8')
+
+    expect(renderer).toContain("sidebarState?.activeSidebarTab !== 'workdir'")
+    expect(renderer).toContain('api.createWorkdirFile()')
+    expect(renderer).toContain("const label = activeTab === 'workdir' ? '新建工作目录文稿' : '新建草稿'")
+    expect(preload).toContain("createWorkdirFile: () => ipcRenderer.invoke('create-workdir-file')")
+    expect(main).toContain("ipcMain.handle('create-workdir-file'")
+  })
+
+  it('uses the same context-aware creation path for the Cmd/Ctrl+N menu event', () => {
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+    const menuEventStart = renderer.indexOf('api.onNewFileInWindow(() => {')
+    const menuEventEnd = renderer.indexOf('\n  })', menuEventStart)
+    const menuEventBody = renderer.slice(menuEventStart, menuEventEnd)
+
+    expect(menuEventBody).toContain('beginLibraryDocumentFromSidebar()')
+    expect(menuEventBody).not.toContain('beginBlankDocumentFromSidebar()')
   })
 })

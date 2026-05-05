@@ -9,6 +9,74 @@
 <body>
   <div id="app-shell">
     <div id="titlebar">
+      <div id="windows-titlebar" aria-label="Windows 标题栏">
+        <div class="windows-titlebar-drag-region">
+          <div class="windows-brand" aria-hidden="true">
+            <span class="windows-brand-mark"></span>
+            <span class="windows-brand-name">LyraMD</span>
+          </div>
+          <nav id="windows-menu" class="windows-menu" aria-label="应用菜单">
+            <div class="windows-menu-group">
+              <button type="button" class="windows-menu-button" data-windows-menu="file">File</button>
+              <div class="windows-menu-panel" data-windows-panel="file">
+                <button type="button" data-windows-action="new">New</button>
+                <button type="button" data-windows-action="new-window">New Window</button>
+                <button type="button" data-windows-action="open">Open...</button>
+                <hr>
+                <button type="button" data-windows-action="save">Save</button>
+                <button type="button" data-windows-action="save-as">Save As...</button>
+                <hr>
+                <button type="button" data-windows-action="export-pdf">Export PDF...</button>
+                <button type="button" data-windows-action="export-html">Export HTML...</button>
+              </div>
+            </div>
+            <div class="windows-menu-group">
+              <button type="button" class="windows-menu-button" data-windows-menu="edit">Edit</button>
+              <div class="windows-menu-panel" data-windows-panel="edit">
+                <button type="button" data-windows-action="undo">Undo</button>
+                <button type="button" data-windows-action="redo">Redo</button>
+                <hr>
+                <button type="button" data-windows-action="cut">Cut</button>
+                <button type="button" data-windows-action="copy">Copy</button>
+                <button type="button" data-windows-action="paste">Paste</button>
+                <button type="button" data-windows-action="select-all">Select All</button>
+                <hr>
+                <button type="button" data-windows-action="find">Find</button>
+                <button type="button" data-windows-action="clean-cjk">Clean CJK Typography</button>
+              </div>
+            </div>
+            <div class="windows-menu-group">
+              <button type="button" class="windows-menu-button" data-windows-menu="view">View</button>
+              <div class="windows-menu-panel" data-windows-panel="view">
+                <button type="button" data-windows-action="toggle-sidebar">Toggle Sidebar</button>
+                <button type="button" data-windows-action="toggle-outline">Toggle Outline</button>
+                <hr>
+                <button type="button" data-windows-action="zoom-in">Zoom In</button>
+                <button type="button" data-windows-action="zoom-out">Zoom Out</button>
+                <button type="button" data-windows-action="zoom-reset">Reset Zoom</button>
+              </div>
+            </div>
+            <div class="windows-menu-group">
+              <button type="button" class="windows-menu-button" data-windows-menu="theme">Theme</button>
+              <div class="windows-menu-panel" data-windows-panel="theme">
+                <button type="button" data-windows-action="theme-light">Light</button>
+                <button type="button" data-windows-action="theme-dark">Dark</button>
+                <button type="button" data-windows-action="theme-elegant">Elegant</button>
+                <button type="button" data-windows-action="theme-newsprint">Newsprint</button>
+                <hr>
+                <button type="button" data-windows-action="import-theme">Import Theme...</button>
+              </div>
+            </div>
+            <button type="button" class="windows-menu-button" data-windows-action="settings">Settings</button>
+            <button type="button" class="windows-menu-button" data-windows-action="help">Help</button>
+          </nav>
+        </div>
+        <div id="windows-window-controls" class="windows-window-controls">
+          <button id="window-minimize" type="button" class="window-control" aria-label="最小化">─</button>
+          <button id="window-maximize" type="button" class="window-control" aria-label="最大化">□</button>
+          <button id="window-close" type="button" class="window-control close" aria-label="关闭">×</button>
+        </div>
+      </div>
       <button id="sidebar-toggle" type="button" aria-label="切换侧边栏">
         <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <line x1="3.25" y1="3" x2="3.25" y2="13" />

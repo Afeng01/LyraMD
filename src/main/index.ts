@@ -33,7 +33,7 @@ import {
 import { DEFAULT_SHORTCUTS, DEFAULT_APP_SETTINGS, loadAppSettings, updateAppSettings, type AppSettings, type ShortcutAction } from './settings'
 import { shouldPromptForFormalSave, shouldRemoveSourceAfterSaveAs } from './save-as'
 import { buildTitleSyncPath, decideTitleSync } from './title-sync'
-import { scanWorkdir, shouldRefreshWorkdirForWatchEvent, type WorkdirEntry } from './workdir'
+import { resolveNewWorkdirMarkdownPath, scanWorkdir, shouldRefreshWorkdirForWatchEvent, type WorkdirEntry } from './workdir'
 import { moveFileToTrashAndVerify } from './file-removal'
 import { summarizeAgentChange } from './agent-change-summary'
 import { createWindowOptions } from './window-platform'
@@ -637,6 +637,15 @@ function createWindow(initialDocument?: { filePath: string; documentKind?: Exclu
   return win
 }
 
+function createWindowMatchingSize(sourceWin: BrowserWindow | null): BrowserWindow {
+  const nextWin = createWindow()
+  if (sourceWin && !sourceWin.isDestroyed()) {
+    const { width, height } = sourceWin.getBounds()
+    nextWin.setSize(width, height)
+  }
+  return nextWin
+}
+
 function findDraftEntryById(draftId: string | null): DraftEntry | null {
   if (!draftId) return null
   return sidebarState.draftEntries.find((entry) => entry.id === draftId) ?? null
@@ -1109,6 +1118,21 @@ async function clearDraftsForAllWindows(triggerWin: BrowserWindow): Promise<Side
   return createSidebarSnapshot(triggerWin)
 }
 
+async function createWorkdirFileInWindow(win: BrowserWindow): Promise<SidebarSnapshot> {
+  if (!sidebarState.workdirPath || !existsSync(sidebarState.workdirPath)) {
+    return createSidebarSnapshot(win)
+  }
+
+  const nextPath = resolveNewWorkdirMarkdownPath(sidebarState.workdirPath, (candidatePath) => existsSync(candidatePath))
+  await writeFile(nextPath, '', 'utf-8')
+  sidebarState.activeSidebarTab = 'workdir'
+  await refreshWorkdirEntries()
+  await persistSidebarState()
+  await loadFileInWindow(win, nextPath, { documentKind: 'file' })
+  broadcastSidebarState()
+  return createSidebarSnapshot(win)
+}
+
 async function removeDraftForAllWindows(triggerWin: BrowserWindow, draftId: string): Promise<SidebarSnapshot> {
   const draftEntry = sidebarState.draftEntries.find((entry) => entry.id === draftId)
   if (!draftEntry) {
@@ -1463,6 +1487,12 @@ ipcMain.handle('reorder-workspaces', async (event, sourcePath: string, targetPat
   return createSidebarSnapshot(win)
 })
 
+ipcMain.handle('create-workdir-file', async (event) => {
+  const win = getWinFromEvent(event)
+  if (!win) return null
+  return createWorkdirFileInWindow(win)
+})
+
 ipcMain.handle('set-active-sidebar-tab', async (event, tab: string) => {
   const win = getWinFromEvent(event)
   if (!win) return null
@@ -1711,6 +1741,36 @@ ipcMain.handle('load-theme-css', async (_event, fileName: string) => {
   }
 })
 
+ipcMain.handle('create-new-window', async (event) => {
+  createWindowMatchingSize(getWinFromEvent(event))
+  return true
+})
+
+ipcMain.handle('window-minimize', async (event) => {
+  const win = getWinFromEvent(event)
+  if (!win) return false
+  win.minimize()
+  return true
+})
+
+ipcMain.handle('window-toggle-maximize', async (event) => {
+  const win = getWinFromEvent(event)
+  if (!win) return false
+  if (win.isMaximized()) {
+    win.unmaximize()
+  } else {
+    win.maximize()
+  }
+  return true
+})
+
+ipcMain.handle('window-close', async (event) => {
+  const win = getWinFromEvent(event)
+  if (!win) return false
+  win.close()
+  return true
+})
+
 // Menu — targets the focused window
 
 function getFocusedWindow(): BrowserWindow | null {
@@ -1781,6 +1841,11 @@ function buildMenu(): void {
           label: 'New',
           accelerator: 'CmdOrCtrl+N',
           click: () => sendToFocused('menu-new-file-in-window')
+        },
+        {
+          label: 'New Window',
+          accelerator: 'CmdOrCtrl+Shift+N',
+          click: () => { createWindowMatchingSize(getFocusedWindow()) }
         },
         {
           label: 'Open...',

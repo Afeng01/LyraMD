@@ -63,7 +63,7 @@ LyraMD 目前没有做 Apple 公证，因为公证需要付费 Apple Developer �
 
 ## Windows 安装与打开
 
-Windows 支持目前是预览路径。v1.2.0 release 附带测试版 Windows 安装器，但公开稳定发布前仍需要真实 Windows 设备 smoke test。
+Windows 支持目前是预览路径。v1.2.1 release 附带测试版 Windows 安装器，但公开稳定发布前仍需要真实 Windows 设备 smoke test。
 
 从 [Releases](https://github.com/Afeng01/LyraMD/releases) 下载 `LyraMD-Setup-*-x64.exe`，运行安装器，并按 NSIS 安装流程完成安装。正式依赖前请先在 Windows 上验证启动、打开 `.md`、保存 / 另存为、外部文件刷新这几条主链路。
 

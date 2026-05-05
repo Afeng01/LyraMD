@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 import {
   decideAutosaveBehavior,
@@ -107,5 +109,15 @@ describe('resolveCenteredViewportScrollTop', () => {
       targetTop: 80,
       targetHeight: 40,
     })).toBe(0)
+  })
+})
+
+describe('document viewport restore regression', () => {
+  it('restores saved document scroll after a nested animation frame so editor layout can settle first', () => {
+    const main = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+
+    expect(main).toContain('const scheduleViewportRestore = (scrollTop: number): void => {')
+    expect(main).toContain('requestAnimationFrame(() => {\n      requestAnimationFrame(() => {')
+    expect(main).toContain('scheduleViewportRestore(restoreOffset)')
   })
 })

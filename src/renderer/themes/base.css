@@ -32,6 +32,199 @@ html, body {
   border-bottom: 1px solid transparent;
 }
 
+#windows-titlebar {
+  display: none;
+}
+
+.windows-titlebar-drag-region,
+.windows-menu,
+.windows-window-controls,
+.windows-menu-button,
+.windows-menu-panel,
+.window-control {
+  -webkit-app-region: no-drag;
+}
+
+body.platform-win32 #titlebar {
+  height: 36px;
+  display: flex;
+  align-items: stretch;
+  border-bottom-color: color-mix(in srgb, var(--border-color) 50%, transparent 50%);
+  background: color-mix(in srgb, var(--bg-color) 97%, var(--border-color) 3%);
+}
+
+body.platform-win32 #windows-titlebar {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
+}
+
+.windows-titlebar-drag-region {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  -webkit-app-region: drag;
+}
+
+.windows-brand {
+  height: 100%;
+  min-width: 94px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 12px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.windows-brand-mark {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  background:
+    linear-gradient(135deg, rgba(232, 145, 58, 0.92), rgba(255, 255, 255, 0.08)),
+    color-mix(in srgb, var(--link-color) 34%, var(--bg-color) 66%);
+}
+
+.windows-brand-name {
+  max-width: 70px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.windows-menu {
+  height: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  margin-left: 106px;
+  gap: 1px;
+}
+
+.windows-menu-group {
+  position: relative;
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.windows-menu-button {
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-color);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.windows-menu-button:hover,
+.windows-menu-group.open > .windows-menu-button,
+.windows-menu-button.active {
+  background: color-mix(in srgb, var(--selection-bg) 28%, transparent 72%);
+  border-color: color-mix(in srgb, var(--border-color) 52%, transparent 48%);
+}
+
+.windows-menu-panel {
+  display: none;
+  position: absolute;
+  top: 32px;
+  left: 0;
+  z-index: 60;
+  min-width: 184px;
+  padding: 6px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent 30%);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-color) 98%, var(--border-color) 2%);
+  box-shadow: 0 14px 38px rgba(15, 23, 42, 0.14), 0 4px 10px rgba(15, 23, 42, 0.08);
+}
+
+.windows-menu-group.open .windows-menu-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.windows-menu-panel button {
+  min-height: 28px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-color);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.windows-menu-panel button:hover {
+  background: color-mix(in srgb, var(--selection-bg) 34%, transparent 66%);
+}
+
+.windows-menu-panel hr {
+  width: 100%;
+  height: 1px;
+  margin: 5px 0;
+  border: none;
+  background: color-mix(in srgb, var(--border-color) 60%, transparent 40%);
+}
+
+.windows-window-controls {
+  display: flex;
+  flex-shrink: 0;
+}
+
+.window-control {
+  width: 46px;
+  height: 36px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.window-control:hover {
+  background: color-mix(in srgb, var(--text-muted) 12%, transparent 88%);
+  color: var(--text-color);
+}
+
+.window-control.close:hover {
+  background: #c42b1c;
+  color: #fff;
+}
+
+body.platform-win32 #sidebar-toggle,
+body.platform-win32 #settings-toggle,
+body.platform-win32 #outline-toggle {
+  top: 4px;
+}
+
+body.platform-win32 #sidebar-toggle {
+  left: 104px;
+}
+
+body.platform-win32 #settings-toggle {
+  left: 136px;
+}
+
+body.platform-win32 #outline-toggle {
+  left: 168px;
+}
+
+body.platform-win32 #agent-dot {
+  top: 14px;
+  right: 146px;
+}
+
 #sidebar-toggle {
   position: absolute;
   top: 12px;
@@ -722,15 +915,32 @@ html, body {
 }
 
 #outline-panel {
-  width: 246px;
-  min-width: 246px;
-  max-width: 246px;
+  --outline-panel-width: 246px;
+  width: 0;
+  min-width: 0;
+  max-width: 0;
   flex-shrink: 0;
-  border-left: 1px solid var(--border-color);
+  border-left: 1px solid transparent;
   background: color-mix(in srgb, var(--bg-color) 95%, var(--border-color) 5%);
+  padding: 16px 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(18px);
+  transition: width 0.18s ease, min-width 0.18s ease, max-width 0.18s ease, padding 0.18s ease, border-color 0.18s ease, opacity 0.18s ease, transform 0.18s ease;
+  -webkit-app-region: no-drag;
+}
+
+#app-shell.outline-open #outline-panel {
+  width: var(--outline-panel-width);
+  min-width: var(--outline-panel-width);
+  max-width: var(--outline-panel-width);
+  border-left-color: var(--border-color);
   padding: 16px 12px;
   overflow-y: auto;
-  -webkit-app-region: no-drag;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
 }
 
 .outline-panel-header {
@@ -791,7 +1001,20 @@ html, body {
     right: 0;
     bottom: 0;
     z-index: 16;
+    width: min(var(--outline-panel-width), calc(100vw - 44px));
+    min-width: min(var(--outline-panel-width), calc(100vw - 44px));
+    max-width: min(var(--outline-panel-width), calc(100vw - 44px));
+    border-left-color: var(--border-color);
+    padding: 16px 12px;
     box-shadow: -8px 0 24px rgba(15, 23, 42, 0.10);
+    transform: translateX(calc(100% + 16px));
+  }
+
+  #app-shell.outline-open #outline-panel {
+    width: min(var(--outline-panel-width), calc(100vw - 44px));
+    min-width: min(var(--outline-panel-width), calc(100vw - 44px));
+    max-width: min(var(--outline-panel-width), calc(100vw - 44px));
+    transform: translateX(0);
   }
 }
 

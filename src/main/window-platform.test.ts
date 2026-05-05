@@ -13,16 +13,31 @@ describe('createWindowOptions', () => {
     expect(options.trafficLightPosition).toEqual({ x: 14, y: 14 })
   })
 
-  it('uses native window chrome on Windows', () => {
+  it('uses custom window chrome on Windows', () => {
     const options = createWindowOptions({
       platform: 'win32',
       preloadPath: 'C:\\LyraMD\\dist\\preload\\index.js',
     })
 
+    expect(options.frame).toBe(false)
     expect(options.titleBarStyle).toBeUndefined()
     expect(options.trafficLightPosition).toBeUndefined()
     expect(options.webPreferences?.preload).toBe('C:\\LyraMD\\dist\\preload\\index.js')
     expect(options.webPreferences?.contextIsolation).toBe(true)
     expect(options.webPreferences?.nodeIntegration).toBe(false)
+  })
+
+  it('allows compact drawer windows without squeezing core controls', () => {
+    const options = createWindowOptions({
+      platform: 'darwin',
+      preloadPath: '/app/dist/preload/index.js',
+    })
+
+    expect(options.minWidth).toBe(360)
+    expect(options.minHeight).toBe(300)
+    expect(options.minWidth).toBeLessThan(960)
+    expect(options.minWidth).toBeGreaterThanOrEqual(280 + 44)
+    expect(options.minWidth).toBeGreaterThanOrEqual(168 + 32)
+    expect(options.minHeight).toBeGreaterThanOrEqual(52 + 42 + 120)
   })
 })

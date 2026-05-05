@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, rm, writeFile } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
 
-import { scanWorkdir, shouldRefreshWorkdirForWatchEvent } from './workdir'
+import { resolveNewWorkdirMarkdownPath, scanWorkdir, shouldRefreshWorkdirForWatchEvent } from './workdir'
 
 describe('scanWorkdir', () => {
   const tempDirs: string[] = []
@@ -40,6 +40,19 @@ describe('scanWorkdir', () => {
         relativePath: 'z-last.md',
       },
     ])
+  })
+})
+
+describe('resolveNewWorkdirMarkdownPath', () => {
+  it('creates untitled markdown files in the active workdir', () => {
+    expect(resolveNewWorkdirMarkdownPath('/workspace', () => false)).toBe(join('/workspace', 'untitled.md'))
+  })
+
+  it('adds a numeric suffix when the default filename exists', () => {
+    expect(resolveNewWorkdirMarkdownPath('/workspace', (candidate) => (
+      candidate === join('/workspace', 'untitled.md')
+        || candidate === join('/workspace', 'untitled-2.md')
+    ))).toBe(join('/workspace', 'untitled-3.md'))
   })
 })
 

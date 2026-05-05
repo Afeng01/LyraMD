@@ -272,6 +272,7 @@ function renderEmpty(element: Element, text: string): void {
 
 async function init(): Promise<void> {
   const api = window.electronAPI as TitleEditingAPI
+  document.body.classList.toggle('platform-win32', api.platform === 'win32')
   let appSettings = createDefaultSettings()
   let sidebarState: SidebarState | null = null
   let lastDocumentViewportKey: string | null = null
@@ -303,9 +304,19 @@ async function init(): Promise<void> {
   let pendingRemoveActionKey: string | null = null
   let pendingRemoveActionTimer: ReturnType<typeof setTimeout> | null = null
   const savedViewportOffsets = new Map<string, number>()
+  let viewportRestoreRequestId = 0
   let drawerOpenedByHover = false
   let drawerHoverOpenTimer: ReturnType<typeof setTimeout> | null = null
   let drawerHoverCloseTimer: ReturnType<typeof setTimeout> | null = null
+  const scheduleViewportRestore = (scrollTop: number): void => {
+    const requestId = ++viewportRestoreRequestId
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (requestId !== viewportRestoreRequestId || !editorShell) return
+        editorShell.scrollTop = scrollTop
+      })
+    })
+  }
   const setSidebarState = (state: SidebarState): void => {
     const nextViewportKey = getDocumentViewportKey(
       state.currentDocumentKind,
@@ -362,11 +373,7 @@ async function init(): Promise<void> {
     if (lastDocumentViewportKey === nextViewportKey) return
 
     const restoreOffset = nextViewportKey ? savedViewportOffsets.get(nextViewportKey) ?? 0 : 0
-    queueMicrotask(() => {
-      requestAnimationFrame(() => {
-        editorShell.scrollTop = restoreOffset
-      })
-    })
+    scheduleViewportRestore(restoreOffset)
     lastDocumentViewportKey = nextViewportKey
   }
   activeSidebarStateSetter = setSidebarState
@@ -393,6 +400,10 @@ async function init(): Promise<void> {
   const sidebarToggle = document.getElementById('sidebar-toggle') as HTMLButtonElement | null
   const settingsToggle = document.getElementById('settings-toggle') as HTMLButtonElement | null
   const outlineToggle = document.getElementById('outline-toggle') as HTMLButtonElement | null
+  const windowsMenu = document.getElementById('windows-menu') as HTMLElement | null
+  const windowMinimize = document.getElementById('window-minimize') as HTMLButtonElement | null
+  const windowMaximize = document.getElementById('window-maximize') as HTMLButtonElement | null
+  const windowClose = document.getElementById('window-close') as HTMLButtonElement | null
   const drawerBackdrop = document.getElementById('sidebar-drawer-backdrop') as HTMLDivElement | null
   const drawerEdgeTrigger = document.getElementById('drawer-edge-trigger') as HTMLDivElement | null
   const drawerShell = document.getElementById('sidebar-drawer-shell') as HTMLDivElement | null
@@ -441,6 +452,11 @@ async function init(): Promise<void> {
   const agentChangeList = document.getElementById('agent-change-list') as HTMLDivElement | null
   const agentChangeRestore = document.getElementById('agent-change-restore') as HTMLButtonElement | null
   const agentChangeDismiss = document.getElementById('agent-change-dismiss') as HTMLButtonElement | null
+
+  if (outlinePanel) {
+    outlinePanel.hidden = false
+    outlinePanel.setAttribute('aria-hidden', 'true')
+  }
 
   const updateEditorPlaceholder = (content: string): void => {
     if (!editorPlaceholder) return
@@ -821,9 +837,7 @@ async function init(): Promise<void> {
 
     if (!editorShell) return
     if (typeof nextScrollTop === 'number') {
-      requestAnimationFrame(() => {
-        editorShell.scrollTop = nextScrollTop
-      })
+      scheduleViewportRestore(nextScrollTop)
     }
 
     if (shouldRestoreFocus) {
@@ -837,6 +851,30 @@ async function init(): Promise<void> {
     void flushAutoSave().then(async () => {
       persistCurrentViewportOffset()
       const snapshot = await api.beginBlankDocument().catch(() => null)
+      if (snapshot) setSidebarState(snapshot)
+      resetLocalEchoState()
+      clearAgentChangePanel()
+      applyProgrammaticDocumentContent('', 0)
+      focusEditorAtLastSelection()
+    })
+  }
+
+  const beginLibraryDocumentFromSidebar = (): void => {
+    if (sidebarState?.activeSidebarTab !== 'workdir') {
+      beginBlankDocumentFromSidebar()
+      return
+    }
+
+    if (!sidebarState.workdirPath) {
+      api.chooseWorkdir().then((state) => {
+        if (state) setSidebarState(state)
+      }).catch(() => {})
+      return
+    }
+
+    void flushAutoSave().then(async () => {
+      persistCurrentViewportOffset()
+      const snapshot = await api.createWorkdirFile().catch(() => null)
       if (snapshot) setSidebarState(snapshot)
       resetLocalEchoState()
       clearAgentChangePanel()
@@ -1076,7 +1114,7 @@ async function init(): Promise<void> {
     appShell?.classList.toggle('outline-open', outlinePanelOpen)
     outlineToggle?.classList.toggle('active', outlinePanelOpen)
     if (outlinePanel) {
-      outlinePanel.hidden = !outlinePanelOpen
+      outlinePanel.hidden = false
       outlinePanel.setAttribute('aria-hidden', outlinePanelOpen ? 'false' : 'true')
     }
     if (outlinePanelOpen) renderOutlinePanel()
@@ -1429,6 +1467,11 @@ async function init(): Promise<void> {
     }
 
     const activeTab = sidebarState.activeSidebarTab
+    if (currentFileNew) {
+      const label = activeTab === 'workdir' ? '新建工作目录文稿' : '新建草稿'
+      currentFileNew.setAttribute('aria-label', label)
+      currentFileNew.title = label
+    }
     if (draftsTab) {
       draftsTab.classList.toggle('active', activeTab === 'drafts')
       draftsTab.setAttribute('aria-selected', activeTab === 'drafts' ? 'true' : 'false')
@@ -1464,33 +1507,33 @@ async function init(): Promise<void> {
     }
   }
 
-  sidebarState = await api.getSidebarState()
-  if (sidebarState) renderSidebar()
+  let zoomLevel = 0
 
-  api.onMenuOpen(async () => {
-    persistCurrentViewportOffset()
-    await flushAutoSave()
-    await api.openFile()
-  })
+  const applyZoom = (): void => {
+    const shell = document.getElementById('editor-shell')
+    if (shell) {
+      shell.style.setProperty('--editor-zoom', String(Math.pow(1.1, zoomLevel)))
+    }
+    schedulePlaceholderLayoutSync()
+  }
 
-  api.onMenuSave(() => {
+  const saveCurrentDocument = (): void => {
     void flushAutoSave().then(() => {
       const markdown = getMarkdown()
       recordRecentLocalEcho(markdown)
       api.saveFile(markdown).catch(() => {})
     })
-  })
-  api.onMenuSaveAs(() => {
+  }
+
+  const saveCurrentDocumentAs = (): void => {
     void flushAutoSave().then(() => {
       const markdown = getMarkdown()
       recordRecentLocalEcho(markdown)
       api.saveFileAs(markdown, appSettings.saveAsMode).catch(() => {})
     })
-  })
-  api.onMenuSearch(() => {
-    openSearchPanel()
-  })
-  api.onMenuCleanCjkTypography(() => {
+  }
+
+  const cleanCurrentCjkTypography = (): void => {
     void flushAutoSave().then(() => {
       const markdown = getMarkdown()
       const nextMarkdown = formatCjkTypography(markdown)
@@ -1498,13 +1541,9 @@ async function init(): Promise<void> {
       applyProgrammaticDocumentContent(nextMarkdown, editorShell?.scrollTop ?? 0)
       void saveImmediately(nextMarkdown)
     })
-  })
-  api.onMenuSettings?.(() => {
-    closeTitleSyncPrompt()
-    settingsDialog.toggle()
-  })
-  api.onMenuExportPDF(() => api.exportPDF())
-  api.onMenuExportHTML(() => {
+  }
+
+  const exportCurrentHTML = (): void => {
     const s = getComputedStyle(document.body)
     const v = (name: string) => s.getPropertyValue(name).trim()
     const bgColor = v('--bg-color')
@@ -1552,6 +1591,147 @@ img{max-width:100%}
 </style>
 </head><body>${getHTML()}</body></html>`
     api.exportHTML(html)
+  }
+
+  const applyThemeSelection = async (theme: string): Promise<void> => {
+    applyTheme(theme)
+    appSettings = (await api.updateSettings({ themeName: theme }).catch(() => null)) ?? {
+      ...appSettings,
+      themeName: theme,
+    }
+    settingsDialog.refresh()
+  }
+
+  const importCustomThemeSelection = async (): Promise<void> => {
+    const result = await api.loadCustomTheme()
+    if (!result) return
+    const themeName = `custom:${result.name}`
+    applyTheme(themeName, result.css)
+    appSettings = (await api.updateSettings({ themeName }).catch(() => null)) ?? {
+      ...appSettings,
+      themeName,
+    }
+    settingsDialog.refresh()
+  }
+
+  const closeWindowsMenus = (): void => {
+    windowsMenu?.querySelectorAll('.windows-menu-group.open').forEach((group) => {
+      group.classList.remove('open')
+    })
+  }
+
+  const execEditCommand = (command: string): void => {
+    document.execCommand(command)
+  }
+
+  const handleWindowsMenuAction = (action: string): void => {
+    closeWindowsMenus()
+
+    if (action.startsWith('theme-')) {
+      void applyThemeSelection(action.slice(6))
+      return
+    }
+
+    switch (action) {
+      case 'new':
+        beginLibraryDocumentFromSidebar()
+        break
+      case 'new-window':
+        api.createNewWindow().catch(() => {})
+        break
+      case 'open':
+        persistCurrentViewportOffset()
+        void flushAutoSave().then(() => api.openFile()).catch(() => {})
+        break
+      case 'save':
+        saveCurrentDocument()
+        break
+      case 'save-as':
+        saveCurrentDocumentAs()
+        break
+      case 'export-pdf':
+        api.exportPDF().catch(() => {})
+        break
+      case 'export-html':
+        exportCurrentHTML()
+        break
+      case 'undo':
+      case 'redo':
+      case 'cut':
+      case 'copy':
+      case 'paste':
+        execEditCommand(action)
+        break
+      case 'select-all':
+        execEditCommand('selectAll')
+        break
+      case 'find':
+        openSearchPanel()
+        break
+      case 'clean-cjk':
+        cleanCurrentCjkTypography()
+        break
+      case 'toggle-sidebar':
+        clearDrawerHoverTimers()
+        drawerOpenedByHover = false
+        api.toggleSidebar().catch(() => {})
+        break
+      case 'toggle-outline':
+        toggleOutlinePanel()
+        break
+      case 'zoom-in':
+        zoomLevel = Math.max(-5, Math.min(5, zoomLevel + 1))
+        applyZoom()
+        break
+      case 'zoom-out':
+        zoomLevel = Math.max(-5, Math.min(5, zoomLevel - 1))
+        applyZoom()
+        break
+      case 'zoom-reset':
+        zoomLevel = 0
+        applyZoom()
+        break
+      case 'settings':
+        closeTitleSyncPrompt()
+        settingsDialog.toggle()
+        break
+      case 'import-theme':
+        void importCustomThemeSelection()
+        break
+      case 'help':
+        api.openExternal('https://github.com/Afeng01/LyraMD')
+        break
+    }
+  }
+
+  sidebarState = await api.getSidebarState()
+  if (sidebarState) renderSidebar()
+
+  api.onMenuOpen(async () => {
+    persistCurrentViewportOffset()
+    await flushAutoSave()
+    await api.openFile()
+  })
+
+  api.onMenuSave(() => {
+    saveCurrentDocument()
+  })
+  api.onMenuSaveAs(() => {
+    saveCurrentDocumentAs()
+  })
+  api.onMenuSearch(() => {
+    openSearchPanel()
+  })
+  api.onMenuCleanCjkTypography(() => {
+    cleanCurrentCjkTypography()
+  })
+  api.onMenuSettings?.(() => {
+    closeTitleSyncPrompt()
+    settingsDialog.toggle()
+  })
+  api.onMenuExportPDF(() => api.exportPDF())
+  api.onMenuExportHTML(() => {
+    exportCurrentHTML()
   })
   api.onNewFile(() => {
     resetLocalEchoState()
@@ -1559,7 +1739,7 @@ img{max-width:100%}
     applyProgrammaticDocumentContent('', 0)
   })
   api.onNewFileInWindow(() => {
-    beginBlankDocumentFromSidebar()
+    beginLibraryDocumentFromSidebar()
   })
   api.onFileOpened((data) => {
     resetLocalEchoState()
@@ -1574,29 +1754,16 @@ img{max-width:100%}
     queuedAgentChangePayload = null
     processIncomingDocumentContent(content, currentScrollTop, { allowDefer: true, agentChangePayload })
   })
-  api.onSetTheme(async (theme) => {
-    applyTheme(theme)
-    appSettings = (await api.updateSettings({ themeName: theme }).catch(() => null)) ?? {
-      ...appSettings,
-      themeName: theme,
-    }
-    settingsDialog.refresh()
+  api.onSetTheme((theme) => {
+    void applyThemeSelection(theme)
   })
   api.onSetCustomCSS((css) => {
     const theme = appSettings.themeName || loadSavedTheme()
     applyTheme(theme, css)
   })
 
-  api.onMenuImportTheme(async () => {
-    const result = await api.loadCustomTheme()
-    if (!result) return
-    const themeName = `custom:${result.name}`
-    applyTheme(themeName, result.css)
-    appSettings = (await api.updateSettings({ themeName }).catch(() => null)) ?? {
-      ...appSettings,
-      themeName,
-    }
-    settingsDialog.refresh()
+  api.onMenuImportTheme(() => {
+    void importCustomThemeSelection()
   })
 
   const agentDot = document.getElementById('agent-dot')
@@ -1629,6 +1796,39 @@ img{max-width:100%}
 
   api.onMenuToggleOutline(() => {
     toggleOutlinePanel()
+  })
+
+  windowsMenu?.addEventListener('click', (event) => {
+    const target = event.target as HTMLElement | null
+    const actionButton = target?.closest('[data-windows-action]') as HTMLButtonElement | null
+    if (actionButton) {
+      event.preventDefault()
+      event.stopPropagation()
+      const action = actionButton.dataset.windowsAction
+      if (action) handleWindowsMenuAction(action)
+      return
+    }
+
+    const menuButton = target?.closest('[data-windows-menu]') as HTMLButtonElement | null
+    if (!menuButton) return
+    event.preventDefault()
+    event.stopPropagation()
+    const group = menuButton.closest('.windows-menu-group')
+    const wasOpen = group?.classList.contains('open') ?? false
+    closeWindowsMenus()
+    if (!wasOpen) group?.classList.add('open')
+  })
+
+  windowMinimize?.addEventListener('click', () => {
+    api.minimizeWindow().catch(() => {})
+  })
+
+  windowMaximize?.addEventListener('click', () => {
+    api.toggleMaximizeWindow().catch(() => {})
+  })
+
+  windowClose?.addEventListener('click', () => {
+    api.closeWindow().catch(() => {})
   })
 
   agentChangeToggle?.addEventListener('click', () => {
@@ -1677,16 +1877,6 @@ img{max-width:100%}
     scheduleDrawerHoverClose()
   })
 
-  let zoomLevel = 0
-
-  const applyZoom = (): void => {
-    const editorShell = document.getElementById('editor-shell')
-    if (editorShell) {
-      editorShell.style.setProperty('--editor-zoom', String(Math.pow(1.1, zoomLevel)))
-    }
-    schedulePlaceholderLayoutSync()
-  }
-
   api.onZoomChange((data) => {
     if (data.level !== undefined) {
       zoomLevel = data.level
@@ -1701,7 +1891,7 @@ img{max-width:100%}
   })
 
   currentFileNew?.addEventListener('click', () => {
-    beginBlankDocumentFromSidebar()
+    beginLibraryDocumentFromSidebar()
   })
 
   currentFile?.addEventListener('dblclick', (event) => {
@@ -1932,6 +2122,7 @@ img{max-width:100%}
 
   document.addEventListener('click', (event) => {
     const target = event.target as HTMLElement | null
+    if (!target?.closest('#windows-menu')) closeWindowsMenus()
     const pinDraftButton = target?.closest('[data-pin-draft-id]') as HTMLElement | null
     if (pinDraftButton) {
       event.preventDefault()

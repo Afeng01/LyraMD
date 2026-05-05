@@ -63,7 +63,7 @@ Code signing and notarization are different. Signing identifies who produced an 
 
 ## Install on Windows
 
-Windows support is currently a preview path. The v1.2.0 release includes a test Windows installer, but it still needs real-device smoke testing before it should be treated as a stable Windows release.
+Windows support is currently a preview path. The v1.2.1 release includes a test Windows installer, but it still needs real-device smoke testing before it should be treated as a stable Windows release.
 
 Download `LyraMD-Setup-*-x64.exe` from [Releases](https://github.com/Afeng01/LyraMD/releases), run the installer, and follow the NSIS setup flow. Please verify launch, opening `.md` files, save / save as, and external file refresh on Windows before relying on it for regular work.
 

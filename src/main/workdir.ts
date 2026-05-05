@@ -21,6 +21,21 @@ export function shouldRefreshWorkdirForWatchEvent(fileName?: string | Buffer | n
   return hasMarkdownExtension(normalizedName)
 }
 
+export function resolveNewWorkdirMarkdownPath(
+  rootPath: string,
+  exists: (candidatePath: string) => boolean,
+): string {
+  let suffix = 1
+  let candidatePath = join(rootPath, 'untitled.md')
+
+  while (exists(candidatePath)) {
+    suffix += 1
+    candidatePath = join(rootPath, `untitled-${suffix}.md`)
+  }
+
+  return candidatePath
+}
+
 export async function scanWorkdir(rootPath: string): Promise<WorkdirEntry[]> {
   const entries: WorkdirEntry[] = []
 

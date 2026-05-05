@@ -38,6 +38,7 @@ import { moveFileToTrashAndVerify } from './file-removal'
 import { summarizeAgentChange } from './agent-change-summary'
 import { createWindowOptions } from './window-platform'
 import { decideSecondInstanceAction, extractMarkdownLaunchPaths } from './windows-launch'
+import { resolveZoomShortcut } from './zoom-shortcuts'
 import {
   addWorkspacePath,
   canTogglePinnedFile,
@@ -591,7 +592,28 @@ function createWindow(initialDocument?: { filePath: string; documentKind?: Exclu
     win.loadFile(join(__dirname, '../renderer/index.html'))
   }
 
+  win.webContents.setZoomLevel(0)
+  win.webContents.on('before-input-event', (event, input) => {
+    const action = resolveZoomShortcut({
+      control: input.control,
+      key: input.key,
+      meta: input.meta,
+      shift: input.shift,
+    })
+    if (action.kind === 'none') return
+
+    event.preventDefault()
+    win.webContents.setZoomLevel(0)
+    if (action.kind === 'zoom-reset') {
+      win.webContents.send('menu-zoom', { level: 0 })
+      return
+    }
+
+    win.webContents.send('menu-zoom', { delta: action.kind === 'zoom-in' ? 1 : -1 })
+  })
+
   win.webContents.on('did-finish-load', () => {
+    win.webContents.setZoomLevel(0)
     sendSidebarState(win)
     if (initialDocument) {
       loadFileInWindow(win, initialDocument.filePath, {

@@ -2,9 +2,13 @@
 
 **Lyra's agent-native Markdown editor.**
 
-LyraMD is a personal fork of [ColaMD](https://github.com/marswaveai/ColaMD), adapted for a quieter workflow around AI agents, Markdown files, recent documents, and a lightweight working directory sidebar.
+Real-time collaboration between humans and AI agents, adapted for a quieter workflow around Markdown files, recent documents, and a lightweight working directory sidebar.
 
-[中文](README_CN.md)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![GitHub release](https://img.shields.io/github/v/release/Afeng01/LyraMD?label=release)](https://github.com/Afeng01/LyraMD/releases)
+[![Windows preview](https://img.shields.io/badge/Windows-preview-blue)](https://github.com/Afeng01/LyraMD/releases)
+
+[Download](#download) | [Why LyraMD](#why-this-fork) | [Features](#features) | [Development](#development) | [中文](README_CN.md)
 
 ![LyraMD screenshot](docs/assets/lyramd-screenshot.png)
 
@@ -32,6 +36,15 @@ ColaMD focuses on an extremely minimal single-file editor. LyraMD keeps that age
 npm install
 npm run dev
 ```
+
+## Download
+
+Download the latest builds from [Releases](https://github.com/Afeng01/LyraMD/releases).
+
+| Platform | Format | Status |
+| --- | --- | --- |
+| macOS | `.dmg` / `.zip` | Stable target |
+| Windows | `.exe` | Preview / needs real-device smoke testing |
 
 ## Install on macOS
 

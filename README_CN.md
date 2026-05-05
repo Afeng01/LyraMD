@@ -2,9 +2,13 @@
 
 **Lyra 的 Agent Native Markdown 编辑器。**
 
-LyraMD 基于 [ColaMD](https://github.com/marswaveai/ColaMD) 修改，是一个面向个人 AI 协作工作流的 Markdown 编辑器。它保留 ColaMD 的实时文件刷新和所见即所得编辑能力，同时加入轻量侧边栏、最近文件和固定工作目录。
+面向人类和 AI agent 的实时 Markdown 协作，保留文件热更新核心，同时加入轻量侧边栏、最近文件和固定工作目录。
 
-[English](README.md)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![GitHub release](https://img.shields.io/github/v/release/Afeng01/LyraMD?label=release)](https://github.com/Afeng01/LyraMD/releases)
+[![Windows preview](https://img.shields.io/badge/Windows-preview-blue)](https://github.com/Afeng01/LyraMD/releases)
+
+[下载](#下载) | [为什么 fork](#为什么-fork) | [功能](#功能) | [开发](#开发) | [English](README.md)
 
 ![LyraMD 截图](docs/assets/lyramd-screenshot.png)
 
@@ -32,6 +36,15 @@ ColaMD 的核心是极简的 Agent Native Markdown 编辑器。LyraMD 在这个�
 npm install
 npm run dev
 ```
+
+## 下载
+
+从 [Releases](https://github.com/Afeng01/LyraMD/releases) 下载最新构建。
+
+| 平台 | 格式 | 状态 |
+| --- | --- | --- |
+| macOS | `.dmg` / `.zip` | 稳定发布目标 |
+| Windows | `.exe` | Preview / 需要真实设备 smoke test |
 
 ## macOS 安装与打开
 

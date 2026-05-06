@@ -16,7 +16,7 @@
 
 - **文件实时刷新**：AI agent 修改当前 Markdown 文件时，LyraMD 自动刷新内容。
 - **Agent 变更摘要**：外部修改到达时显示新增、删除、改写行数和简短预览，连续更新会合并，并可一键撤回。
-- **Codex MCP 集成**：设置页可检测 Codex CLI，并安装 `colamd` MCP server，让 Codex 读取和写入当前文档。
+- **Codex MCP 集成**：设置页可检测 Codex CLI，并安装 LyraMD MCP bridge，让 Codex 读取和写入当前文档。
 - **所见即所得 Markdown 编辑**：基于 Milkdown。
 - **Markdown 大纲、图片与标签**：大纲识别 H1-H6 标题，渲染本地与相对路径图片，并识别 YAML tags、Obsidian `#tag` / `#nested/tag` 与 `[[wikilink]]`。
 - **轻量侧边栏**：工作区与置顶区域固定，草稿 / 最近 / 工作目录列表独立滚动。
@@ -26,7 +26,7 @@
 
 ## 为什么 fork
 
-ColaMD 的核心是极简的 Agent Native Markdown 编辑器。LyraMD 在这个基础上补了一点个人工作台能力：
+LyraMD 保留原始的 Agent Native 单文件编辑核心，并在这个基础上补了一点个人工作台能力：
 
 - 在同一个窗口里切换一组 Markdown 文件
 - 固定长期工作目录

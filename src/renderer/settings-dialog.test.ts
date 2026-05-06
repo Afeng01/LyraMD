@@ -69,7 +69,7 @@ describe('settings dialog regression', () => {
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
 
     expect(html).toContain('settings-integration-help')
-    expect(html).toContain('在 Codex 里请求它使用 colamd 读取或写入当前文档')
+    expect(html).toContain('在 Codex 里请求它使用 LyraMD MCP 读取或写入当前文档')
     expect(css).toContain('-webkit-app-region: drag')
     expect(css).toContain('text-overflow: ellipsis')
     expect(css).toContain('white-space: nowrap')

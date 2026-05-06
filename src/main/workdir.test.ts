@@ -13,7 +13,7 @@ describe('scanWorkdir', () => {
   })
 
   it('recursively finds markdown files and sorts them by relative path', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'colamd-workdir-'))
+    const root = await mkdtemp(join(tmpdir(), 'lyramd-workdir-'))
     tempDirs.push(root)
 
     await mkdir(join(root, 'daily'), { recursive: true })

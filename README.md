@@ -16,7 +16,7 @@ Real-time collaboration between humans and AI agents, adapted for a quieter work
 
 - **Live file refresh**: when an AI agent edits the current Markdown file, LyraMD reloads it automatically.
 - **Agent change summary** for external edits, with compact preview, burst coalescing, and one-click rollback.
-- **Codex MCP integration** from Settings, installing a `colamd` MCP server so Codex can read and write the current document.
+- **Codex MCP integration** from Settings, installing the LyraMD MCP bridge so Codex can read and write the current document.
 - **WYSIWYG Markdown editing** powered by Milkdown.
 - **Markdown outline, images, and tokens** for H1-H6 headings, local/relative images, YAML tags, Obsidian `#tag` / nested tags, and `[[wikilink]]`.
 - **Lightweight sidebar** with fixed workspace/pinned areas and a scrolling draft/recent/workdir list.
@@ -26,7 +26,7 @@ Real-time collaboration between humans and AI agents, adapted for a quieter work
 
 ## Why This Fork
 
-ColaMD focuses on an extremely minimal single-file editor. LyraMD keeps that agent-native core, but adds just enough navigation for a personal writing/workbench flow:
+LyraMD keeps the original agent-native single-file editing core, but adds just enough navigation for a personal writing/workbench flow:
 
 - switch among a small set of Markdown files in one window
 - keep a long-running work directory pinned

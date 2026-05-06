@@ -13,6 +13,7 @@ import {
   resolveRemoveActionPlan,
   resolveSidebarInlineTitleCommitAction,
   resolveVisibleTabItems,
+  resolveVisibleWorkdirTreeRows,
   resolveWorkspaceLabel,
   shouldScrollWorkspaces,
 } from './sidebar-view'
@@ -262,6 +263,63 @@ describe('tab view helpers', () => {
         pinned: false,
         source: 'workdir',
       },
+    ])
+  })
+})
+
+describe('workdir tree helpers', () => {
+  it('flattens tree rows with active files and collapsed folders', () => {
+    const state = createSidebarState({
+      currentFilePath: '/workspace/notes/nested/c.md',
+      workdirTree: [
+        {
+          absolutePath: '/workspace/a.md',
+          kind: 'file',
+          name: 'a.md',
+          relativePath: 'a.md',
+        },
+        {
+          absolutePath: '/workspace/notes',
+          children: [
+            {
+              absolutePath: '/workspace/notes/b.md',
+              kind: 'file',
+              name: 'b.md',
+              relativePath: 'notes/b.md',
+            },
+            {
+              absolutePath: '/workspace/notes/nested',
+              children: [
+                {
+                  absolutePath: '/workspace/notes/nested/c.md',
+                  kind: 'file',
+                  name: 'c.md',
+                  relativePath: 'notes/nested/c.md',
+                },
+              ],
+              kind: 'directory',
+              name: 'nested',
+              relativePath: 'notes/nested',
+            },
+          ],
+          kind: 'directory',
+          name: 'notes',
+          relativePath: 'notes',
+        },
+      ],
+    })
+
+    expect(resolveVisibleWorkdirTreeRows(state, new Set(['/workspace/notes/nested']))).toMatchObject([
+      { kind: 'file', filePath: '/workspace/a.md', depth: 0, active: false },
+      { kind: 'directory', absolutePath: '/workspace/notes', depth: 0, expanded: true },
+      { kind: 'file', filePath: '/workspace/notes/b.md', depth: 1, active: false },
+      { kind: 'directory', absolutePath: '/workspace/notes/nested', depth: 1, expanded: true },
+      { kind: 'file', filePath: '/workspace/notes/nested/c.md', depth: 2, active: true },
+    ])
+
+    expect(resolveVisibleWorkdirTreeRows(state, new Set(), new Set(['/workspace/notes']))).toMatchObject([
+      { kind: 'file', filePath: '/workspace/a.md', depth: 0 },
+      { kind: 'directory', absolutePath: '/workspace/notes', depth: 0, expanded: false },
     ])
   })
 })

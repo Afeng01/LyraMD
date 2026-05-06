@@ -851,6 +851,11 @@ body.platform-win32 #agent-dot {
   min-width: 0;
 }
 
+.sidebar-item-row.tree-row,
+.sidebar-item-row.tree-folder-row {
+  padding-left: calc(var(--tree-depth, 0) * 14px);
+}
+
 .sidebar-item-row .sidebar-list-item {
   padding-right: 42px;
 }
@@ -964,6 +969,38 @@ body.platform-win32 #agent-dot {
 
 .workdir-item .sidebar-title {
   font-weight: 500;
+}
+
+.workdir-folder-item {
+  width: 100%;
+  min-height: 31px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+}
+
+.workdir-folder-item svg {
+  flex-shrink: 0;
+  width: 13px;
+  height: 13px;
+}
+
+.workdir-folder-item:hover {
+  background: color-mix(in srgb, var(--selection-bg) 24%, transparent 76%);
+  color: var(--text-color);
+}
+
+.workdir-folder-placeholder {
+  margin-bottom: 4px;
 }
 
 .sidebar-empty {

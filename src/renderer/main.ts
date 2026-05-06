@@ -53,9 +53,11 @@ import {
   resolveRemoveControl,
   resolveSidebarInlineTitleCommitAction,
   resolveVisibleTabItems,
+  resolveVisibleWorkdirTreeRows,
   resolveWorkspaceLabel,
   shouldScrollWorkspaces,
   type SidebarItem,
+  type WorkdirTreeRow,
 } from './sidebar-view'
 import { applyTheme, loadSavedTheme } from './themes/theme-manager'
 import type { AgentChangePayload, AgentChangePreviewLine, AgentChangeSummary, AppSettings, BackgroundSettings, McpDocumentRequest, ShortcutAction, SidebarState, SidebarTab } from '../preload/index'
@@ -336,6 +338,8 @@ async function init(): Promise<void> {
     | null = null
   let pendingRemoveActionKey: string | null = null
   let pendingRemoveActionTimer: ReturnType<typeof setTimeout> | null = null
+  const expandedWorkdirFolders = new Set<string>()
+  const collapsedWorkdirFolders = new Set<string>()
   const savedViewportOffsets = new Map<string, number>()
   let viewportRestoreRequestId = 0
   let drawerOpenedByHover = false
@@ -1562,10 +1566,14 @@ async function init(): Promise<void> {
   const appendWorkbenchRow = (
     container: Element,
     item: SidebarItem,
-    options: { allowInlineEdit: boolean; showRemove: boolean },
+    options: { allowInlineEdit: boolean; depth?: number; showRemove: boolean },
   ): void => {
     const row = document.createElement('div')
     row.className = 'sidebar-item-row'
+    if (options.depth && options.depth > 0) {
+      row.classList.add('tree-row')
+      row.style.setProperty('--tree-depth', String(options.depth))
+    }
     row.appendChild(createWorkbenchItem(item, options.allowInlineEdit))
 
     const actions = document.createElement('div')
@@ -1582,6 +1590,46 @@ async function init(): Promise<void> {
 
     row.appendChild(actions)
     container.appendChild(row)
+  }
+
+  const createWorkdirFolderRow = (row: Extract<WorkdirTreeRow, { kind: 'directory' }>): HTMLElement => {
+    const wrapper = document.createElement('div')
+    wrapper.className = 'sidebar-item-row tree-folder-row'
+    if (row.depth > 0) {
+      wrapper.style.setProperty('--tree-depth', String(row.depth))
+    }
+
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = 'sidebar-item workdir-folder-item'
+    button.dataset.workdirFolderPath = row.absolutePath
+    button.dataset.workdirFolderExpanded = row.expanded ? 'true' : 'false'
+    button.setAttribute('aria-expanded', row.expanded ? 'true' : 'false')
+    button.title = row.relativePath
+    button.appendChild(createIconSvg(row.expanded
+      ? ['M5 7.2 9 11.2 13 7.2']
+      : ['M7.2 5 11.2 9 7.2 13']))
+    button.appendChild(createTextBlock('sidebar-title', row.name))
+
+    wrapper.appendChild(button)
+    return wrapper
+  }
+
+  const appendWorkdirTreeRows = (container: Element): void => {
+    if (!sidebarState) return
+    const rows = resolveVisibleWorkdirTreeRows(sidebarState, expandedWorkdirFolders, collapsedWorkdirFolders)
+
+    for (const row of rows) {
+      if (row.kind === 'directory') {
+        container.appendChild(createWorkdirFolderRow(row))
+        continue
+      }
+      appendWorkbenchRow(container, row, {
+        allowInlineEdit: true,
+        depth: row.depth,
+        showRemove: true,
+      })
+    }
   }
 
   const renderSidebar = (): void => {
@@ -1667,7 +1715,8 @@ async function init(): Promise<void> {
 
     clearElement(libraryList)
     const tabItems = resolveVisibleTabItems(sidebarState, activeTab)
-    if (tabItems.length === 0) {
+    const hasWorkdirTree = activeTab === 'workdir' && sidebarState.workdirPath && sidebarState.workdirTree.length > 0
+    if (tabItems.length === 0 && !hasWorkdirTree) {
       libraryList.appendChild(createTextBlock(
         'sidebar-empty',
         activeTab === 'drafts'
@@ -1676,6 +1725,18 @@ async function init(): Promise<void> {
             ? (sidebarState.workdirPath ? '这个工作目录里没有 Markdown 文件' : '先选择一个工作区')
             : '还没有最近文件',
       ))
+      return
+    }
+
+    if (hasWorkdirTree) {
+      const folderPlaceholder = document.createElement('button')
+      folderPlaceholder.type = 'button'
+      folderPlaceholder.className = 'sidebar-empty-action workdir-folder-placeholder'
+      folderPlaceholder.disabled = true
+      folderPlaceholder.textContent = '新建文件夹'
+      folderPlaceholder.title = '文件夹创建会在下一步接入'
+      libraryList.appendChild(folderPlaceholder)
+      appendWorkdirTreeRows(libraryList)
       return
     }
 
@@ -2395,6 +2456,23 @@ img{max-width:100%}
     if (pendingRemoveActionKey) {
       clearPendingRemoveConfirmation()
       renderSidebar()
+    }
+
+    const workdirFolderButton = target?.closest('[data-workdir-folder-path]') as HTMLElement | null
+    if (workdirFolderButton) {
+      event.preventDefault()
+      const folderPath = workdirFolderButton.dataset.workdirFolderPath
+      if (!folderPath) return
+      const isExpanded = workdirFolderButton.dataset.workdirFolderExpanded === 'true'
+      if (isExpanded) {
+        expandedWorkdirFolders.delete(folderPath)
+        collapsedWorkdirFolders.add(folderPath)
+      } else {
+        collapsedWorkdirFolders.delete(folderPath)
+        expandedWorkdirFolders.add(folderPath)
+      }
+      renderSidebar()
+      return
     }
 
     if (searchPanelOpen && searchPanel && !target?.closest('#search-panel')) {

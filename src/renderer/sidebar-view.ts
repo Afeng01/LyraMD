@@ -1,4 +1,4 @@
-import type { SidebarState, SidebarTab } from '../preload/index'
+import type { SidebarState, SidebarTab, WorkdirTreeNode } from '../preload/index'
 
 export interface DraftSidebarItem {
   kind: 'draft'
@@ -18,6 +18,20 @@ export interface FileSidebarItem {
 }
 
 export type SidebarItem = DraftSidebarItem | FileSidebarItem
+
+export type WorkdirTreeRow =
+  | {
+    kind: 'directory'
+    absolutePath: string
+    depth: number
+    expanded: boolean
+    name: string
+    relativePath: string
+  }
+  | (FileSidebarItem & {
+    depth: number
+    relativePath: string
+  })
 
 export interface PinControl {
   title: string
@@ -133,6 +147,47 @@ export function resolveVisibleTabItems(state: SidebarState, tab: SidebarTab = st
   }
 
   return state.draftEntries.map((draft) => createDraftItem(state, draft.id, draft.displayTitle))
+}
+
+export function resolveVisibleWorkdirTreeRows(
+  state: SidebarState,
+  expandedFolderPaths: ReadonlySet<string> = new Set(),
+  collapsedFolderPaths: ReadonlySet<string> = new Set(),
+): WorkdirTreeRow[] {
+  const rows: WorkdirTreeRow[] = []
+
+  function isExpanded(node: WorkdirTreeNode, depth: number): boolean {
+    if (collapsedFolderPaths.has(node.absolutePath)) return false
+    if (expandedFolderPaths.has(node.absolutePath)) return true
+    return depth === 0
+  }
+
+  function walk(nodes: WorkdirTreeNode[], depth: number): void {
+    for (const node of nodes) {
+      if (node.kind === 'directory') {
+        const expanded = isExpanded(node, depth)
+        rows.push({
+          kind: 'directory',
+          absolutePath: node.absolutePath,
+          depth,
+          expanded,
+          name: node.name,
+          relativePath: node.relativePath,
+        })
+        if (expanded) walk(node.children ?? [], depth + 1)
+        continue
+      }
+
+      rows.push({
+        ...createFileItem(state, node.absolutePath, 'workdir'),
+        depth,
+        relativePath: node.relativePath,
+      })
+    }
+  }
+
+  walk(state.workdirTree, 0)
+  return rows
 }
 
 function createDraftItem(state: SidebarState, draftId: string, title: string): DraftSidebarItem {

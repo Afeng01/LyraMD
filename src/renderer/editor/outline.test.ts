@@ -17,10 +17,13 @@ describe('normalizeHeadingText', () => {
 })
 
 describe('shouldIncludeHeadingLevel', () => {
-  it('includes only H1 and H2 for this release', () => {
-    expect(shouldIncludeHeadingLevel(1)).toBe(true)
-    expect(shouldIncludeHeadingLevel(2)).toBe(true)
-    expect(shouldIncludeHeadingLevel(3)).toBe(false)
+  it('includes all Markdown heading levels', () => {
+    for (const level of [1, 2, 3, 4, 5, 6]) {
+      expect(shouldIncludeHeadingLevel(level)).toBe(true)
+    }
+
+    expect(shouldIncludeHeadingLevel(0)).toBe(false)
+    expect(shouldIncludeHeadingLevel(7)).toBe(false)
   })
 })
 

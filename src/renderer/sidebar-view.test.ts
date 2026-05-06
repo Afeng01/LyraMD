@@ -57,6 +57,15 @@ describe('workspace view helpers', () => {
     expect(shouldScrollWorkspaces(['/a', '/b', '/c'])).toBe(false)
     expect(shouldScrollWorkspaces(['/a', '/b', '/c', '/d'])).toBe(true)
   })
+
+  it('keeps the fixed sidebar regions separate from the scrolling library list', () => {
+    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+
+    expect(html).toContain('<div id="library-scroll-region">')
+    expect(css).toMatch(/#sidebar\s*\{[\s\S]*overflow:\s*hidden/)
+    expect(css).toMatch(/#library-scroll-region\s*\{[\s\S]*overflow-y:\s*auto/)
+  })
 })
 
 describe('pinned view helpers', () => {
@@ -164,6 +173,13 @@ describe('pinned view helpers', () => {
         source: 'pinned',
       },
     ])
+  })
+
+  it('caps pinned rows at five before scrolling', () => {
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+
+    expect(css).toMatch(/#pinned-list\s*\{[\s\S]*max-height:\s*calc\(\(34px \+ 4px\) \* 5 - 4px\)/)
+    expect(css).toMatch(/#pinned-list\s*\{[\s\S]*overflow-y:\s*auto/)
   })
 })
 

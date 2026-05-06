@@ -11,6 +11,7 @@ import {
   nextSearchMatch,
   onUserEdit,
   previousSearchMatch,
+  refreshMarkdownImageSources,
   scrollToOutlineItem,
   setMarkdown,
   setSearchQuery,
@@ -56,7 +57,7 @@ import {
   type SidebarItem,
 } from './sidebar-view'
 import { applyTheme, loadSavedTheme } from './themes/theme-manager'
-import type { AgentChangePayload, AgentChangePreviewLine, AgentChangeSummary, AppSettings, ShortcutAction, SidebarState, SidebarTab } from '../preload/index'
+import type { AgentChangePayload, AgentChangePreviewLine, AgentChangeSummary, AppSettings, McpDocumentRequest, ShortcutAction, SidebarState, SidebarTab } from '../preload/index'
 import './themes/base.css'
 
 type TitleEditingAPI = typeof window.electronAPI & {
@@ -279,6 +280,7 @@ async function init(): Promise<void> {
   let pendingBlankMaterialization = false
   let titleEditActive = false
   let titleEditValue = ''
+  let mcpRevision = `rev-${Date.now()}-${Math.random().toString(16).slice(2)}`
   let titleSyncPromptState:
     | {
         currentTitle: string
@@ -308,6 +310,10 @@ async function init(): Promise<void> {
   let drawerOpenedByHover = false
   let drawerHoverOpenTimer: ReturnType<typeof setTimeout> | null = null
   let drawerHoverCloseTimer: ReturnType<typeof setTimeout> | null = null
+  const bumpMcpRevision = (): string => {
+    mcpRevision = `rev-${Date.now()}-${Math.random().toString(16).slice(2)}`
+    return mcpRevision
+  }
   const scheduleViewportRestore = (scrollTop: number): void => {
     const requestId = ++viewportRestoreRequestId
     requestAnimationFrame(() => {
@@ -324,6 +330,9 @@ async function init(): Promise<void> {
       state.currentDraftId,
     )
     sidebarState = state
+    if (lastDocumentViewportKey !== nextViewportKey) {
+      bumpMcpRevision()
+    }
     titleEditValue = state.currentDisplayTitle
     if (sidebarInlineTitleEdit) {
       if (sidebarInlineTitleEdit.kind === 'draft') {
@@ -463,6 +472,20 @@ async function init(): Promise<void> {
     editorPlaceholder.hidden = !shouldShowEmptyEditorPlaceholder(content)
   }
 
+  const getCurrentDocumentPathForAssets = (): string | null => {
+    if (!sidebarState) return null
+    if (sidebarState.currentDocumentKind === 'file') return sidebarState.currentFilePath
+    if (sidebarState.currentDocumentKind !== 'draft' || !sidebarState.currentDraftId) return null
+
+    return sidebarState.draftEntries.find((entry) => entry.id === sidebarState.currentDraftId)?.path ?? null
+  }
+
+  const refreshRenderedMedia = (): void => {
+    requestAnimationFrame(() => {
+      refreshMarkdownImageSources(getCurrentDocumentPathForAssets())
+    })
+  }
+
   const syncEditorPlaceholderLayout = (): void => {
     if (!editorPlaceholder || !editorStage) return
 
@@ -502,9 +525,11 @@ async function init(): Promise<void> {
 
   await createEditor('editor', (markdown) => {
     updateEditorPlaceholder(markdown)
+    refreshRenderedMedia()
     schedulePlaceholderLayoutSync()
   })
   updateEditorPlaceholder(getMarkdown())
+  refreshRenderedMedia()
   schedulePlaceholderLayoutSync()
   const settingsDialog = createSettingsDialogController({
     api,
@@ -827,9 +852,12 @@ async function init(): Promise<void> {
   }
 
   const applyProgrammaticDocumentContent = (content: string, nextScrollTop?: number): void => {
+    const previousContent = getMarkdown()
     const shouldRestoreFocus = isEditorTextFocused()
     pendingBlankMaterialization = false
     setMarkdown(content)
+    if (previousContent !== content) bumpMcpRevision()
+    refreshRenderedMedia()
     updateEditorPlaceholder(content)
     schedulePlaceholderLayoutSync()
     refreshSearchPanel()
@@ -846,6 +874,72 @@ async function init(): Promise<void> {
       })
     }
   }
+
+  const getMcpDocumentState = (): Record<string, unknown> => ({
+    content: getMarkdown(),
+    dirty: false,
+    draftId: sidebarState?.currentDraftId ?? null,
+    filePath: getCurrentDocumentPathForAssets(),
+    kind: sidebarState?.currentDocumentKind ?? 'blank',
+    revision: mcpRevision,
+    title: sidebarState?.currentDisplayTitle ?? '',
+  })
+
+  const respondToMcpRequest = (id: string, success: boolean, data?: unknown, error?: string): void => {
+    api.sendMcpDocumentResponse?.({
+      id,
+      success,
+      data,
+      error,
+    })
+  }
+
+  api.onMcpDocumentRequest?.((request: McpDocumentRequest) => {
+    void (async () => {
+      try {
+        if (request.type === 'lyramd.session.get_state') {
+          respondToMcpRequest(request.id, true, {
+            app: 'LyraMD',
+            document: getMcpDocumentState(),
+          })
+          return
+        }
+
+        if (request.type === 'lyramd.document.read') {
+          await flushAutoSave()
+          respondToMcpRequest(request.id, true, getMcpDocumentState())
+          return
+        }
+
+        if (request.type === 'lyramd.document.write') {
+          const content = request.args?.content
+          if (typeof content !== 'string') {
+            respondToMcpRequest(request.id, false, undefined, 'content must be a string')
+            return
+          }
+
+          const expectedRevision = request.args?.expected_revision
+          if (typeof expectedRevision === 'string' && expectedRevision !== mcpRevision) {
+            respondToMcpRequest(request.id, false, {
+              current_revision: mcpRevision,
+            }, 'STALE: document changed since the last read')
+            return
+          }
+
+          applyProgrammaticDocumentContent(content, editorShell?.scrollTop ?? 0)
+          await saveImmediately(content)
+          respondToMcpRequest(request.id, true, {
+            revision: mcpRevision,
+          })
+          return
+        }
+
+        respondToMcpRequest(request.id, false, undefined, `Unknown MCP request: ${request.type}`)
+      } catch (error) {
+        respondToMcpRequest(request.id, false, undefined, error instanceof Error ? error.message : String(error))
+      }
+    })()
+  })
 
   const beginBlankDocumentFromSidebar = (): void => {
     void flushAutoSave().then(async () => {
@@ -889,8 +983,10 @@ async function init(): Promise<void> {
   }
 
   onUserEdit(() => {
+    bumpMcpRevision()
     const markdown = getMarkdown()
     updateEditorPlaceholder(markdown)
+    refreshRenderedMedia()
     if (outlinePanelOpen) renderOutlinePanel()
 
     const decision = decideAutosaveBehavior(
@@ -1091,7 +1187,7 @@ async function init(): Promise<void> {
 
     const items = getOutlineItems()
     if (items.length === 0) {
-      outlineList.appendChild(createTextBlock('outline-empty', '当前文档没有一级或二级标题'))
+      outlineList.appendChild(createTextBlock('outline-empty', '当前文档没有标题'))
       return
     }
 

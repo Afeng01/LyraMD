@@ -38,6 +38,7 @@ describe('settings dialog regression', () => {
       settings: 'CmdOrCtrl+,',
       search: 'CmdOrCtrl+F',
       toggleSidebar: 'CmdOrCtrl+\\',
+      toggleOutline: 'CmdOrCtrl+Shift+O',
       cleanCjkTypography: 'CmdOrCtrl+Shift+F',
     }
 
@@ -51,5 +52,26 @@ describe('settings dialog regression', () => {
 
     expect(html).toContain('id="settings-shortcut-conflict"')
     expect(file).toContain('showShortcutConflict')
+  })
+
+  it('renders Codex MCP as a standalone integrations pane', () => {
+    const file = readFileSync(join(process.cwd(), 'src/renderer/settings-dialog.ts'), 'utf8')
+    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
+
+    expect(html).toContain('data-settings-pane="integrations"')
+    expect(html).toContain('data-settings-panel="integrations"')
+    expect(html).toContain('Codex MCP')
+    expect(file).toContain("activePane === 'integrations'")
+  })
+
+  it('renders Codex MCP usage help and keeps integration controls compact', () => {
+    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+
+    expect(html).toContain('settings-integration-help')
+    expect(html).toContain('在 Codex 里请求它使用 colamd 读取或写入当前文档')
+    expect(css).toContain('-webkit-app-region: drag')
+    expect(css).toContain('text-overflow: ellipsis')
+    expect(css).toContain('white-space: nowrap')
   })
 })

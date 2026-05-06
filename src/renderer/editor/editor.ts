@@ -1,7 +1,8 @@
 import { Editor, rootCtx, defaultValueCtx, editorViewCtx, serializerCtx, remarkPluginsCtx } from '@milkdown/kit/core'
 import { editorViewOptionsCtx, prosePluginsCtx } from '@milkdown/core'
 import { DOMSerializer, type Node as ProseNode } from '@milkdown/kit/prose/model'
-import { TextSelection } from '@milkdown/kit/prose/state'
+import { Plugin, TextSelection } from '@milkdown/kit/prose/state'
+import { Decoration, DecorationSet } from '@milkdown/kit/prose/view'
 import remarkBreaks from 'remark-breaks'
 import { commonmark } from '@milkdown/kit/preset/commonmark'
 import { gfm } from '@milkdown/kit/preset/gfm'
@@ -36,6 +37,8 @@ import {
   shouldIncludeHeadingLevel,
   type OutlineItem,
 } from './outline'
+import { resolveMarkdownImageSrc } from './markdown-media'
+import { collectMarkdownTokenRanges } from './markdown-tags'
 
 import '@milkdown/kit/prose/view/style/prosemirror.css'
 
@@ -98,6 +101,54 @@ function enhanceClipboard(e: ClipboardEvent): void {
 }
 
 const defaultContent = ''
+const YAML_TAGS_HEADER_RE = /^\s*tags\s*:\s*$/iu
+
+function addMarkdownTokenDecorations(
+  decorations: Decoration[],
+  node: ProseNode,
+  basePos: number,
+  options: Parameters<typeof collectMarkdownTokenRanges>[1] = {},
+): void {
+  node.descendants((descendant, pos) => {
+    if (!descendant.isText || !descendant.text) return
+
+    for (const token of collectMarkdownTokenRanges(descendant.text, options)) {
+      decorations.push(Decoration.inline(
+        basePos + pos + token.from,
+        basePos + pos + token.to,
+        {
+          class: `markdown-token markdown-token-${token.kind}`,
+          'data-markdown-token': token.kind,
+        },
+      ))
+    }
+  })
+}
+
+function createMarkdownTokenPlugin(): Plugin {
+  return new Plugin({
+    props: {
+      decorations(state) {
+        const decorations: Decoration[] = []
+
+        let nextListIsYamlTags = false
+        state.doc.forEach((node, offset) => {
+          const basePos = offset + 1
+
+          if (nextListIsYamlTags && node.type.name === 'bullet_list') {
+            addMarkdownTokenDecorations(decorations, node, basePos, { yamlListItem: true })
+            nextListIsYamlTags = false
+            return
+          }
+
+          addMarkdownTokenDecorations(decorations, node, basePos)
+          nextListIsYamlTags = YAML_TAGS_HEADER_RE.test(node.textContent)
+        })
+        return DecorationSet.create(state.doc, decorations)
+      },
+    },
+  })
+}
 
 export async function createEditor(
   rootId: string,
@@ -111,7 +162,10 @@ export async function createEditor(
       ctx.set(rootCtx, root)
       ctx.set(defaultValueCtx, defaultContent)
       ctx.set(remarkPluginsCtx, [{ plugin: remarkBreaks, options: undefined }])
-      ctx.update(prosePluginsCtx, (plugins) => plugins.concat(createProsemirrorSearchPlugin()))
+      ctx.update(prosePluginsCtx, (plugins) => plugins.concat(
+        createProsemirrorSearchPlugin(),
+        createMarkdownTokenPlugin(),
+      ))
       ctx.set(editorViewOptionsCtx, {
         clipboardTextSerializer: (content) => serializeClipboardPlainText(content),
       })
@@ -344,6 +398,24 @@ export function isEditorTextFocused(): boolean {
 
   const activeElement = document.activeElement as HTMLElement | null
   return activeElement === root || (!!activeElement && root.contains(activeElement))
+}
+
+export function refreshMarkdownImageSources(markdownFilePath: string | null): void {
+  const root = document.querySelector('#editor .ProseMirror')
+  if (!root) return
+
+  root.querySelectorAll('img').forEach((image) => {
+    const img = image as HTMLImageElement
+    const originalSrc = img.dataset.markdownSrc ?? img.getAttribute('src') ?? ''
+    if (!img.dataset.markdownSrc) {
+      img.dataset.markdownSrc = originalSrc
+    }
+
+    const resolvedSrc = resolveMarkdownImageSrc(originalSrc, markdownFilePath)
+    if (resolvedSrc && img.getAttribute('src') !== resolvedSrc) {
+      img.setAttribute('src', resolvedSrc)
+    }
+  })
 }
 
 function rememberCurrentSelection(): void {

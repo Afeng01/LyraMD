@@ -49,6 +49,18 @@ import {
   reorderWorkspacePaths,
   togglePinnedItem,
 } from './workbench-state'
+import {
+  CODEX_MCP_SERVER_NAME,
+  detectCodexCli,
+  getCodexConfigPath,
+  getMcpBridgeFilePath,
+  installCodexMcpServer,
+  isCodexMcpConfigured,
+  removeCodexMcpServer,
+  resolveSidecarScriptPath,
+  type CodexIntegrationStatus,
+} from './codex-integration'
+import { createMcpBridgeController, type McpBridgeRequest } from './mcp-bridge'
 
 // Custom themes directory
 const appDataDir = join(app.getPath('home'), '.lyramd')
@@ -56,6 +68,7 @@ const themesDir = join(appDataDir, 'themes')
 const sidebarStatePath = join(appDataDir, 'sidebar-state.json')
 const sessionStatePath = join(appDataDir, 'session-state.json')
 const settingsPath = join(appDataDir, 'settings.json')
+const mcpBridgeFilePath = getMcpBridgeFilePath(appDataDir)
 const DRAWER_BREAKPOINT = 960
 
 type DocumentKind = 'blank' | 'draft' | 'file'
@@ -266,6 +279,34 @@ const windowStates = new Map<number, WindowState>()
 let pendingFilePaths: string[] = []
 const hasSingleInstanceLock = app.requestSingleInstanceLock()
 
+interface RendererMcpRequestPayload {
+  args?: Record<string, unknown>
+  id: string
+  type: string
+}
+
+interface RendererMcpResponsePayload {
+  data?: unknown
+  error?: string
+  id: string
+  success: boolean
+}
+
+interface PendingRendererMcpRequest {
+  reject: (error: Error) => void
+  resolve: (data: unknown) => void
+  timeout: NodeJS.Timeout
+  webContentsId: number
+}
+
+const pendingRendererMcpRequests = new Map<string, PendingRendererMcpRequest>()
+let mcpRequestCounter = 0
+
+const mcpBridge = createMcpBridgeController({
+  bridgeFilePath: mcpBridgeFilePath,
+  handleRequest: (request) => forwardMcpRequestToRenderer(request),
+})
+
 if (!hasSingleInstanceLock) {
   app.quit()
 } else {
@@ -297,6 +338,72 @@ function getState(win: BrowserWindow): WindowState {
     windowStates.set(win.id, state)
   }
   return state
+}
+
+function getMcpTargetWindow(): BrowserWindow | null {
+  const focused = BrowserWindow.getFocusedWindow()
+  if (focused && !focused.isDestroyed()) return focused
+  return BrowserWindow.getAllWindows().find((win) => !win.isDestroyed()) ?? null
+}
+
+function forwardMcpRequestToRenderer(request: McpBridgeRequest): Promise<unknown> {
+  const win = getMcpTargetWindow()
+  if (!win) return Promise.reject(new Error('No LyraMD window is available'))
+
+  const id = `mcp_${++mcpRequestCounter}_${Date.now()}`
+  const payload: RendererMcpRequestPayload = {
+    id,
+    type: request.type,
+    args: request.args,
+  }
+
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      pendingRendererMcpRequests.delete(id)
+      reject(new Error(`MCP renderer request timed out: ${request.type}`))
+    }, 10000)
+
+    pendingRendererMcpRequests.set(id, {
+      reject,
+      resolve,
+      timeout,
+      webContentsId: win.webContents.id,
+    })
+    win.webContents.send('mcp-document-request', payload)
+  })
+}
+
+function getCodexIntegrationPaths() {
+  return {
+    bridgeFilePath: mcpBridgeFilePath,
+    codexConfigPath: getCodexConfigPath(app.getPath('home')),
+    sidecarScriptPath: resolveSidecarScriptPath({
+      appPath: app.getAppPath(),
+      isPackaged: app.isPackaged,
+      resourcesPath: process.resourcesPath,
+    }),
+  }
+}
+
+async function resolveCodexIntegrationStatus(error: string | null = null): Promise<CodexIntegrationStatus> {
+  const paths = getCodexIntegrationPaths()
+  const bridgeStatus = mcpBridge.getStatus()
+  const codex = await detectCodexCli()
+  const codexMcpConfigured = await isCodexMcpConfigured(codex.command, paths.codexConfigPath)
+
+  return {
+    bridgeFilePath: paths.bridgeFilePath,
+    bridgePort: bridgeStatus.port,
+    bridgeRunning: bridgeStatus.running,
+    codexCommand: codex.command,
+    codexConfigPath: paths.codexConfigPath,
+    codexInstalled: codex.command !== null,
+    codexMcpConfigured,
+    error,
+    serverName: CODEX_MCP_SERVER_NAME,
+    sidecarScriptPath: paths.sidecarScriptPath,
+    version: codex.version,
+  }
 }
 
 function getWinFromEvent(event: Electron.IpcMainInvokeEvent): BrowserWindow | null {
@@ -1218,6 +1325,22 @@ async function removeWorkdirFileForAllWindows(triggerWin: BrowserWindow, filePat
 
 // IPC Handlers
 
+ipcMain.on('mcp-document-response', (event, payload: RendererMcpResponsePayload) => {
+  if (!payload || typeof payload.id !== 'string') return
+  const pending = pendingRendererMcpRequests.get(payload.id)
+  if (!pending || pending.webContentsId !== event.sender.id) return
+
+  clearTimeout(pending.timeout)
+  pendingRendererMcpRequests.delete(payload.id)
+
+  if (payload.success) {
+    pending.resolve(payload.data)
+    return
+  }
+
+  pending.reject(new Error(payload.error || 'MCP renderer request failed'))
+})
+
 ipcMain.on('open-external', (_event, url: string) => {
   if (typeof url === 'string' && (url.startsWith('https://') || url.startsWith('http://'))) {
     shell.openExternal(url)
@@ -1283,6 +1406,50 @@ ipcMain.handle('update-settings', async (event, patch: Partial<AppSettings>) => 
   appSettings = await updateAppSettings(settingsPath, appSettings, patch ?? {})
   buildMenu()
   return appSettings
+})
+
+ipcMain.handle('codex-integration-status', async () => {
+  return resolveCodexIntegrationStatus()
+})
+
+ipcMain.handle('codex-integration-start-bridge', async () => {
+  await mcpBridge.start()
+  return resolveCodexIntegrationStatus()
+})
+
+ipcMain.handle('codex-integration-install', async () => {
+  const paths = getCodexIntegrationPaths()
+  const codex = await detectCodexCli()
+  if (!codex.command) {
+    return resolveCodexIntegrationStatus('Codex CLI is not available in PATH')
+  }
+
+  try {
+    await mcpBridge.start()
+    await installCodexMcpServer(codex.command, {
+      bridgeFilePath: paths.bridgeFilePath,
+      electronRunAsNode: true,
+      sidecarScriptPath: paths.sidecarScriptPath,
+      spawnCommand: process.execPath,
+    })
+    return resolveCodexIntegrationStatus()
+  } catch (error) {
+    return resolveCodexIntegrationStatus(error instanceof Error ? error.message : String(error))
+  }
+})
+
+ipcMain.handle('codex-integration-remove', async () => {
+  const codex = await detectCodexCli()
+  if (!codex.command) {
+    return resolveCodexIntegrationStatus('Codex CLI is not available in PATH')
+  }
+
+  try {
+    await removeCodexMcpServer(codex.command)
+    return resolveCodexIntegrationStatus()
+  } catch (error) {
+    return resolveCodexIntegrationStatus(error instanceof Error ? error.message : String(error))
+  }
 })
 
 ipcMain.handle('update-current-draft-title', async (event, nextTitle: string) => {
@@ -1990,6 +2157,8 @@ if (hasSingleInstanceLock) {
           createWindow()
         }
 
+        void mcpBridge.start().catch(() => {})
+
         app.on('activate', () => {
           if (BrowserWindow.getAllWindows().length === 0) createWindow()
         })
@@ -2008,6 +2177,7 @@ app.on('before-quit', async (event) => {
   event.preventDefault()
   sidebarQuitFlushStarted = true
   try {
+    await mcpBridge.stop()
     await persistSidebarState()
   } catch {
     // Quit should not be blocked by an app-data write failure.

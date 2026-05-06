@@ -9,6 +9,12 @@ directories:
 files:
   - dist/**/*
 
+extraResources:
+  - from: mcp
+    to: mcp
+    filter:
+      - "**/*"
+
 npmArgs:
   - "--loglevel=error"
 

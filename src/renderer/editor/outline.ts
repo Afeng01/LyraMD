@@ -1,6 +1,6 @@
 export interface OutlineItem {
   id: string
-  level: 1 | 2
+  level: 1 | 2 | 3 | 4 | 5 | 6
   title: string
   pos: number
 }
@@ -10,8 +10,8 @@ export function normalizeHeadingText(text: string): string {
   return normalized || '未命名标题'
 }
 
-export function shouldIncludeHeadingLevel(level: number): level is 1 | 2 {
-  return level === 1 || level === 2
+export function shouldIncludeHeadingLevel(level: number): level is OutlineItem['level'] {
+  return Number.isInteger(level) && level >= 1 && level <= 6
 }
 
 export function createOutlineId(pos: number, index: number): string {

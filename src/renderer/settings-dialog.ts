@@ -1,4 +1,4 @@
-import type { AppSettings, ElectronAPI, SaveAsMode, ShortcutAction, SidebarState, TitleSyncMode } from '../preload/index'
+import type { AppSettings, CodexIntegrationStatus, ElectronAPI, SaveAsMode, ShortcutAction, SidebarState, TitleSyncMode } from '../preload/index'
 import { applyTheme } from './themes/theme-manager'
 
 const BUILT_IN_THEMES = [
@@ -26,6 +26,14 @@ function normalizeRecordedKey(key: string): string {
   if (key === 'Escape') return 'Esc'
   if (key.length === 1) return key.toUpperCase()
   return key
+}
+
+function formatDisplayPath(path: string): string {
+  const homePrefix = '/Users/'
+  if (!path.startsWith(homePrefix)) return path
+
+  const [, , ...rest] = path.split('/')
+  return rest.length > 0 ? `~/${rest.join('/')}` : path
 }
 
 const SHORTCUT_ACTION_LABELS: Record<ShortcutAction, string> = {
@@ -65,7 +73,7 @@ interface CreateSettingsDialogControllerOptions {
   onSidebarStateChange: (state: SidebarState) => void
 }
 
-type SettingsPaneId = 'general' | 'workspace' | 'shortcuts'
+type SettingsPaneId = 'general' | 'workspace' | 'shortcuts' | 'integrations'
 
 const SETTINGS_PANE_META: Record<
   SettingsPaneId,
@@ -85,6 +93,11 @@ const SETTINGS_PANE_META: Record<
     description: '把最常用的动作收拢成一页速查，减少在菜单里来回寻找。',
     kicker: '快捷键',
     title: '键盘操作',
+  },
+  integrations: {
+    description: '配置 AI 助手和 LyraMD 当前文档之间的本地连接。',
+    kicker: '集成',
+    title: 'Codex MCP',
   },
 }
 
@@ -123,10 +136,19 @@ export function createSettingsDialogController({
     document.querySelectorAll<HTMLElement>('[data-shortcut-action]'),
   )
   const shortcutConflict = document.getElementById('settings-shortcut-conflict') as HTMLDivElement | null
+  const codexStatusBadge = document.getElementById('settings-codex-status-badge') as HTMLSpanElement | null
+  const codexSummary = document.getElementById('settings-codex-summary') as HTMLDivElement | null
+  const codexPath = document.getElementById('settings-codex-path') as HTMLDivElement | null
+  const codexError = document.getElementById('settings-codex-error') as HTMLDivElement | null
+  const codexRefreshButton = document.getElementById('settings-codex-refresh') as HTMLButtonElement | null
+  const codexInstallButton = document.getElementById('settings-codex-install') as HTMLButtonElement | null
+  const codexRemoveButton = document.getElementById('settings-codex-remove') as HTMLButtonElement | null
 
   let dialogOpen = false
   let activePane: SettingsPaneId = 'general'
   let recordingShortcut: HTMLElement | null = null
+  let codexStatus: CodexIntegrationStatus | null = null
+  let codexLoading = false
 
   const renderPane = (): void => {
     const meta = SETTINGS_PANE_META[activePane]
@@ -212,13 +234,82 @@ export function createSettingsDialogController({
       key.textContent = formatShortcutLabel(appSettings.shortcuts[action])
     }
 
+    renderCodexIntegration()
     renderPane()
+  }
+
+  const renderCodexIntegration = (): void => {
+    if (!codexStatusBadge || !codexSummary || !codexPath || !codexError || !codexInstallButton || !codexRemoveButton || !codexRefreshButton) {
+      return
+    }
+
+    codexRefreshButton.disabled = codexLoading
+    codexInstallButton.disabled = codexLoading || !codexStatus?.codexInstalled
+    codexRemoveButton.disabled = codexLoading
+
+    codexStatusBadge.classList.remove('ready', 'warning')
+    if (codexLoading) {
+      codexStatusBadge.textContent = '处理中'
+      codexSummary.textContent = '正在更新 Codex MCP 配置。'
+      return
+    }
+
+    if (!codexStatus) {
+      codexStatusBadge.textContent = '未检测'
+      codexSummary.textContent = '点击检测以读取 Codex CLI 和本地 MCP bridge 状态。'
+      codexPath.textContent = ''
+      codexPath.title = ''
+      codexError.hidden = true
+      codexError.textContent = ''
+      codexRemoveButton.hidden = true
+      codexInstallButton.hidden = false
+      return
+    }
+
+    codexStatusBadge.textContent = codexStatus.codexMcpConfigured
+      ? (codexStatus.bridgeRunning ? '已连接' : '已配置')
+      : '未配置'
+    codexStatusBadge.classList.add(codexStatus.codexMcpConfigured ? 'ready' : 'warning')
+    codexSummary.textContent = codexStatus.codexInstalled
+      ? `Codex CLI ${codexStatus.version ?? ''}${codexStatus.bridgeRunning ? '，bridge 运行中' : '，bridge 未启动'}`
+      : '未检测到 Codex CLI。请先安装并登录 Codex CLI。'
+    codexPath.textContent = `配置：${formatDisplayPath(codexStatus.codexConfigPath)}`
+    codexPath.title = codexStatus.codexConfigPath
+    codexError.hidden = !codexStatus.error
+    codexError.textContent = codexStatus.error ?? ''
+    codexRemoveButton.hidden = !codexStatus.codexMcpConfigured
+    codexInstallButton.hidden = codexStatus.codexMcpConfigured
+  }
+
+  const loadCodexStatus = async (): Promise<void> => {
+    codexLoading = true
+    renderCodexIntegration()
+    codexStatus = await api.getCodexIntegrationStatus().catch(() => null)
+    codexLoading = false
+    renderCodexIntegration()
+  }
+
+  const installCodexIntegration = async (): Promise<void> => {
+    codexLoading = true
+    renderCodexIntegration()
+    codexStatus = await api.installCodexIntegration().catch(() => null)
+    codexLoading = false
+    renderCodexIntegration()
+  }
+
+  const removeCodexIntegration = async (): Promise<void> => {
+    codexLoading = true
+    renderCodexIntegration()
+    codexStatus = await api.removeCodexIntegration().catch(() => null)
+    codexLoading = false
+    renderCodexIntegration()
   }
 
   const open = (): void => {
     dialogOpen = true
     clearShortcutConflict()
     render()
+    void loadCodexStatus()
     if (!overlay) return
     overlay.hidden = false
     overlay.setAttribute('aria-hidden', 'false')
@@ -293,6 +384,18 @@ export function createSettingsDialogController({
     close()
   })
 
+  codexRefreshButton?.addEventListener('click', () => {
+    void loadCodexStatus()
+  })
+
+  codexInstallButton?.addEventListener('click', () => {
+    void installCodexIntegration()
+  })
+
+  codexRemoveButton?.addEventListener('click', () => {
+    void removeCodexIntegration()
+  })
+
   window.addEventListener('keydown', (event) => {
     if (!dialogOpen || !recordingShortcut) return
 
@@ -354,6 +457,9 @@ export function createSettingsDialogController({
       if (!nextPane || nextPane === activePane) return
       activePane = nextPane
       renderPane()
+      if (activePane === 'integrations') {
+        void loadCodexStatus()
+      }
     })
   }
 

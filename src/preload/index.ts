@@ -31,6 +31,33 @@ export interface AppSettings {
   shortcuts: ShortcutMap
 }
 
+export interface CodexIntegrationStatus {
+  bridgeFilePath: string
+  bridgePort: number | null
+  bridgeRunning: boolean
+  codexCommand: string | null
+  codexConfigPath: string
+  codexInstalled: boolean
+  codexMcpConfigured: boolean
+  error: string | null
+  serverName: string
+  sidecarScriptPath: string
+  version: string | null
+}
+
+export interface McpDocumentRequest {
+  args?: Record<string, unknown>
+  id: string
+  type: string
+}
+
+export interface McpDocumentResponse {
+  data?: unknown
+  error?: string
+  id: string
+  success: boolean
+}
+
 export interface TitleSyncPromptPayload {
   filePath: string
   currentTitle: string
@@ -97,6 +124,10 @@ export interface ElectronAPI {
   loadThemeCSS: (fileName: string) => Promise<string | null>
   getSettings: () => Promise<AppSettings | null>
   updateSettings: (patch: Partial<AppSettings>) => Promise<AppSettings | null>
+  getCodexIntegrationStatus: () => Promise<CodexIntegrationStatus | null>
+  installCodexIntegration: () => Promise<CodexIntegrationStatus | null>
+  removeCodexIntegration: () => Promise<CodexIntegrationStatus | null>
+  startMcpBridge: () => Promise<CodexIntegrationStatus | null>
   updateCurrentDraftTitle: (nextTitle: string) => Promise<SidebarState | null>
   updateCurrentFileTitle: (nextTitle: string) => Promise<SidebarState | null>
   updateDraftTitleById: (draftId: string, nextTitle: string) => Promise<SidebarState | null>
@@ -151,6 +182,8 @@ export interface ElectronAPI {
   onAgentChangeSummary: (callback: (payload: AgentChangePayload) => void) => void
   onSidebarState: (callback: (state: SidebarState) => void) => void
   onZoomChange: (callback: (data: { delta?: number; level?: number }) => void) => void
+  onMcpDocumentRequest: (callback: (request: McpDocumentRequest) => void) => void
+  sendMcpDocumentResponse: (response: McpDocumentResponse) => void
 }
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -167,6 +200,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   loadThemeCSS: (fileName: string) => ipcRenderer.invoke('load-theme-css', fileName),
   getSettings: () => ipcRenderer.invoke('get-settings'),
   updateSettings: (patch: Partial<AppSettings>) => ipcRenderer.invoke('update-settings', patch),
+  getCodexIntegrationStatus: () => ipcRenderer.invoke('codex-integration-status'),
+  installCodexIntegration: () => ipcRenderer.invoke('codex-integration-install'),
+  removeCodexIntegration: () => ipcRenderer.invoke('codex-integration-remove'),
+  startMcpBridge: () => ipcRenderer.invoke('codex-integration-start-bridge'),
   updateCurrentDraftTitle: (nextTitle: string) => ipcRenderer.invoke('update-current-draft-title', nextTitle),
   updateCurrentFileTitle: (nextTitle: string) => ipcRenderer.invoke('update-current-file-title', nextTitle),
   updateDraftTitleById: (draftId: string, nextTitle: string) => ipcRenderer.invoke('update-draft-title-by-id', draftId, nextTitle),
@@ -260,5 +297,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onZoomChange: (callback: (data: { delta?: number; level?: number }) => void) => {
     ipcRenderer.on('menu-zoom', (_event, data) => callback(data))
-  }
+  },
+  onMcpDocumentRequest: (callback: (request: McpDocumentRequest) => void) => {
+    ipcRenderer.on('mcp-document-request', (_event, request) => callback(request))
+  },
+  sendMcpDocumentResponse: (response: McpDocumentResponse) => {
+    ipcRenderer.send('mcp-document-response', response)
+  },
 } satisfies ElectronAPI)

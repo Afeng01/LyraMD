@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https: http:;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: file: https: http:;">
   <title>LyraMD</title>
 </head>
 <body>
@@ -138,7 +138,9 @@
               </div>
               <button id="current-file-new" type="button" class="sidebar-icon-button" aria-label="新建草稿">+</button>
             </div>
-            <div id="library-list" class="sidebar-list"></div>
+            <div id="library-scroll-region">
+              <div id="library-list" class="sidebar-list"></div>
+            </div>
           </section>
 
           <section id="legacy-sidebar-elements" hidden aria-hidden="true">
@@ -295,6 +297,12 @@
               </span>
               <span class="settings-nav-label">快捷键管理</span>
             </button>
+            <button type="button" class="settings-nav-item" data-settings-pane="integrations">
+              <span class="settings-nav-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7V2"></path><path d="M15 7V2"></path><path d="M6 13H2"></path><path d="M22 13h-4"></path><rect x="6" y="7" width="12" height="12" rx="2"></rect><path d="M9 19v3"></path><path d="M15 19v3"></path></svg>
+              </span>
+              <span class="settings-nav-label">集成</span>
+            </button>
           </nav>
         </aside>
 
@@ -343,6 +351,38 @@
               </section>
             </section>
 
+            <section class="settings-pane" data-settings-panel="integrations" hidden>
+              <section class="settings-group">
+                <div class="settings-group-heading">
+                  <h4 class="settings-group-title">Codex MCP</h4>
+                  <p class="settings-group-copy">让 Codex 通过本地 MCP bridge 读取和写入当前 Markdown 文档。</p>
+                </div>
+                <div class="settings-integration-card">
+                  <div class="settings-integration-main">
+                    <div class="settings-integration-title-row">
+                      <span class="settings-integration-title">Codex MCP</span>
+                      <span id="settings-codex-status-badge" class="settings-status-badge">检测中</span>
+                    </div>
+                    <div id="settings-codex-summary" class="settings-integration-copy">正在检测 Codex CLI 和本地 MCP bridge。</div>
+                    <div id="settings-codex-path" class="settings-integration-path"></div>
+                    <div id="settings-codex-error" class="settings-integration-error" hidden></div>
+                  </div>
+                  <div class="settings-integration-actions">
+                    <button id="settings-codex-refresh" type="button" class="overlay-button">检测</button>
+                    <button id="settings-codex-install" type="button" class="overlay-button primary">安装</button>
+                    <button id="settings-codex-remove" type="button" class="overlay-button" hidden>移除</button>
+                  </div>
+                </div>
+                <div class="settings-integration-help">
+                  <h5>如何使用</h5>
+                  <ol>
+                    <li>在这里安装后，保持 LyraMD 打开当前文档。</li>
+                    <li>在 Codex 里请求它使用 colamd 读取或写入当前文档。</li>
+                    <li>LyraMD 负责安装配置和运行本地 bridge；Codex 负责真正调用 MCP 工具。</li>
+                  </ol>
+                </div>
+              </section>
+            </section>
             <section class="settings-pane" data-settings-panel="workspace" hidden>
               <section class="settings-group">
                 <div class="settings-group-heading">

@@ -58,11 +58,40 @@ describe('loadAppSettings', () => {
     const settings = await settingsModule.loadAppSettings(settingsPath)
 
     expect(settings).toEqual({
+      ...settingsModule.DEFAULT_APP_SETTINGS,
       titleSyncMode: 'always',
       saveAsMode: 'move',
       themeName: 'newsprint',
-      shortcuts: settingsModule.DEFAULT_SHORTCUTS,
     })
+  })
+
+  it('normalizes phase c layout defaults', async () => {
+    const settingsModule = await loadSettingsModule()
+
+    const settings = settingsModule.normalizeAppSettings({})
+
+    expect(settings.agentPanelPosition).toBe('auto')
+    expect(settings.background.mode).toBe('default')
+    expect(settings.background.scope).toBe('editor')
+  })
+
+  it('rejects invalid background settings', async () => {
+    const settingsModule = await loadSettingsModule()
+
+    const settings = settingsModule.normalizeAppSettings({
+      background: {
+        mode: 'image',
+        scope: 'everything',
+        opacity: 3,
+        blur: -1,
+        dim: 2,
+      },
+    } as never)
+
+    expect(settings.background.scope).toBe('editor')
+    expect(settings.background.opacity).toBeLessThanOrEqual(1)
+    expect(settings.background.blur).toBeGreaterThanOrEqual(0)
+    expect(settings.background.dim).toBeLessThanOrEqual(1)
   })
 
   it('loads default shortcuts when none are persisted', async () => {
@@ -141,16 +170,14 @@ describe('updateAppSettings', () => {
     )
 
     expect(updated).toEqual({
+      ...settingsModule.DEFAULT_APP_SETTINGS,
       titleSyncMode: 'always',
       saveAsMode: 'move',
-      themeName: 'elegant',
-      shortcuts: settingsModule.DEFAULT_SHORTCUTS,
     })
     expect(JSON.parse(await readFile(settingsPath, 'utf-8'))).toEqual({
+      ...settingsModule.DEFAULT_APP_SETTINGS,
       titleSyncMode: 'always',
       saveAsMode: 'move',
-      themeName: 'elegant',
-      shortcuts: settingsModule.DEFAULT_SHORTCUTS,
     })
   })
 
@@ -162,10 +189,9 @@ describe('updateAppSettings', () => {
     const updated = await settingsModule.updateAppSettings(
       settingsPath,
       {
+        ...settingsModule.DEFAULT_APP_SETTINGS,
         titleSyncMode: 'never',
         saveAsMode: 'switch',
-        themeName: 'elegant',
-        shortcuts: settingsModule.DEFAULT_SHORTCUTS,
       },
       {
         titleSyncMode: 'unsupported' as 'ask',
@@ -174,16 +200,14 @@ describe('updateAppSettings', () => {
     )
 
     expect(updated).toEqual({
+      ...settingsModule.DEFAULT_APP_SETTINGS,
       titleSyncMode: 'never',
       saveAsMode: 'switch',
-      themeName: 'elegant',
-      shortcuts: settingsModule.DEFAULT_SHORTCUTS,
     })
     expect(JSON.parse(await readFile(settingsPath, 'utf-8'))).toEqual({
+      ...settingsModule.DEFAULT_APP_SETTINGS,
       titleSyncMode: 'never',
       saveAsMode: 'switch',
-      themeName: 'elegant',
-      shortcuts: settingsModule.DEFAULT_SHORTCUTS,
     })
   })
 

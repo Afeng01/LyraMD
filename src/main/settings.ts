@@ -3,6 +3,9 @@ import { dirname } from 'path'
 
 export type TitleSyncMode = 'ask' | 'always' | 'never'
 export type SaveAsMode = 'switch' | 'move'
+export type AgentPanelPosition = 'auto' | 'bottom' | 'right'
+export type BackgroundMode = 'default' | 'color' | 'image'
+export type BackgroundScope = 'editor' | 'window'
 export type ShortcutAction =
   | 'save'
   | 'saveAs'
@@ -14,11 +17,23 @@ export type ShortcutAction =
 
 export type ShortcutMap = Record<ShortcutAction, string>
 
+export interface BackgroundSettings {
+  mode: BackgroundMode
+  scope: BackgroundScope
+  color: string
+  imagePath: string | null
+  opacity: number
+  blur: number
+  dim: number
+}
+
 export interface AppSettings {
   titleSyncMode: TitleSyncMode
   saveAsMode: SaveAsMode
   themeName: string
   shortcuts: ShortcutMap
+  agentPanelPosition: AgentPanelPosition
+  background: BackgroundSettings
 }
 
 export const DEFAULT_SHORTCUTS: ShortcutMap = {
@@ -36,6 +51,16 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   saveAsMode: 'switch',
   themeName: 'elegant',
   shortcuts: DEFAULT_SHORTCUTS,
+  agentPanelPosition: 'auto',
+  background: {
+    mode: 'default',
+    scope: 'editor',
+    color: '#ffffff',
+    imagePath: null,
+    opacity: 1,
+    blur: 0,
+    dim: 0.18,
+  },
 }
 
 type PersistedAppSettings = Partial<Record<keyof AppSettings, unknown>>
@@ -49,8 +74,48 @@ function isSaveAsMode(value: unknown): value is SaveAsMode {
   return value === 'switch' || value === 'move'
 }
 
+function isAgentPanelPosition(value: unknown): value is AgentPanelPosition {
+  return value === 'auto' || value === 'bottom' || value === 'right'
+}
+
+function isBackgroundMode(value: unknown): value is BackgroundMode {
+  return value === 'default' || value === 'color' || value === 'image'
+}
+
+function isBackgroundScope(value: unknown): value is BackgroundScope {
+  return value === 'editor' || value === 'window'
+}
+
 function isThemeName(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0
+}
+
+function clampNumber(value: unknown, fallback: number, min: number, max: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
+  return Math.min(max, Math.max(min, value))
+}
+
+function isHexColor(value: unknown): value is string {
+  return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value)
+}
+
+function normalizeBackgroundSettings(input: unknown): BackgroundSettings {
+  const candidate = input && typeof input === 'object'
+    ? input as Partial<Record<keyof BackgroundSettings, unknown>>
+    : {}
+  const defaults = DEFAULT_APP_SETTINGS.background
+
+  return {
+    mode: isBackgroundMode(candidate.mode) ? candidate.mode : defaults.mode,
+    scope: isBackgroundScope(candidate.scope) ? candidate.scope : defaults.scope,
+    color: isHexColor(candidate.color) ? candidate.color : defaults.color,
+    imagePath: typeof candidate.imagePath === 'string' && candidate.imagePath.trim().length > 0
+      ? candidate.imagePath
+      : defaults.imagePath,
+    opacity: clampNumber(candidate.opacity, defaults.opacity, 0, 1),
+    blur: clampNumber(candidate.blur, defaults.blur, 0, 40),
+    dim: clampNumber(candidate.dim, defaults.dim, 0, 1),
+  }
 }
 
 function isShortcutAction(value: string): value is ShortcutAction {
@@ -108,6 +173,10 @@ export function normalizeAppSettings(input: PersistedAppSettings | null | undefi
       ? input.themeName
       : DEFAULT_APP_SETTINGS.themeName,
     shortcuts: normalizeShortcuts(input?.shortcuts),
+    agentPanelPosition: isAgentPanelPosition(input?.agentPanelPosition)
+      ? input.agentPanelPosition
+      : DEFAULT_APP_SETTINGS.agentPanelPosition,
+    background: normalizeBackgroundSettings(input?.background),
   }
 }
 
@@ -146,6 +215,12 @@ export async function updateAppSettings(
     shortcuts: patch.shortcuts === undefined
       ? normalizeShortcuts(currentSettings.shortcuts)
       : normalizeShortcuts(patch.shortcuts, currentSettings.shortcuts),
+    agentPanelPosition: isAgentPanelPosition(patch.agentPanelPosition)
+      ? patch.agentPanelPosition
+      : currentSettings.agentPanelPosition,
+    background: patch.background === undefined
+      ? normalizeBackgroundSettings(currentSettings.background)
+      : normalizeBackgroundSettings(patch.background),
   }
 
   await persistAppSettings(settingsPath, nextSettings)

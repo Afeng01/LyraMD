@@ -17,6 +17,9 @@ export interface DraftEntry {
 export type DocumentKind = 'blank' | 'draft' | 'file'
 export type TitleSyncMode = 'ask' | 'always' | 'never'
 export type SaveAsMode = 'switch' | 'move'
+export type AgentPanelPosition = 'auto' | 'bottom' | 'right'
+export type BackgroundMode = 'default' | 'color' | 'image'
+export type BackgroundScope = 'editor' | 'window'
 export type SidebarTab = 'drafts' | 'recent' | 'workdir'
 export type PinnedItem =
   | { kind: 'draft'; draftId: string }
@@ -24,11 +27,23 @@ export type PinnedItem =
 export type ShortcutAction = 'save' | 'saveAs' | 'settings' | 'search' | 'toggleSidebar' | 'toggleOutline' | 'cleanCjkTypography'
 export type ShortcutMap = Record<ShortcutAction, string>
 
+export interface BackgroundSettings {
+  mode: BackgroundMode
+  scope: BackgroundScope
+  color: string
+  imagePath: string | null
+  opacity: number
+  blur: number
+  dim: number
+}
+
 export interface AppSettings {
   titleSyncMode: TitleSyncMode
   saveAsMode: SaveAsMode
   themeName: string
   shortcuts: ShortcutMap
+  agentPanelPosition: AgentPanelPosition
+  background: BackgroundSettings
 }
 
 export interface CodexIntegrationStatus {

@@ -43,6 +43,7 @@ import {
   resolveSearchNavigationFocusMode,
   shouldShowEmptyEditorPlaceholder,
 } from './editor/session-ux'
+import { resolveAgentPanelClassName, resolveAgentPanelPlacement, type AgentPanelPlacement } from './phase-c-layout'
 import { createSettingsDialogController } from './settings-dialog'
 import {
   resolvePinnedItems,
@@ -187,6 +188,16 @@ function createDefaultSettings(): AppSettings {
       toggleSidebar: 'CmdOrCtrl+\\',
       toggleOutline: 'CmdOrCtrl+Shift+O',
       cleanCjkTypography: 'CmdOrCtrl+Shift+F',
+    },
+    agentPanelPosition: 'auto',
+    background: {
+      mode: 'default',
+      scope: 'editor',
+      color: '#ffffff',
+      imagePath: null,
+      opacity: 1,
+      blur: 0,
+      dim: 0.18,
     },
   }
 }
@@ -452,6 +463,10 @@ async function init(): Promise<void> {
   const searchContextPrev = document.getElementById('search-context-prev') as HTMLDivElement | null
   const searchContextCurrent = document.getElementById('search-context-current') as HTMLDivElement | null
   const searchContextNext = document.getElementById('search-context-next') as HTMLDivElement | null
+  const contextPanel = document.getElementById('context-panel') as HTMLElement | null
+  const contextPanelAgentTab = document.getElementById('context-panel-agent-tab') as HTMLButtonElement | null
+  const contextPanelOutlineTab = document.getElementById('context-panel-outline-tab') as HTMLButtonElement | null
+  const agentPanel = document.getElementById('agent-panel') as HTMLElement | null
   const outlinePanel = document.getElementById('outline-panel') as HTMLElement | null
   const outlineList = document.getElementById('outline-list') as HTMLDivElement | null
   const agentChangePanel = document.getElementById('agent-change-panel') as HTMLDivElement | null
@@ -462,8 +477,12 @@ async function init(): Promise<void> {
   const agentChangeRestore = document.getElementById('agent-change-restore') as HTMLButtonElement | null
   const agentChangeDismiss = document.getElementById('agent-change-dismiss') as HTMLButtonElement | null
 
+  if (contextPanel) {
+    contextPanel.hidden = false
+    contextPanel.setAttribute('aria-hidden', 'true')
+  }
+
   if (outlinePanel) {
-    outlinePanel.hidden = false
     outlinePanel.setAttribute('aria-hidden', 'true')
   }
 
@@ -537,6 +556,7 @@ async function init(): Promise<void> {
     getSidebarState: () => sidebarState,
     onAppSettingsChange: (settings) => {
       appSettings = settings
+      refreshAgentPanelPlacement()
     },
     onSidebarStateChange: (state) => {
       setSidebarState(state)
@@ -1015,6 +1035,8 @@ async function init(): Promise<void> {
 
   let searchPanelOpen = false
   let outlinePanelOpen = false
+  let activeContextPanel: 'agent' | 'outline' = 'agent'
+  let agentPanelPlacement: AgentPanelPlacement = 'bottom'
   let searchInputComposing = false
   let searchQueryMemory: SearchMemoryState = {}
   let agentChangeSession: AgentChangeSession | null = null
@@ -1205,15 +1227,55 @@ async function init(): Promise<void> {
     }
   }
 
-  const setOutlinePanelOpen = (open: boolean): void => {
-    outlinePanelOpen = open
-    appShell?.classList.toggle('outline-open', outlinePanelOpen)
-    outlineToggle?.classList.toggle('active', outlinePanelOpen)
-    if (outlinePanel) {
-      outlinePanel.hidden = false
-      outlinePanel.setAttribute('aria-hidden', outlinePanelOpen ? 'false' : 'true')
+  function applyAgentPanelPlacementClass(): void {
+    appShell?.classList.remove('agent-panel-bottom', 'agent-panel-right')
+    appShell?.classList.add(resolveAgentPanelClassName(agentPanelPlacement))
+  }
+
+  function refreshAgentPanelPlacement(): void {
+    agentPanelPlacement = resolveAgentPanelPlacement({
+      preference: appSettings.agentPanelPosition,
+      width: window.innerWidth,
+      height: window.innerHeight,
+      previous: agentPanelPlacement,
+    })
+    applyAgentPanelPlacementClass()
+  }
+
+  const renderContextPanel = (): void => {
+    const showAgent = activeContextPanel === 'agent'
+    const showOutline = activeContextPanel === 'outline'
+
+    appShell?.classList.toggle('context-panel-open', true)
+    appShell?.classList.toggle('outline-open', showOutline)
+    outlineToggle?.classList.toggle('active', showOutline)
+    contextPanel?.setAttribute('aria-hidden', 'false')
+
+    contextPanelAgentTab?.classList.toggle('active', showAgent)
+    contextPanelAgentTab?.setAttribute('aria-selected', showAgent ? 'true' : 'false')
+    contextPanelOutlineTab?.classList.toggle('active', showOutline)
+    contextPanelOutlineTab?.setAttribute('aria-selected', showOutline ? 'true' : 'false')
+
+    if (agentPanel) {
+      agentPanel.hidden = !showAgent
+      agentPanel.setAttribute('aria-hidden', showAgent ? 'false' : 'true')
     }
-    if (outlinePanelOpen) renderOutlinePanel()
+    if (outlinePanel) {
+      outlinePanel.hidden = !showOutline
+      outlinePanel.setAttribute('aria-hidden', showOutline ? 'false' : 'true')
+    }
+    if (showOutline) renderOutlinePanel()
+  }
+
+  const setContextPanelMode = (mode: 'agent' | 'outline'): void => {
+    activeContextPanel = mode
+    outlinePanelOpen = mode === 'outline'
+    refreshAgentPanelPlacement()
+    renderContextPanel()
+  }
+
+  const setOutlinePanelOpen = (open: boolean): void => {
+    setContextPanelMode(open ? 'outline' : 'agent')
   }
 
   const toggleOutlinePanel = (): void => {
@@ -1890,6 +1952,14 @@ img{max-width:100%}
     toggleOutlinePanel()
   })
 
+  contextPanelAgentTab?.addEventListener('click', () => {
+    setContextPanelMode('agent')
+  })
+
+  contextPanelOutlineTab?.addEventListener('click', () => {
+    setContextPanelMode('outline')
+  })
+
   api.onMenuToggleOutline(() => {
     toggleOutlinePanel()
   })
@@ -2418,8 +2488,11 @@ img{max-width:100%}
   })
 
   window.addEventListener('resize', () => {
+    refreshAgentPanelPlacement()
     schedulePlaceholderLayoutSync()
   })
+  refreshAgentPanelPlacement()
+  renderContextPanel()
 
   document.addEventListener('dragover', (e) => e.preventDefault())
   document.addEventListener('drop', async (e) => {

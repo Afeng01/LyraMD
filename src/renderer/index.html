@@ -217,9 +217,25 @@
           <div id="editor"></div>
         </div>
       </main>
-      <aside id="outline-panel" hidden aria-hidden="true">
-        <div class="outline-panel-header">大纲</div>
-        <div id="outline-list" class="outline-list"></div>
+      <aside id="context-panel" aria-label="Agent 和大纲" aria-hidden="true">
+        <div id="context-panel-tabs" role="tablist" aria-label="右侧面板">
+          <button id="context-panel-agent-tab" type="button" role="tab" aria-selected="true" aria-controls="agent-panel">
+            Agent
+          </button>
+          <button id="context-panel-outline-tab" type="button" role="tab" aria-selected="false" aria-controls="outline-panel">
+            Outline
+          </button>
+        </div>
+        <section id="agent-panel" role="tabpanel" aria-labelledby="context-panel-agent-tab">
+          <div id="agent-terminal-placeholder">
+            <div class="agent-terminal-title">Agent CLI</div>
+            <div class="agent-terminal-copy">终端会在下一阶段接入。当前先固定 LyraMD 2.0 的协作空间。</div>
+          </div>
+        </section>
+        <section id="outline-panel" role="tabpanel" aria-labelledby="context-panel-outline-tab" hidden aria-hidden="true">
+          <div class="outline-panel-header">大纲</div>
+          <div id="outline-list" class="outline-list"></div>
+        </section>
       </aside>
     </div>
 

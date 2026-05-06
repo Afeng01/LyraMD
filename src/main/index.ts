@@ -33,7 +33,7 @@ import {
 import { DEFAULT_SHORTCUTS, DEFAULT_APP_SETTINGS, loadAppSettings, updateAppSettings, type AppSettings, type ShortcutAction } from './settings'
 import { shouldPromptForFormalSave, shouldRemoveSourceAfterSaveAs } from './save-as'
 import { buildTitleSyncPath, decideTitleSync } from './title-sync'
-import { resolveNewWorkdirMarkdownPath, scanWorkdir, shouldRefreshWorkdirForWatchEvent, type WorkdirEntry } from './workdir'
+import { resolveNewWorkdirMarkdownPath, scanWorkdir, scanWorkdirTree, shouldRefreshWorkdirForWatchEvent, type WorkdirEntry, type WorkdirTreeNode } from './workdir'
 import { moveFileToTrashAndVerify } from './file-removal'
 import { summarizeAgentChange } from './agent-change-summary'
 import { createWindowOptions } from './window-platform'
@@ -88,10 +88,12 @@ interface SidebarSnapshot extends PersistedSidebarState {
   currentDisplayTitle: string
   isDrawerMode: boolean
   workdirEntries: WorkdirEntry[]
+  workdirTree: WorkdirTreeNode[]
 }
 
 let sidebarState: PersistedSidebarState = normalizeSidebarState(null)
 let workdirEntries: WorkdirEntry[] = []
+let workdirTree: WorkdirTreeNode[] = []
 let workdirWatcher: FSWatcher | null = null
 let watchedWorkdirPath: string | null = null
 let workdirRefreshTimer: NodeJS.Timeout | null = null
@@ -171,6 +173,7 @@ function watchWorkdirPath(workdirPath: string | null): void {
 async function refreshWorkdirEntries(): Promise<void> {
   if (!sidebarState.workdirPath) {
     workdirEntries = []
+    workdirTree = []
     watchWorkdirPath(null)
     return
   }
@@ -179,16 +182,23 @@ async function refreshWorkdirEntries(): Promise<void> {
     sidebarState.workspacePaths = sidebarState.workspacePaths.filter((workspacePath) => workspacePath !== sidebarState.workdirPath)
     sidebarState.workdirPath = null
     workdirEntries = []
+    workdirTree = []
     watchWorkdirPath(null)
     await persistSidebarState()
     return
   }
 
   try {
-    workdirEntries = await scanWorkdir(sidebarState.workdirPath)
+    const [nextEntries, nextTree] = await Promise.all([
+      scanWorkdir(sidebarState.workdirPath),
+      scanWorkdirTree(sidebarState.workdirPath),
+    ])
+    workdirEntries = nextEntries
+    workdirTree = nextTree
     watchWorkdirPath(sidebarState.workdirPath)
   } catch {
     workdirEntries = []
+    workdirTree = []
     watchWorkdirPath(null)
   }
 }
@@ -469,6 +479,7 @@ function createSidebarSnapshot(win: BrowserWindow): SidebarSnapshot {
     currentDisplayTitle: state.displayTitle,
     isDrawerMode: drawerMode,
     workdirEntries,
+    workdirTree,
   }
 }
 

@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, rm, writeFile } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
 
-import { resolveNewWorkdirMarkdownPath, scanWorkdir, shouldRefreshWorkdirForWatchEvent } from './workdir'
+import { resolveNewWorkdirMarkdownPath, scanWorkdir, scanWorkdirTree, shouldRefreshWorkdirForWatchEvent } from './workdir'
 
 describe('scanWorkdir', () => {
   const tempDirs: string[] = []
@@ -38,6 +38,72 @@ describe('scanWorkdir', () => {
       {
         absolutePath: join(root, 'z-last.md'),
         relativePath: 'z-last.md',
+      },
+    ])
+  })
+})
+
+describe('scanWorkdirTree', () => {
+  const tempDirs: string[] = []
+
+  afterEach(async () => {
+    await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
+  })
+
+  it('returns folders and markdown files only', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'lyramd-workdir-tree-'))
+    tempDirs.push(root)
+
+    await mkdir(join(root, 'notes', 'nested'), { recursive: true })
+    await mkdir(join(root, 'empty'), { recursive: true })
+    await writeFile(join(root, 'a.md'), '# a')
+    await writeFile(join(root, 'notes', 'b.md'), '# b')
+    await writeFile(join(root, 'notes', 'nested', 'c.markdown'), '# c')
+    await writeFile(join(root, 'notes', 'image.png'), 'ignore')
+
+    const tree = await scanWorkdirTree(root)
+
+    expect(tree).toEqual([
+      {
+        absolutePath: join(root, 'a.md'),
+        kind: 'file',
+        name: 'a.md',
+        relativePath: 'a.md',
+      },
+      {
+        absolutePath: join(root, 'empty'),
+        children: [],
+        kind: 'directory',
+        name: 'empty',
+        relativePath: 'empty',
+      },
+      {
+        absolutePath: join(root, 'notes'),
+        children: [
+          {
+            absolutePath: join(root, 'notes', 'b.md'),
+            kind: 'file',
+            name: 'b.md',
+            relativePath: 'notes/b.md',
+          },
+          {
+            absolutePath: join(root, 'notes', 'nested'),
+            children: [
+              {
+                absolutePath: join(root, 'notes', 'nested', 'c.markdown'),
+                kind: 'file',
+                name: 'c.markdown',
+                relativePath: 'notes/nested/c.markdown',
+              },
+            ],
+            kind: 'directory',
+            name: 'nested',
+            relativePath: 'notes/nested',
+          },
+        ],
+        kind: 'directory',
+        name: 'notes',
+        relativePath: 'notes',
       },
     ])
   })

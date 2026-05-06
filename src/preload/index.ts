@@ -5,6 +5,14 @@ export interface WorkdirEntry {
   relativePath: string
 }
 
+export interface WorkdirTreeNode {
+  absolutePath: string
+  kind: 'directory' | 'file'
+  name: string
+  relativePath: string
+  children?: WorkdirTreeNode[]
+}
+
 export interface DraftEntry {
   id: string
   path: string
@@ -122,6 +130,7 @@ export interface SidebarState {
   currentDisplayTitle: string
   isDrawerMode: boolean
   workdirEntries: WorkdirEntry[]
+  workdirTree: WorkdirTreeNode[]
   fileTitleOverrides: Record<string, string>
 }
 

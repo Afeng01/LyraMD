@@ -39,6 +39,7 @@ function createSidebarState(patch: Partial<SidebarState> = {}): SidebarState {
     currentDisplayTitle: '未命名文档',
     isDrawerMode: false,
     workdirEntries: [],
+    workdirTree: [],
     fileTitleOverrides: {},
     ...patch,
   }

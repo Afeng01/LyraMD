@@ -6,6 +6,14 @@ export interface WorkdirEntry {
   relativePath: string
 }
 
+export interface WorkdirTreeNode {
+  absolutePath: string
+  kind: 'directory' | 'file'
+  name: string
+  relativePath: string
+  children?: WorkdirTreeNode[]
+}
+
 const MARKDOWN_EXTENSIONS = new Set(['.md', '.markdown', '.mdown', '.mkd'])
 
 function hasMarkdownExtension(fileName: string): boolean {
@@ -62,4 +70,42 @@ export async function scanWorkdir(rootPath: string): Promise<WorkdirEntry[]> {
   await walk(rootPath)
   entries.sort((a, b) => a.relativePath.localeCompare(b.relativePath))
   return entries
+}
+
+function sortWorkdirTreeNodes(a: WorkdirTreeNode, b: WorkdirTreeNode): number {
+  if (a.kind !== b.kind) return a.kind === 'file' ? -1 : 1
+  return a.name.localeCompare(b.name)
+}
+
+export async function scanWorkdirTree(rootPath: string): Promise<WorkdirTreeNode[]> {
+  async function walk(currentPath: string): Promise<WorkdirTreeNode[]> {
+    const dirEntries = await readdir(currentPath, { withFileTypes: true })
+    const nodes = await Promise.all(dirEntries.map(async (entry): Promise<WorkdirTreeNode | null> => {
+      const absolutePath = join(currentPath, entry.name)
+      const relativePath = relative(rootPath, absolutePath).replaceAll('\\', '/')
+
+      if (entry.isDirectory()) {
+        return {
+          absolutePath,
+          children: await walk(absolutePath),
+          kind: 'directory',
+          name: entry.name,
+          relativePath,
+        }
+      }
+
+      if (!entry.isFile() || !hasMarkdownExtension(entry.name)) return null
+
+      return {
+        absolutePath,
+        kind: 'file',
+        name: entry.name,
+        relativePath,
+      }
+    }))
+
+    return nodes.filter((node): node is WorkdirTreeNode => node !== null).sort(sortWorkdirTreeNodes)
+  }
+
+  return walk(rootPath)
 }

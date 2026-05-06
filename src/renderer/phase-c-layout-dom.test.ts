@@ -19,6 +19,8 @@ describe('Phase C layout DOM skeleton', () => {
     expect(css).toContain('.context-panel-open')
     expect(css).toContain('.agent-panel-right')
     expect(css).toContain('.agent-panel-bottom')
+    expect(css).toContain('#app-shell.context-panel-open.agent-panel-bottom #editor-shell')
+    expect(css).toContain('padding-bottom: var(--context-panel-bottom-height)')
 
     expect(renderer).toContain("let activeContextPanel: 'agent' | 'outline' = 'agent'")
     expect(renderer).toContain('resolveAgentPanelPlacement')

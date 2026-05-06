@@ -423,6 +423,60 @@
                 </div>
                 <button id="settings-theme-import" type="button" class="overlay-button">导入自定义主题</button>
               </section>
+
+              <section class="settings-group">
+                <div class="settings-group-heading">
+                  <h4 class="settings-group-title">背景</h4>
+                  <p class="settings-group-copy">选择背景作用范围，并用遮罩和模糊保护文字可读性。</p>
+                </div>
+                <div class="settings-compact-row" role="group" aria-label="背景作用范围">
+                  <label class="settings-pill-option">
+                    <input id="settings-background-scope-editor" type="radio" name="settings-background-scope" value="editor">
+                    <span>编辑区</span>
+                  </label>
+                  <label class="settings-pill-option">
+                    <input id="settings-background-scope-window" type="radio" name="settings-background-scope" value="window">
+                    <span>整个窗口</span>
+                  </label>
+                </div>
+                <div class="settings-compact-row" role="group" aria-label="背景类型">
+                  <label class="settings-pill-option">
+                    <input id="settings-background-mode-default" type="radio" name="settings-background-mode" value="default">
+                    <span>默认</span>
+                  </label>
+                  <label class="settings-pill-option">
+                    <input id="settings-background-mode-color" type="radio" name="settings-background-mode" value="color">
+                    <span>颜色</span>
+                  </label>
+                  <label class="settings-pill-option">
+                    <input id="settings-background-mode-image" type="radio" name="settings-background-mode" value="image">
+                    <span>图片</span>
+                  </label>
+                </div>
+                <div class="settings-field-grid">
+                  <label class="settings-field">
+                    <span>颜色</span>
+                    <input id="settings-background-color" type="color" value="#ffffff">
+                  </label>
+                  <label class="settings-field span-2">
+                    <span>图片路径</span>
+                    <input id="settings-background-image-path" type="text" placeholder="/Users/name/Pictures/background.jpg" spellcheck="false">
+                  </label>
+                  <label class="settings-field">
+                    <span>透明度</span>
+                    <input id="settings-background-opacity" type="number" min="0" max="1" step="0.05">
+                  </label>
+                  <label class="settings-field">
+                    <span>模糊</span>
+                    <input id="settings-background-blur" type="number" min="0" max="40" step="1">
+                  </label>
+                  <label class="settings-field">
+                    <span>遮罩</span>
+                    <input id="settings-background-dim" type="number" min="0" max="1" step="0.05">
+                  </label>
+                </div>
+                <button id="settings-background-reset" type="button" class="overlay-button">恢复默认背景</button>
+              </section>
             </section>
 
             <section class="settings-pane" data-settings-panel="shortcuts" hidden>

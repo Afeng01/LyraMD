@@ -1,4 +1,4 @@
-import type { AppSettings, CodexIntegrationStatus, ElectronAPI, SaveAsMode, ShortcutAction, SidebarState, TitleSyncMode } from '../preload/index'
+import type { AppSettings, BackgroundMode, BackgroundScope, BackgroundSettings, CodexIntegrationStatus, ElectronAPI, SaveAsMode, ShortcutAction, SidebarState, TitleSyncMode } from '../preload/index'
 import { applyTheme } from './themes/theme-manager'
 
 const BUILT_IN_THEMES = [
@@ -7,6 +7,16 @@ const BUILT_IN_THEMES = [
   { id: 'light', label: 'Light' },
   { id: 'dark', label: 'Dark' },
 ] as const
+
+const DEFAULT_BACKGROUND_SETTINGS: BackgroundSettings = {
+  mode: 'default',
+  scope: 'editor',
+  color: '#ffffff',
+  imagePath: null,
+  opacity: 1,
+  blur: 0,
+  dim: 0.18,
+}
 
 function getThemeSummary(themeName: string): string {
   if (themeName.startsWith('custom:')) {
@@ -34,6 +44,20 @@ function formatDisplayPath(path: string): string {
 
   const [, , ...rest] = path.split('/')
   return rest.length > 0 ? `~/${rest.join('/')}` : path
+}
+
+function clampNumber(value: string, fallback: number, min: number, max: number): number {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return fallback
+  return Math.min(max, Math.max(min, parsed))
+}
+
+function isBackgroundScope(value: string): value is BackgroundScope {
+  return value === 'editor' || value === 'window'
+}
+
+function isBackgroundMode(value: string): value is BackgroundMode {
+  return value === 'default' || value === 'color' || value === 'image'
 }
 
 const SHORTCUT_ACTION_LABELS: Record<ShortcutAction, string> = {
@@ -132,6 +156,18 @@ export function createSettingsDialogController({
   const saveAsInputs = Array.from(
     document.querySelectorAll<HTMLInputElement>('input[name="settings-save-as-mode"]'),
   )
+  const backgroundScopeInputs = Array.from(
+    document.querySelectorAll<HTMLInputElement>('input[name="settings-background-scope"]'),
+  )
+  const backgroundModeInputs = Array.from(
+    document.querySelectorAll<HTMLInputElement>('input[name="settings-background-mode"]'),
+  )
+  const backgroundColorInput = document.getElementById('settings-background-color') as HTMLInputElement | null
+  const backgroundImagePathInput = document.getElementById('settings-background-image-path') as HTMLInputElement | null
+  const backgroundOpacityInput = document.getElementById('settings-background-opacity') as HTMLInputElement | null
+  const backgroundBlurInput = document.getElementById('settings-background-blur') as HTMLInputElement | null
+  const backgroundDimInput = document.getElementById('settings-background-dim') as HTMLInputElement | null
+  const backgroundResetButton = document.getElementById('settings-background-reset') as HTMLButtonElement | null
   const shortcutKeys = Array.from(
     document.querySelectorAll<HTMLElement>('[data-shortcut-action]'),
   )
@@ -227,6 +263,20 @@ export function createSettingsDialogController({
     for (const button of themeButtons) {
       button.classList.toggle('active', button.dataset.settingsTheme === activeTheme)
     }
+
+    for (const input of backgroundScopeInputs) {
+      input.checked = input.value === appSettings.background.scope
+    }
+
+    for (const input of backgroundModeInputs) {
+      input.checked = input.value === appSettings.background.mode
+    }
+
+    if (backgroundColorInput) backgroundColorInput.value = appSettings.background.color
+    if (backgroundImagePathInput) backgroundImagePathInput.value = appSettings.background.imagePath ?? ''
+    if (backgroundOpacityInput) backgroundOpacityInput.value = String(appSettings.background.opacity)
+    if (backgroundBlurInput) backgroundBlurInput.value = String(appSettings.background.blur)
+    if (backgroundDimInput) backgroundDimInput.value = String(appSettings.background.dim)
 
     for (const key of shortcutKeys) {
       const action = key.dataset.shortcutAction as ShortcutAction | undefined
@@ -355,6 +405,20 @@ export function createSettingsDialogController({
     render()
   }
 
+  const updateBackgroundSettings = async (patch: Partial<BackgroundSettings>): Promise<void> => {
+    const current = getAppSettings()
+    const background = {
+      ...current.background,
+      ...patch,
+    }
+    const next = (await api.updateSettings({ background }).catch(() => null)) ?? {
+      ...current,
+      background,
+    }
+    onAppSettingsChange(next)
+    render()
+  }
+
   const updateShortcut = async (action: ShortcutAction, accelerator: string): Promise<void> => {
     const current = getAppSettings()
     const conflict = resolveShortcutConflict(current.shortcuts, action, accelerator)
@@ -450,6 +514,54 @@ export function createSettingsDialogController({
       void updateSaveAsMode(input.value as SaveAsMode)
     })
   }
+
+  for (const input of backgroundScopeInputs) {
+    input.addEventListener('change', () => {
+      if (!input.checked || !isBackgroundScope(input.value)) return
+      void updateBackgroundSettings({ scope: input.value })
+    })
+  }
+
+  for (const input of backgroundModeInputs) {
+    input.addEventListener('change', () => {
+      if (!input.checked || !isBackgroundMode(input.value)) return
+      void updateBackgroundSettings({ mode: input.value })
+    })
+  }
+
+  backgroundColorInput?.addEventListener('input', () => {
+    void updateBackgroundSettings({ color: backgroundColorInput.value })
+  })
+
+  backgroundImagePathInput?.addEventListener('change', () => {
+    const imagePath = backgroundImagePathInput.value.trim() || null
+    void updateBackgroundSettings({ imagePath })
+  })
+
+  backgroundOpacityInput?.addEventListener('change', () => {
+    const current = getAppSettings().background
+    void updateBackgroundSettings({
+      opacity: clampNumber(backgroundOpacityInput.value, current.opacity, 0, 1),
+    })
+  })
+
+  backgroundBlurInput?.addEventListener('change', () => {
+    const current = getAppSettings().background
+    void updateBackgroundSettings({
+      blur: clampNumber(backgroundBlurInput.value, current.blur, 0, 40),
+    })
+  })
+
+  backgroundDimInput?.addEventListener('change', () => {
+    const current = getAppSettings().background
+    void updateBackgroundSettings({
+      dim: clampNumber(backgroundDimInput.value, current.dim, 0, 1),
+    })
+  })
+
+  backgroundResetButton?.addEventListener('click', () => {
+    void updateBackgroundSettings(DEFAULT_BACKGROUND_SETTINGS)
+  })
 
   for (const tab of paneTabs) {
     tab.addEventListener('click', () => {

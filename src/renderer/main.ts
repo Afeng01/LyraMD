@@ -58,7 +58,7 @@ import {
   type SidebarItem,
 } from './sidebar-view'
 import { applyTheme, loadSavedTheme } from './themes/theme-manager'
-import type { AgentChangePayload, AgentChangePreviewLine, AgentChangeSummary, AppSettings, McpDocumentRequest, ShortcutAction, SidebarState, SidebarTab } from '../preload/index'
+import type { AgentChangePayload, AgentChangePreviewLine, AgentChangeSummary, AppSettings, BackgroundSettings, McpDocumentRequest, ShortcutAction, SidebarState, SidebarTab } from '../preload/index'
 import './themes/base.css'
 
 type TitleEditingAPI = typeof window.electronAPI & {
@@ -200,6 +200,26 @@ function createDefaultSettings(): AppSettings {
       dim: 0.18,
     },
   }
+}
+
+function resolveBackgroundImageValue(imagePath: string | null): string {
+  if (!imagePath) return 'none'
+  const normalizedPath = imagePath.replace(/\\/g, '/')
+  const url = normalizedPath.startsWith('/')
+    ? `file://${normalizedPath}`
+    : normalizedPath
+  return `url("${encodeURI(url).replace(/"/g, '%22')}")`
+}
+
+function applyBackgroundSettings(background: BackgroundSettings): void {
+  const root = document.documentElement
+  root.dataset.backgroundMode = background.mode
+  root.dataset.backgroundScope = background.scope
+  root.style.setProperty('--lyra-bg-color', background.color)
+  root.style.setProperty('--lyra-bg-image', resolveBackgroundImageValue(background.imagePath))
+  root.style.setProperty('--lyra-bg-opacity', String(background.opacity))
+  root.style.setProperty('--lyra-bg-blur', `${background.blur}px`)
+  root.style.setProperty('--lyra-bg-dim', String(background.dim))
 }
 
 function normalizeShortcutKey(key: string): string {
@@ -398,6 +418,7 @@ async function init(): Promise<void> {
   }
   activeSidebarStateSetter = setSidebarState
   appSettings = (await api.getSettings().catch(() => null)) ?? createDefaultSettings()
+  applyBackgroundSettings(appSettings.background)
   const savedTheme = appSettings.themeName || loadSavedTheme()
   applyTheme(savedTheme)
 
@@ -556,6 +577,7 @@ async function init(): Promise<void> {
     getSidebarState: () => sidebarState,
     onAppSettingsChange: (settings) => {
       appSettings = settings
+      applyBackgroundSettings(appSettings.background)
       refreshAgentPanelPlacement()
     },
     onSidebarStateChange: (state) => {

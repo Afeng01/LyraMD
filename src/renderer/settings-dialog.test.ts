@@ -74,4 +74,31 @@ describe('settings dialog regression', () => {
     expect(css).toContain('text-overflow: ellipsis')
     expect(css).toContain('white-space: nowrap')
   })
+
+  it('renders compact background appearance controls', () => {
+    const file = readFileSync(join(process.cwd(), 'src/renderer/settings-dialog.ts'), 'utf8')
+    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
+
+    expect(html).toContain('name="settings-background-scope"')
+    expect(html).toContain('value="editor"')
+    expect(html).toContain('value="window"')
+    expect(html).toContain('name="settings-background-mode"')
+    expect(html).toContain('id="settings-background-opacity"')
+    expect(html).toContain('id="settings-background-blur"')
+    expect(html).toContain('id="settings-background-dim"')
+    expect(html).toContain('id="settings-background-reset"')
+    expect(file).toContain('api.updateSettings({ background })')
+  })
+
+  it('applies background settings through renderer CSS variables', () => {
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+
+    expect(renderer).toContain('function applyBackgroundSettings')
+    expect(renderer).toContain("root.dataset.backgroundScope = background.scope")
+    expect(renderer).toContain("--lyra-bg-image")
+    expect(css).toContain(':root[data-background-scope="editor"]')
+    expect(css).toContain(':root[data-background-scope="window"]')
+    expect(css).toContain('#app-shell.context-panel-open.agent-panel-bottom #editor-shell')
+  })
 })

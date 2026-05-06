@@ -26,6 +26,7 @@ export function shouldRefreshWorkdirForWatchEvent(fileName?: string | Buffer | n
   if (!fileName) return true
   const normalizedName = String(fileName)
   if (!normalizedName) return true
+  if (!normalizedName.includes('.')) return true
   return hasMarkdownExtension(normalizedName)
 }
 
@@ -39,6 +40,21 @@ export function resolveNewWorkdirMarkdownPath(
   while (exists(candidatePath)) {
     suffix += 1
     candidatePath = join(rootPath, `untitled-${suffix}.md`)
+  }
+
+  return candidatePath
+}
+
+export function resolveNewWorkdirFolderPath(
+  rootPath: string,
+  exists: (candidatePath: string) => boolean,
+): string {
+  let suffix = 1
+  let candidatePath = join(rootPath, 'New Folder')
+
+  while (exists(candidatePath)) {
+    suffix += 1
+    candidatePath = join(rootPath, `New Folder ${suffix}`)
   }
 
   return candidatePath

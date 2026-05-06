@@ -1732,9 +1732,9 @@ async function init(): Promise<void> {
       const folderPlaceholder = document.createElement('button')
       folderPlaceholder.type = 'button'
       folderPlaceholder.className = 'sidebar-empty-action workdir-folder-placeholder'
-      folderPlaceholder.disabled = true
+      folderPlaceholder.dataset.createWorkdirFolder = 'true'
       folderPlaceholder.textContent = '新建文件夹'
-      folderPlaceholder.title = '文件夹创建会在下一步接入'
+      folderPlaceholder.title = '在当前工作目录中新建文件夹'
       libraryList.appendChild(folderPlaceholder)
       appendWorkdirTreeRows(libraryList)
       return
@@ -2472,6 +2472,15 @@ img{max-width:100%}
         expandedWorkdirFolders.add(folderPath)
       }
       renderSidebar()
+      return
+    }
+
+    const createWorkdirFolderButton = target?.closest('[data-create-workdir-folder]') as HTMLElement | null
+    if (createWorkdirFolderButton) {
+      event.preventDefault()
+      api.createWorkdirFolder().then((state) => {
+        if (state) setSidebarState(state)
+      }).catch(() => syncSidebarState())
       return
     }
 

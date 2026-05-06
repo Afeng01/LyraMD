@@ -33,7 +33,7 @@ import {
 import { DEFAULT_SHORTCUTS, DEFAULT_APP_SETTINGS, loadAppSettings, updateAppSettings, type AppSettings, type ShortcutAction } from './settings'
 import { shouldPromptForFormalSave, shouldRemoveSourceAfterSaveAs } from './save-as'
 import { buildTitleSyncPath, decideTitleSync } from './title-sync'
-import { resolveNewWorkdirMarkdownPath, scanWorkdir, scanWorkdirTree, shouldRefreshWorkdirForWatchEvent, type WorkdirEntry, type WorkdirTreeNode } from './workdir'
+import { resolveNewWorkdirFolderPath, resolveNewWorkdirMarkdownPath, scanWorkdir, scanWorkdirTree, shouldRefreshWorkdirForWatchEvent, type WorkdirEntry, type WorkdirTreeNode } from './workdir'
 import { moveFileToTrashAndVerify } from './file-removal'
 import { summarizeAgentChange } from './agent-change-summary'
 import { createWindowOptions } from './window-platform'
@@ -1251,6 +1251,20 @@ async function createWorkdirFileInWindow(win: BrowserWindow): Promise<SidebarSna
   return createSidebarSnapshot(win)
 }
 
+async function createWorkdirFolderInWindow(win: BrowserWindow): Promise<SidebarSnapshot> {
+  if (!sidebarState.workdirPath || !existsSync(sidebarState.workdirPath)) {
+    return createSidebarSnapshot(win)
+  }
+
+  const nextPath = resolveNewWorkdirFolderPath(sidebarState.workdirPath, (candidatePath) => existsSync(candidatePath))
+  await mkdir(nextPath)
+  sidebarState.activeSidebarTab = 'workdir'
+  await refreshWorkdirEntries()
+  await persistSidebarState()
+  broadcastSidebarState()
+  return createSidebarSnapshot(win)
+}
+
 async function removeDraftForAllWindows(triggerWin: BrowserWindow, draftId: string): Promise<SidebarSnapshot> {
   const draftEntry = sidebarState.draftEntries.find((entry) => entry.id === draftId)
   if (!draftEntry) {
@@ -1669,6 +1683,12 @@ ipcMain.handle('create-workdir-file', async (event) => {
   const win = getWinFromEvent(event)
   if (!win) return null
   return createWorkdirFileInWindow(win)
+})
+
+ipcMain.handle('create-workdir-folder', async (event) => {
+  const win = getWinFromEvent(event)
+  if (!win) return null
+  return createWorkdirFolderInWindow(win)
 })
 
 ipcMain.handle('set-active-sidebar-tab', async (event, tab: string) => {

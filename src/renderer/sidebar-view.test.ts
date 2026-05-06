@@ -337,6 +337,17 @@ describe('library create action regression', () => {
     expect(main).toContain("ipcMain.handle('create-workdir-file'")
   })
 
+  it('wires the workdir create folder action through preload and main IPC', () => {
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+    const preload = readFileSync(join(process.cwd(), 'src/preload/index.ts'), 'utf8')
+    const main = readFileSync(join(process.cwd(), 'src/main/index.ts'), 'utf8')
+
+    expect(renderer).toContain('data-create-workdir-folder')
+    expect(renderer).toContain('api.createWorkdirFolder()')
+    expect(preload).toContain("createWorkdirFolder: () => ipcRenderer.invoke('create-workdir-folder')")
+    expect(main).toContain("ipcMain.handle('create-workdir-folder'")
+  })
+
   it('uses the same context-aware creation path for the Cmd/Ctrl+N menu event', () => {
     const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
     const menuEventStart = renderer.indexOf('api.onNewFileInWindow(() => {')

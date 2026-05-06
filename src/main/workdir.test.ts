@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, rm, writeFile } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
 
-import { resolveNewWorkdirMarkdownPath, scanWorkdir, scanWorkdirTree, shouldRefreshWorkdirForWatchEvent } from './workdir'
+import { resolveNewWorkdirFolderPath, resolveNewWorkdirMarkdownPath, scanWorkdir, scanWorkdirTree, shouldRefreshWorkdirForWatchEvent } from './workdir'
 
 describe('scanWorkdir', () => {
   const tempDirs: string[] = []
@@ -122,10 +122,24 @@ describe('resolveNewWorkdirMarkdownPath', () => {
   })
 })
 
+describe('resolveNewWorkdirFolderPath', () => {
+  it('creates a default folder in the active workdir', () => {
+    expect(resolveNewWorkdirFolderPath('/workspace', () => false)).toBe(join('/workspace', 'New Folder'))
+  })
+
+  it('adds a numeric suffix when the default folder exists', () => {
+    expect(resolveNewWorkdirFolderPath('/workspace', (candidate) => (
+      candidate === join('/workspace', 'New Folder')
+        || candidate === join('/workspace', 'New Folder 2')
+    ))).toBe(join('/workspace', 'New Folder 3'))
+  })
+})
+
 describe('shouldRefreshWorkdirForWatchEvent', () => {
   it('refreshes on markdown file changes and unknown filenames', () => {
     expect(shouldRefreshWorkdirForWatchEvent('note.md')).toBe(true)
     expect(shouldRefreshWorkdirForWatchEvent('note.markdown')).toBe(true)
+    expect(shouldRefreshWorkdirForWatchEvent('folder')).toBe(true)
     expect(shouldRefreshWorkdirForWatchEvent(undefined)).toBe(true)
   })
 

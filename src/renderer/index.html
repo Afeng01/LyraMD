@@ -243,8 +243,14 @@
               <span>完整 Prompt</span>
               <textarea id="ai-helper-prompt-preview" readonly rows="7"></textarea>
             </div>
+            <label class="ai-helper-field">
+              <span>AI 返回结果</span>
+              <textarea id="ai-helper-result" rows="7" placeholder="把 AI 返回的内容粘贴到这里，再应用到正文。"></textarea>
+            </label>
             <div class="ai-helper-actions">
               <button id="ai-helper-copy-prompt" type="button" class="overlay-button primary">复制 Prompt</button>
+              <button id="ai-helper-replace-selection" type="button" class="overlay-button">替换选区</button>
+              <button id="ai-helper-insert-below" type="button" class="overlay-button">插入下方</button>
             </div>
           </div>
         </section>

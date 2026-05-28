@@ -7,7 +7,9 @@ import {
   getHTML,
   getMarkdown,
   getSelectedPlainText,
+  insertTextBelowSelection,
   isEditorTextFocused,
+  replaceSelectedText,
   getSearchState,
   nextSearchMatch,
   onUserEdit,
@@ -553,7 +555,10 @@ async function init(): Promise<void> {
   const aiHelperTemplate = document.getElementById('ai-helper-template') as HTMLSelectElement | null
   const aiHelperSelectionPreview = document.getElementById('ai-helper-selection-preview') as HTMLDivElement | null
   const aiHelperPromptPreview = document.getElementById('ai-helper-prompt-preview') as HTMLTextAreaElement | null
+  const aiHelperResult = document.getElementById('ai-helper-result') as HTMLTextAreaElement | null
   const aiHelperCopyPrompt = document.getElementById('ai-helper-copy-prompt') as HTMLButtonElement | null
+  const aiHelperReplaceSelection = document.getElementById('ai-helper-replace-selection') as HTMLButtonElement | null
+  const aiHelperInsertBelow = document.getElementById('ai-helper-insert-below') as HTMLButtonElement | null
   const agentDrawer = document.getElementById('agent-drawer') as HTMLElement | null
   const agentDrawerResizer = document.getElementById('agent-drawer-resizer') as HTMLDivElement | null
   const outlinePanel = document.getElementById('outline-panel') as HTMLElement | null
@@ -1418,6 +1423,13 @@ async function init(): Promise<void> {
     if (aiHelperCopyPrompt) {
       aiHelperCopyPrompt.disabled = !prompt
     }
+    const hasResult = Boolean(aiHelperResult?.value.trim())
+    if (aiHelperReplaceSelection) {
+      aiHelperReplaceSelection.disabled = !selection || !hasResult
+    }
+    if (aiHelperInsertBelow) {
+      aiHelperInsertBelow.disabled = !hasResult
+    }
   }
 
   const renderContextPanel = (): void => {
@@ -2244,6 +2256,28 @@ img{max-width:100%}
     if (!selection) return
     const prompt = buildAiHelperPrompt(selection)
     await navigator.clipboard.writeText(prompt)
+  })
+
+  aiHelperResult?.addEventListener('input', () => {
+    renderAiHelperPanel()
+  })
+
+  aiHelperReplaceSelection?.addEventListener('click', () => {
+    const result = aiHelperResult?.value.trim() ?? ''
+    if (!result) return
+    if (replaceSelectedText(result)) {
+      aiHelperResult.value = ''
+      renderAiHelperPanel()
+    }
+  })
+
+  aiHelperInsertBelow?.addEventListener('click', () => {
+    const result = aiHelperResult?.value.trim() ?? ''
+    if (!result) return
+    if (insertTextBelowSelection(result)) {
+      aiHelperResult.value = ''
+      renderAiHelperPanel()
+    }
   })
 
   document.addEventListener('selectionchange', () => {

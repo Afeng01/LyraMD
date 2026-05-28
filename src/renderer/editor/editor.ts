@@ -281,6 +281,29 @@ export function getSelectedPlainText(): string {
   }) ?? ''
 }
 
+export function replaceSelectedText(text: string): boolean {
+  return withEditorView((view) => {
+    const { from, to, empty } = view.state.selection
+    if (empty || text.length === 0) return false
+    const tr = view.state.tr.insertText(text, from, to)
+    view.dispatch(tr.scrollIntoView())
+    rememberCurrentSelection()
+    return true
+  }) ?? false
+}
+
+export function insertTextBelowSelection(text: string): boolean {
+  return withEditorView((view) => {
+    if (text.length === 0) return false
+    const { to } = view.state.selection
+    const prefix = to > 0 ? '\n\n' : ''
+    const tr = view.state.tr.insertText(`${prefix}${text}`, to, to)
+    view.dispatch(tr.scrollIntoView())
+    rememberCurrentSelection()
+    return true
+  }) ?? false
+}
+
 export function setMarkdown(content: string): void {
   if (!editorInstance) return
   const currentContent = getMarkdown()

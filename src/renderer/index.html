@@ -96,6 +96,14 @@
           <line x1="17" y1="16" x2="23" y2="16"></line>
         </svg>
       </button>
+      <button id="agent-toggle" class="context-toggle" type="button" aria-label="打开 Agent" title="打开 Agent">
+        <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M4.2 12.5c1.4 1.5 3 2.3 4.8 2.3s3.4-.8 4.8-2.3" />
+          <path d="M4.2 5.5c1.4-1.5 3-2.3 4.8-2.3s3.4.8 4.8 2.3" />
+          <path d="M2.8 9h12.4" />
+          <circle cx="9" cy="9" r="1.4" />
+        </svg>
+      </button>
       <button id="outline-toggle" type="button" aria-label="打开大纲" title="打开大纲 (Cmd/Ctrl+Shift+O)">
         <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <line x1="4" y1="4" x2="14" y2="4"></line>
@@ -134,6 +142,7 @@
               <div id="sidebar-tabs" class="sidebar-tabs" role="tablist" aria-label="文稿列表">
                 <button id="drafts-tab" type="button" data-sidebar-tab="drafts" role="tab">草稿</button>
                 <button id="recent-tab" type="button" data-sidebar-tab="recent" role="tab">最近</button>
+                <button id="draft-new" type="button" class="sidebar-tab-icon-button" aria-label="新建草稿" title="新建草稿">+</button>
                 <button id="workdir-tab" type="button" data-sidebar-tab="workdir" role="tab">工作目录</button>
               </div>
               <button id="current-file-new" type="button" class="sidebar-icon-button" aria-label="新建草稿">+</button>
@@ -218,25 +227,40 @@
         </div>
       </main>
       <aside id="context-panel" aria-label="Agent 和大纲" aria-hidden="true">
-        <div id="context-panel-tabs" role="tablist" aria-label="右侧面板">
-          <button id="context-panel-agent-tab" type="button" role="tab" aria-selected="true" aria-controls="agent-panel">
-            Agent
-          </button>
-          <button id="context-panel-outline-tab" type="button" role="tab" aria-selected="false" aria-controls="outline-panel">
-            Outline
-          </button>
-        </div>
-        <section id="agent-panel" role="tabpanel" aria-labelledby="context-panel-agent-tab">
-          <div id="agent-terminal-placeholder">
-            <div class="agent-terminal-title">Agent CLI</div>
-            <div class="agent-terminal-copy">终端会在下一阶段接入。当前先固定 LyraMD 2.0 的协作空间。</div>
+        <div id="context-panel-resizer" aria-hidden="true"></div>
+        <section id="agent-panel" aria-label="Agent CLI">
+          <div id="ai-helper-panel">
+            <div class="agent-terminal-title">AI 精灵</div>
+            <label class="ai-helper-field">
+              <span>Prompt 模板</span>
+              <select id="ai-helper-template"></select>
+            </label>
+            <div class="ai-helper-field">
+              <span>当前选区</span>
+              <div id="ai-helper-selection-preview" class="ai-helper-preview">先选中文本，再打开 AI 精灵。</div>
+            </div>
+            <div class="ai-helper-field">
+              <span>完整 Prompt</span>
+              <textarea id="ai-helper-prompt-preview" readonly rows="7"></textarea>
+            </div>
+            <div class="ai-helper-actions">
+              <button id="ai-helper-copy-prompt" type="button" class="overlay-button primary">复制 Prompt</button>
+            </div>
           </div>
         </section>
-        <section id="outline-panel" role="tabpanel" aria-labelledby="context-panel-outline-tab" hidden aria-hidden="true">
+        <section id="outline-panel" aria-label="大纲" hidden aria-hidden="true">
           <div class="outline-panel-header">大纲</div>
           <div id="outline-list" class="outline-list"></div>
         </section>
       </aside>
+      <section id="agent-drawer" aria-label="Agent CLI" aria-hidden="true">
+        <div id="agent-drawer-resizer" aria-hidden="true"></div>
+        <div id="agent-drawer-grip" aria-hidden="true"></div>
+        <div id="agent-drawer-placeholder">
+          <div class="agent-terminal-title">Agent CLI</div>
+          <div class="agent-terminal-copy">选择一段文字后，可以把上下文送到这里继续交给终端里的 Agent 处理。</div>
+        </div>
+      </section>
     </div>
 
     <div id="onboarding-overlay" hidden aria-hidden="true">
@@ -287,7 +311,11 @@
     <div id="settings-overlay" hidden aria-hidden="true">
       <div id="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title">
         <header class="settings-top-bar">
-          <h2 id="settings-pane-title">通用设置</h2>
+          <div class="settings-title-block">
+            <p id="settings-pane-kicker" class="settings-pane-kicker">基础</p>
+            <h2 id="settings-pane-title">编辑器行为</h2>
+            <p id="settings-pane-description" class="settings-pane-description">决定标题、文件名和保存行为如何一起工作。</p>
+          </div>
           <button id="settings-close" type="button" class="settings-close-x" aria-label="关闭设置">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
           </button>
@@ -295,6 +323,7 @@
 
         <aside class="settings-nav" aria-label="设置分组">
           <nav class="settings-nav-list">
+            <div class="settings-nav-section-label">基础</div>
             <button type="button" class="settings-nav-item active" data-settings-pane="general">
               <span class="settings-nav-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
@@ -313,11 +342,12 @@
               </span>
               <span class="settings-nav-label">快捷键管理</span>
             </button>
+            <div class="settings-nav-section-label advanced">进阶</div>
             <button type="button" class="settings-nav-item" data-settings-pane="integrations">
               <span class="settings-nav-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7V2"></path><path d="M15 7V2"></path><path d="M6 13H2"></path><path d="M22 13h-4"></path><rect x="6" y="7" width="12" height="12" rx="2"></rect><path d="M9 19v3"></path><path d="M15 19v3"></path></svg>
               </span>
-              <span class="settings-nav-label">集成</span>
+              <span class="settings-nav-label">集成与终端</span>
             </button>
           </nav>
         </aside>
@@ -370,6 +400,21 @@
             <section class="settings-pane" data-settings-panel="integrations" hidden>
               <section class="settings-group">
                 <div class="settings-group-heading">
+                  <h4 class="settings-group-title">AI 精灵 Prompt</h4>
+                  <p class="settings-group-copy">这些模板会用于后续选中文本后的 AI 操作。使用 {{selection}} 表示当前选区。</p>
+                </div>
+                <div id="settings-ai-template-list" class="settings-ai-template-list" role="tablist" aria-label="AI prompt 模板">
+                  <button type="button" class="settings-ai-template-button active" data-settings-ai-template="polish">润色</button>
+                  <button type="button" class="settings-ai-template-button" data-settings-ai-template="expand">扩写</button>
+                  <button type="button" class="settings-ai-template-button" data-settings-ai-template="summarize">总结</button>
+                </div>
+                <label class="settings-field settings-ai-template-editor">
+                  <span>模板内容</span>
+                  <textarea id="settings-ai-template-prompt" rows="7" spellcheck="false"></textarea>
+                </label>
+              </section>
+              <section class="settings-group">
+                <div class="settings-group-heading">
                   <h4 class="settings-group-title">Codex MCP</h4>
                   <p class="settings-group-copy">让 Codex 通过本地 MCP bridge 读取和写入当前 Markdown 文档。</p>
                 </div>
@@ -390,13 +435,24 @@
                   </div>
                 </div>
                 <div class="settings-integration-help">
-                  <h5>如何使用</h5>
+                  <h5>Codex MCP 如何使用</h5>
                   <ol>
                     <li>在这里安装后，保持 LyraMD 打开当前文档。</li>
                     <li>在 Codex 里请求它使用 LyraMD MCP 读取或写入当前文档。</li>
                     <li>LyraMD 负责安装配置和运行本地 bridge；Codex 负责真正调用 MCP 工具。</li>
                   </ol>
                 </div>
+              </section>
+              <section class="settings-group settings-usage-guide">
+                <div class="settings-group-heading">
+                  <h4 class="settings-group-title">LyraMD 使用指南</h4>
+                  <p class="settings-group-copy">这里是当前集成的实际使用方式，避免把 MCP、终端和草稿逻辑混在一起。</p>
+                </div>
+                <ol>
+                  <li>在 LyraMD 中写笔记，保持当前文档打开；未保存的新内容会先进入草稿。</li>
+                  <li>需要正式落盘时，用保存或工作目录里的新建按钮，把文件放进对应文件夹。</li>
+                  <li>终端里和 Alice 或 Codex 讨论内容时，让它通过已配置的本地连接读取当前文档，或直接把文件路径发给它。</li>
+                </ol>
               </section>
             </section>
             <section class="settings-pane" data-settings-panel="workspace" hidden>
@@ -422,6 +478,30 @@
                   <button type="button" class="settings-theme-button" data-settings-theme="dark">Dark</button>
                 </div>
                 <button id="settings-theme-import" type="button" class="overlay-button">导入自定义主题</button>
+              </section>
+
+              <section class="settings-group">
+                <div class="settings-group-heading">
+                  <h4 class="settings-group-title">编辑字体</h4>
+                  <p class="settings-group-copy">默认跟随主题字体，也可以固定为你更顺眼的字体。</p>
+                </div>
+                <div class="settings-field-grid">
+                  <label class="settings-field">
+                    <span>字体方案</span>
+                    <select id="settings-font-preset">
+                      <option value="theme">跟随主题</option>
+                      <option value="elegant">Elegant 内置</option>
+                      <option value="serif">宋体/衬线</option>
+                      <option value="sans">黑体/无衬线</option>
+                      <option value="mono">等宽</option>
+                      <option value="custom">自定义</option>
+                    </select>
+                  </label>
+                  <label class="settings-field span-2">
+                    <span>自定义字体</span>
+                    <input id="settings-font-custom" type="text" placeholder="LXGW WenKai, Noto Serif SC, serif" spellcheck="false">
+                  </label>
+                </div>
               </section>
 
               <section class="settings-group">

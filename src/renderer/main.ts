@@ -6,6 +6,7 @@ import {
   getOutlineItems,
   getHTML,
   getMarkdown,
+  getSelectedPlainText,
   isEditorTextFocused,
   getSearchState,
   nextSearchMatch,
@@ -43,7 +44,13 @@ import {
   resolveSearchNavigationFocusMode,
   shouldShowEmptyEditorPlaceholder,
 } from './editor/session-ux'
-import { resolveAgentPanelClassName, resolveAgentPanelPlacement, type AgentPanelPlacement } from './phase-c-layout'
+import {
+  resolveAgentPanelClassName,
+  resolveAgentPanelPlacement,
+  resolveContextPanelState,
+  type AgentPanelPlacement,
+  type ContextPanelMode,
+} from './phase-c-layout'
 import { createSettingsDialogController } from './settings-dialog'
 import {
   resolvePinnedItems,
@@ -60,7 +67,7 @@ import {
   type WorkdirTreeRow,
 } from './sidebar-view'
 import { applyTheme, loadSavedTheme } from './themes/theme-manager'
-import type { AgentChangePayload, AgentChangePreviewLine, AgentChangeSummary, AppSettings, BackgroundSettings, McpDocumentRequest, ShortcutAction, SidebarState, SidebarTab } from '../preload/index'
+import type { AgentChangePayload, AgentChangePreviewLine, AgentChangeSummary, AppSettings, BackgroundSettings, FontSettings, McpDocumentRequest, ShortcutAction, SidebarState, SidebarTab } from '../preload/index'
 import './themes/base.css'
 
 type TitleEditingAPI = typeof window.electronAPI & {
@@ -111,6 +118,14 @@ function isSamePath(a: string | null, b: string | null): boolean {
 
 function clampSidebarWidth(width: number): number {
   return Math.min(460, Math.max(220, Math.round(width)))
+}
+
+function clampContextPanelWidth(width: number): number {
+  return Math.min(520, Math.max(260, Math.round(width)))
+}
+
+function clampAgentDrawerHeight(height: number): number {
+  return Math.min(420, Math.max(170, Math.round(height)))
 }
 
 function clearElement(element: Element): void {
@@ -201,6 +216,29 @@ function createDefaultSettings(): AppSettings {
       blur: 0,
       dim: 0.18,
     },
+    font: {
+      preset: 'theme',
+      customFamily: '',
+    },
+    aiHelper: {
+      templates: [
+        {
+          id: 'polish',
+          title: '润色',
+          prompt: '请润色下面这段文字，保持原意，不要额外解释：\n\n{{selection}}',
+        },
+        {
+          id: 'expand',
+          title: '扩写',
+          prompt: '请基于下面这段文字继续扩写，保持语气自然：\n\n{{selection}}',
+        },
+        {
+          id: 'summarize',
+          title: '总结',
+          prompt: '请把下面这段文字总结成简洁要点：\n\n{{selection}}',
+        },
+      ],
+    },
   }
 }
 
@@ -222,6 +260,23 @@ function applyBackgroundSettings(background: BackgroundSettings): void {
   root.style.setProperty('--lyra-bg-opacity', String(background.opacity))
   root.style.setProperty('--lyra-bg-blur', `${background.blur}px`)
   root.style.setProperty('--lyra-bg-dim', String(background.dim))
+}
+
+const FONT_PRESET_FAMILIES: Record<Exclude<FontSettings['preset'], 'custom'>, string> = {
+  theme: 'var(--theme-editor-font-family)',
+  elegant: "'LXGW WenKai', 'Noto Serif SC', 'Source Han Serif SC', 'Source Han Serif CN', 'Songti SC', 'SimSun', Georgia, 'Times New Roman', serif",
+  sans: "'PingFang SC', 'SF Pro Text', 'Helvetica Neue', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif",
+  serif: "'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', Georgia, 'Times New Roman', serif",
+  mono: "'SF Mono', Menlo, Monaco, Consolas, 'Liberation Mono', monospace",
+}
+
+function applyFontSettings(font: FontSettings): void {
+  const root = document.documentElement
+  const family = font.preset === 'custom' && font.customFamily
+    ? font.customFamily
+    : FONT_PRESET_FAMILIES[font.preset] ?? FONT_PRESET_FAMILIES.theme
+  root.dataset.editorFontPreset = font.preset
+  root.style.setProperty('--lyra-editor-font-family', family)
 }
 
 function normalizeShortcutKey(key: string): string {
@@ -423,6 +478,7 @@ async function init(): Promise<void> {
   activeSidebarStateSetter = setSidebarState
   appSettings = (await api.getSettings().catch(() => null)) ?? createDefaultSettings()
   applyBackgroundSettings(appSettings.background)
+  applyFontSettings(appSettings.font)
   const savedTheme = appSettings.themeName || loadSavedTheme()
   applyTheme(savedTheme)
 
@@ -444,6 +500,7 @@ async function init(): Promise<void> {
   const appShell = document.getElementById('app-shell')
   const sidebarToggle = document.getElementById('sidebar-toggle') as HTMLButtonElement | null
   const settingsToggle = document.getElementById('settings-toggle') as HTMLButtonElement | null
+  const agentToggle = document.getElementById('agent-toggle') as HTMLButtonElement | null
   const outlineToggle = document.getElementById('outline-toggle') as HTMLButtonElement | null
   const windowsMenu = document.getElementById('windows-menu') as HTMLElement | null
   const windowMinimize = document.getElementById('window-minimize') as HTMLButtonElement | null
@@ -457,6 +514,7 @@ async function init(): Promise<void> {
   const onboardingSkip = document.getElementById('onboarding-skip') as HTMLButtonElement | null
   const onboardingDirectoryPreview = document.getElementById('onboarding-directory-preview') as HTMLDivElement | null
   const currentFileNew = document.getElementById('current-file-new') as HTMLButtonElement | null
+  const draftNew = document.getElementById('draft-new') as HTMLButtonElement | null
   const draftsToggle = document.getElementById('drafts-toggle') as HTMLButtonElement | null
   const recentFilesToggle = document.getElementById('recent-files-toggle') as HTMLButtonElement | null
   const workdirToggle = document.getElementById('workdir-toggle') as HTMLButtonElement | null
@@ -469,6 +527,7 @@ async function init(): Promise<void> {
   const draftsTab = document.getElementById('drafts-tab') as HTMLButtonElement | null
   const recentTab = document.getElementById('recent-tab') as HTMLButtonElement | null
   const workdirTab = document.getElementById('workdir-tab') as HTMLButtonElement | null
+  const librarySection = document.getElementById('library-section') as HTMLElement | null
   const libraryList = document.getElementById('library-list') as HTMLDivElement | null
   const currentFile = document.getElementById('current-file')
   const draftsList = document.getElementById('drafts-list')
@@ -489,9 +548,14 @@ async function init(): Promise<void> {
   const searchContextCurrent = document.getElementById('search-context-current') as HTMLDivElement | null
   const searchContextNext = document.getElementById('search-context-next') as HTMLDivElement | null
   const contextPanel = document.getElementById('context-panel') as HTMLElement | null
-  const contextPanelAgentTab = document.getElementById('context-panel-agent-tab') as HTMLButtonElement | null
-  const contextPanelOutlineTab = document.getElementById('context-panel-outline-tab') as HTMLButtonElement | null
+  const contextPanelResizer = document.getElementById('context-panel-resizer') as HTMLDivElement | null
   const agentPanel = document.getElementById('agent-panel') as HTMLElement | null
+  const aiHelperTemplate = document.getElementById('ai-helper-template') as HTMLSelectElement | null
+  const aiHelperSelectionPreview = document.getElementById('ai-helper-selection-preview') as HTMLDivElement | null
+  const aiHelperPromptPreview = document.getElementById('ai-helper-prompt-preview') as HTMLTextAreaElement | null
+  const aiHelperCopyPrompt = document.getElementById('ai-helper-copy-prompt') as HTMLButtonElement | null
+  const agentDrawer = document.getElementById('agent-drawer') as HTMLElement | null
+  const agentDrawerResizer = document.getElementById('agent-drawer-resizer') as HTMLDivElement | null
   const outlinePanel = document.getElementById('outline-panel') as HTMLElement | null
   const outlineList = document.getElementById('outline-list') as HTMLDivElement | null
   const agentChangePanel = document.getElementById('agent-change-panel') as HTMLDivElement | null
@@ -505,6 +569,11 @@ async function init(): Promise<void> {
   if (contextPanel) {
     contextPanel.hidden = false
     contextPanel.setAttribute('aria-hidden', 'true')
+  }
+
+  if (agentDrawer) {
+    agentDrawer.hidden = false
+    agentDrawer.setAttribute('aria-hidden', 'true')
   }
 
   if (outlinePanel) {
@@ -582,6 +651,7 @@ async function init(): Promise<void> {
     onAppSettingsChange: (settings) => {
       appSettings = settings
       applyBackgroundSettings(appSettings.background)
+      applyFontSettings(appSettings.font)
       refreshAgentPanelPlacement()
     },
     onSidebarStateChange: (state) => {
@@ -1061,8 +1131,12 @@ async function init(): Promise<void> {
 
   let searchPanelOpen = false
   let outlinePanelOpen = false
-  let activeContextPanel: 'agent' | 'outline' = 'agent'
+  let agentPanelOpen = false
+  let activeContextPanel: ContextPanelMode = 'agent'
   let agentPanelPlacement: AgentPanelPlacement = 'bottom'
+  let contextPanelWidth = 310
+  let agentDrawerHeight = 230
+  let activeAiHelperTemplateId = 'polish'
   let searchInputComposing = false
   let searchQueryMemory: SearchMemoryState = {}
   let agentChangeSession: AgentChangeSession | null = null
@@ -1258,6 +1332,32 @@ async function init(): Promise<void> {
     appShell?.classList.add(resolveAgentPanelClassName(agentPanelPlacement))
   }
 
+  function syncContextPanelMetrics(): void {
+    appShell?.style.setProperty('--context-panel-width', `${contextPanelWidth}px`)
+    appShell?.style.setProperty('--agent-drawer-height', `${agentDrawerHeight}px`)
+  }
+
+  function syncAgentDrawerLeftOffset(): void {
+    if (!sidebarState || sidebarState.isDrawerMode || !sidebarState.sidebarOpen) {
+      appShell?.style.setProperty('--agent-drawer-left', '0px')
+      return
+    }
+    const resizerWidth = sidebarResizer?.hidden ? 0 : 10
+    appShell?.style.setProperty('--agent-drawer-left', `${sidebarState.sidebarWidth + resizerWidth}px`)
+  }
+
+  function applyResolvedContextPanelState(): void {
+    const nextState = resolveContextPanelState({
+      placement: agentPanelPlacement,
+      activeContextPanel,
+      agentPanelOpen,
+      outlinePanelOpen,
+    })
+    activeContextPanel = nextState.activeContextPanel
+    agentPanelOpen = nextState.agentPanelOpen
+    outlinePanelOpen = nextState.outlinePanelOpen
+  }
+
   function refreshAgentPanelPlacement(): void {
     agentPanelPlacement = resolveAgentPanelPlacement({
       preference: appSettings.agentPanelPosition,
@@ -1265,47 +1365,141 @@ async function init(): Promise<void> {
       height: window.innerHeight,
       previous: agentPanelPlacement,
     })
+    applyResolvedContextPanelState()
     applyAgentPanelPlacementClass()
   }
 
+  const getAiHelperTemplates = () => {
+    return appSettings.aiHelper?.templates?.length
+      ? appSettings.aiHelper.templates
+      : createDefaultSettings().aiHelper.templates
+  }
+
+  const resolveAiHelperTemplate = () => {
+    const templates = getAiHelperTemplates()
+    const template = templates.find((candidate) => candidate.id === activeAiHelperTemplateId)
+      ?? templates[0]
+    if (template) activeAiHelperTemplateId = template.id
+    return template
+  }
+
+  const buildAiHelperPrompt = (selection: string): string => {
+    const template = resolveAiHelperTemplate()
+    if (!template) return selection
+    if (template.prompt.includes('{{selection}}')) {
+      return template.prompt.replaceAll('{{selection}}', selection)
+    }
+    return `${template.prompt}\n\n${selection}`
+  }
+
+  const renderAiHelperPanel = (): void => {
+    const templates = getAiHelperTemplates()
+    const activeTemplate = resolveAiHelperTemplate()
+    if (aiHelperTemplate) {
+      clearElement(aiHelperTemplate)
+      for (const template of templates) {
+        const option = document.createElement('option')
+        option.value = template.id
+        option.textContent = template.title
+        aiHelperTemplate.appendChild(option)
+      }
+      aiHelperTemplate.value = activeTemplate?.id ?? ''
+    }
+
+    const selection = getSelectedPlainText().trim()
+    const prompt = selection ? buildAiHelperPrompt(selection) : ''
+    if (aiHelperSelectionPreview) {
+      aiHelperSelectionPreview.textContent = selection || '先选中文本，再打开 AI 精灵。'
+      aiHelperSelectionPreview.classList.toggle('empty', !selection)
+    }
+    if (aiHelperPromptPreview) {
+      aiHelperPromptPreview.value = prompt
+    }
+    if (aiHelperCopyPrompt) {
+      aiHelperCopyPrompt.disabled = !prompt
+    }
+  }
+
   const renderContextPanel = (): void => {
-    const showAgent = activeContextPanel === 'agent'
-    const showOutline = activeContextPanel === 'outline'
+    applyResolvedContextPanelState()
+    const widePanel = agentPanelPlacement === 'right'
+    const showAgentInRightPanel = widePanel && agentPanelOpen && activeContextPanel === 'agent'
+    const showOutlineInRightPanel = outlinePanelOpen && (!widePanel || activeContextPanel === 'outline')
+    const showContextPanel = showAgentInRightPanel || showOutlineInRightPanel
+    const showAgentDrawer = !widePanel && agentPanelOpen
 
-    appShell?.classList.toggle('context-panel-open', true)
-    appShell?.classList.toggle('outline-open', showOutline)
-    outlineToggle?.classList.toggle('active', showOutline)
-    contextPanel?.setAttribute('aria-hidden', 'false')
+    syncContextPanelMetrics()
+    syncAgentDrawerLeftOffset()
 
-    contextPanelAgentTab?.classList.toggle('active', showAgent)
-    contextPanelAgentTab?.setAttribute('aria-selected', showAgent ? 'true' : 'false')
-    contextPanelOutlineTab?.classList.toggle('active', showOutline)
-    contextPanelOutlineTab?.setAttribute('aria-selected', showOutline ? 'true' : 'false')
+    appShell?.classList.toggle('context-panel-open', showContextPanel)
+    appShell?.classList.toggle('agent-drawer-open', showAgentDrawer)
+    appShell?.classList.toggle('outline-open', showOutlineInRightPanel)
+    appShell?.classList.toggle('agent-open', agentPanelOpen)
+    appShell?.classList.toggle('context-panel-agent', showAgentInRightPanel)
+    appShell?.classList.toggle('context-panel-outline', showOutlineInRightPanel)
+    agentToggle?.classList.toggle('active', agentPanelOpen)
+    agentToggle?.setAttribute('aria-pressed', agentPanelOpen ? 'true' : 'false')
+    outlineToggle?.classList.toggle('active', outlinePanelOpen)
+    outlineToggle?.setAttribute('aria-pressed', outlinePanelOpen ? 'true' : 'false')
+    contextPanel?.setAttribute('aria-hidden', showContextPanel ? 'false' : 'true')
+    agentDrawer?.setAttribute('aria-hidden', showAgentDrawer ? 'false' : 'true')
 
     if (agentPanel) {
-      agentPanel.hidden = !showAgent
-      agentPanel.setAttribute('aria-hidden', showAgent ? 'false' : 'true')
+      agentPanel.hidden = !showAgentInRightPanel
+      agentPanel.setAttribute('aria-hidden', showAgentInRightPanel ? 'false' : 'true')
     }
+    if (showAgentInRightPanel || showAgentDrawer) renderAiHelperPanel()
     if (outlinePanel) {
-      outlinePanel.hidden = !showOutline
-      outlinePanel.setAttribute('aria-hidden', showOutline ? 'false' : 'true')
+      outlinePanel.hidden = !showOutlineInRightPanel
+      outlinePanel.setAttribute('aria-hidden', showOutlineInRightPanel ? 'false' : 'true')
     }
-    if (showOutline) renderOutlinePanel()
+    if (showOutlineInRightPanel) renderOutlinePanel()
   }
 
   const setContextPanelMode = (mode: 'agent' | 'outline'): void => {
     activeContextPanel = mode
-    outlinePanelOpen = mode === 'outline'
+    if (mode === 'agent') {
+      agentPanelOpen = true
+      if (agentPanelPlacement === 'right') outlinePanelOpen = false
+    } else {
+      outlinePanelOpen = true
+      if (agentPanelPlacement === 'right') agentPanelOpen = false
+    }
     refreshAgentPanelPlacement()
     renderContextPanel()
   }
 
+  const toggleAgentPanel = (): void => {
+    refreshAgentPanelPlacement()
+    if (agentPanelOpen && activeContextPanel === 'agent') {
+      agentPanelOpen = false
+    } else {
+      activeContextPanel = 'agent'
+      agentPanelOpen = true
+      if (agentPanelPlacement === 'right') outlinePanelOpen = false
+    }
+    renderContextPanel()
+  }
+
   const setOutlinePanelOpen = (open: boolean): void => {
-    setContextPanelMode(open ? 'outline' : 'agent')
+    if (open) {
+      setContextPanelMode('outline')
+      return
+    }
+    outlinePanelOpen = false
+    renderContextPanel()
   }
 
   const toggleOutlinePanel = (): void => {
-    setOutlinePanelOpen(!outlinePanelOpen)
+    refreshAgentPanelPlacement()
+    if (outlinePanelOpen && activeContextPanel === 'outline') {
+      outlinePanelOpen = false
+    } else {
+      activeContextPanel = 'outline'
+      outlinePanelOpen = true
+      if (agentPanelPlacement === 'right') agentPanelOpen = false
+    }
+    renderContextPanel()
   }
 
   const focusSearchInputWithoutSelecting = (): void => {
@@ -1646,6 +1840,7 @@ async function init(): Promise<void> {
     if (sidebarResizer) {
       sidebarResizer.hidden = sidebarState.isDrawerMode || !sidebarState.sidebarOpen
     }
+    syncAgentDrawerLeftOffset()
     if (onboardingOverlay) {
       onboardingOverlay.hidden = sidebarState.draftOnboardingCompleted
       onboardingOverlay.setAttribute('aria-hidden', sidebarState.draftOnboardingCompleted ? 'true' : 'false')
@@ -1695,10 +1890,12 @@ async function init(): Promise<void> {
     }
 
     const activeTab = sidebarState.activeSidebarTab
+    librarySection?.classList.toggle('library-tab-workdir', activeTab === 'workdir')
     if (currentFileNew) {
-      const label = activeTab === 'workdir' ? '新建工作目录文稿' : '新建草稿'
+      const label = '新建工作目录文稿'
       currentFileNew.setAttribute('aria-label', label)
       currentFileNew.title = label
+      currentFileNew.hidden = activeTab !== 'workdir'
     }
     if (draftsTab) {
       draftsTab.classList.toggle('active', activeTab === 'drafts')
@@ -1934,7 +2131,7 @@ img{max-width:100%}
         break
       case 'settings':
         closeTitleSyncPrompt()
-        settingsDialog.toggle()
+        settingsDialog.open()
         break
       case 'import-theme':
         void importCustomThemeSelection()
@@ -1946,7 +2143,9 @@ img{max-width:100%}
   }
 
   sidebarState = await api.getSidebarState()
-  if (sidebarState) renderSidebar()
+  if (sidebarState) {
+    renderSidebar()
+  }
 
   api.onMenuOpen(async () => {
     persistCurrentViewportOffset()
@@ -1968,7 +2167,7 @@ img{max-width:100%}
   })
   api.onMenuSettings?.(() => {
     closeTitleSyncPrompt()
-    settingsDialog.toggle()
+    settingsDialog.open()
   })
   api.onMenuExportPDF(() => api.exportPDF())
   api.onMenuExportHTML(() => {
@@ -2028,19 +2227,32 @@ img{max-width:100%}
 
   settingsToggle?.addEventListener('click', () => {
     closeTitleSyncPrompt()
-    settingsDialog.toggle()
+    settingsDialog.open()
+  })
+
+  agentToggle?.addEventListener('click', () => {
+    toggleAgentPanel()
+  })
+
+  aiHelperTemplate?.addEventListener('change', () => {
+    activeAiHelperTemplateId = aiHelperTemplate.value
+    renderAiHelperPanel()
+  })
+
+  aiHelperCopyPrompt?.addEventListener('click', async () => {
+    const selection = getSelectedPlainText().trim()
+    if (!selection) return
+    const prompt = buildAiHelperPrompt(selection)
+    await navigator.clipboard.writeText(prompt)
+  })
+
+  document.addEventListener('selectionchange', () => {
+    if (!agentPanelOpen) return
+    renderAiHelperPanel()
   })
 
   outlineToggle?.addEventListener('click', () => {
     toggleOutlinePanel()
-  })
-
-  contextPanelAgentTab?.addEventListener('click', () => {
-    setContextPanelMode('agent')
-  })
-
-  contextPanelOutlineTab?.addEventListener('click', () => {
-    setContextPanelMode('outline')
   })
 
   api.onMenuToggleOutline(() => {
@@ -2141,6 +2353,10 @@ img{max-width:100%}
 
   currentFileNew?.addEventListener('click', () => {
     beginLibraryDocumentFromSidebar()
+  })
+
+  draftNew?.addEventListener('click', () => {
+    beginBlankDocumentFromSidebar()
   })
 
   currentFile?.addEventListener('dblclick', (event) => {
@@ -2596,8 +2812,61 @@ img{max-width:100%}
     window.addEventListener('pointerup', handlePointerUp)
   })
 
+  let contextDragOriginX = 0
+  let contextDragOriginWidth = 0
+
+  const handleContextPanelPointerMove = (event: PointerEvent): void => {
+    contextPanelWidth = clampContextPanelWidth(contextDragOriginWidth + (contextDragOriginX - event.clientX))
+    syncContextPanelMetrics()
+  }
+
+  const stopContextPanelResize = (): void => {
+    window.removeEventListener('pointermove', handleContextPanelPointerMove)
+    window.removeEventListener('pointerup', stopContextPanelResize)
+    window.removeEventListener('pointercancel', stopContextPanelResize)
+    window.removeEventListener('blur', stopContextPanelResize)
+  }
+
+  contextPanelResizer?.addEventListener('pointerdown', (event) => {
+    if (!appShell?.classList.contains('context-panel-open')) return
+    event.preventDefault()
+    contextDragOriginX = event.clientX
+    contextDragOriginWidth = contextPanelWidth
+    window.addEventListener('pointermove', handleContextPanelPointerMove)
+    window.addEventListener('pointerup', stopContextPanelResize)
+    window.addEventListener('pointercancel', stopContextPanelResize)
+    window.addEventListener('blur', stopContextPanelResize)
+  })
+
+  let drawerDragOriginY = 0
+  let drawerDragOriginHeight = 0
+
+  const handleAgentDrawerPointerMove = (event: PointerEvent): void => {
+    agentDrawerHeight = clampAgentDrawerHeight(drawerDragOriginHeight + (drawerDragOriginY - event.clientY))
+    syncContextPanelMetrics()
+  }
+
+  const stopAgentDrawerResize = (): void => {
+    window.removeEventListener('pointermove', handleAgentDrawerPointerMove)
+    window.removeEventListener('pointerup', stopAgentDrawerResize)
+    window.removeEventListener('pointercancel', stopAgentDrawerResize)
+    window.removeEventListener('blur', stopAgentDrawerResize)
+  }
+
+  agentDrawerResizer?.addEventListener('pointerdown', (event) => {
+    if (!appShell?.classList.contains('agent-drawer-open')) return
+    event.preventDefault()
+    drawerDragOriginY = event.clientY
+    drawerDragOriginHeight = agentDrawerHeight
+    window.addEventListener('pointermove', handleAgentDrawerPointerMove)
+    window.addEventListener('pointerup', stopAgentDrawerResize)
+    window.addEventListener('pointercancel', stopAgentDrawerResize)
+    window.addEventListener('blur', stopAgentDrawerResize)
+  })
+
   window.addEventListener('resize', () => {
     refreshAgentPanelPlacement()
+    renderContextPanel()
     schedulePlaceholderLayoutSync()
   })
   refreshAgentPanelPlacement()

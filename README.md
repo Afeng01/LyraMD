@@ -22,7 +22,7 @@ Real-time collaboration between humans and AI agents, adapted for a quieter work
 - **Lightweight sidebar** with fixed workspace/pinned areas and a scrolling draft/recent/workdir list.
 - **Recent file management** with a compact delete mode.
 - **Recursive Markdown workdir list** using relative paths.
-- **Themes and export**: built-in themes, custom CSS import, PDF export, and HTML export.
+- **Themes, fonts, and export**: built-in themes with per-theme editor fonts, custom font selection, custom CSS import, PDF export, and HTML export.
 
 ## Why This Fork
 

@@ -26,4 +26,4 @@
 
 - Real PTY terminal execution is not implemented in Phase C.
 - Workdir folder creation currently creates folders at the workdir root only.
-- Untracked generated/experimental directories remain outside this work: `.cargo/`, `dist-next/`, `src-tauri/`.
+- Untracked generated/experimental directories `.cargo/`, `dist-next/`, and `src-tauri/` were moved out during the 2026-05-28 1.x cleanup checkpoint.

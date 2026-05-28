@@ -190,6 +190,20 @@ export function resolveVisibleWorkdirTreeRows(
   return rows
 }
 
+export function createWorkspaceRootTreeNode(
+  rootPath: string,
+  children: WorkdirTreeNode[],
+): WorkdirTreeNode {
+  const name = basename(rootPath)
+  return {
+    absolutePath: rootPath,
+    children,
+    kind: 'directory',
+    name,
+    relativePath: name,
+  }
+}
+
 function createDraftItem(state: SidebarState, draftId: string, title: string): DraftSidebarItem {
   return {
     kind: 'draft',

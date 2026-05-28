@@ -28,6 +28,7 @@ export type SaveAsMode = 'switch' | 'move'
 export type AgentPanelPosition = 'auto' | 'bottom' | 'right'
 export type BackgroundMode = 'default' | 'color' | 'image'
 export type BackgroundScope = 'editor' | 'window'
+export type EditorFontPreset = 'theme' | 'elegant' | 'sans' | 'serif' | 'mono' | 'custom'
 export type SidebarTab = 'drafts' | 'recent' | 'workdir'
 export type PinnedItem =
   | { kind: 'draft'; draftId: string }
@@ -45,6 +46,21 @@ export interface BackgroundSettings {
   dim: number
 }
 
+export interface FontSettings {
+  preset: EditorFontPreset
+  customFamily: string
+}
+
+export interface AiPromptTemplate {
+  id: string
+  title: string
+  prompt: string
+}
+
+export interface AiHelperSettings {
+  templates: AiPromptTemplate[]
+}
+
 export interface AppSettings {
   titleSyncMode: TitleSyncMode
   saveAsMode: SaveAsMode
@@ -52,6 +68,8 @@ export interface AppSettings {
   shortcuts: ShortcutMap
   agentPanelPosition: AgentPanelPosition
   background: BackgroundSettings
+  font: FontSettings
+  aiHelper: AiHelperSettings
 }
 
 export interface CodexIntegrationStatus {

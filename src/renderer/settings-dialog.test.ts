@@ -60,8 +60,22 @@ describe('settings dialog regression', () => {
 
     expect(html).toContain('data-settings-pane="integrations"')
     expect(html).toContain('data-settings-panel="integrations"')
+    expect(html).toContain('集成与终端')
     expect(html).toContain('Codex MCP')
     expect(file).toContain("activePane === 'integrations'")
+  })
+
+  it('separates basic and advanced settings in the navigation and pane header', () => {
+    const file = readFileSync(join(process.cwd(), 'src/renderer/settings-dialog.ts'), 'utf8')
+    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+
+    expect(html).toContain('id="settings-pane-kicker"')
+    expect(html).toContain('id="settings-pane-description"')
+    expect(html).toContain('<div class="settings-nav-section-label">基础</div>')
+    expect(html).toContain('<div class="settings-nav-section-label advanced">进阶</div>')
+    expect(file).toContain("kicker: '进阶'")
+    expect(css).toContain('.settings-nav-section-label')
   })
 
   it('renders Codex MCP usage help and keeps integration controls compact', () => {
@@ -69,10 +83,13 @@ describe('settings dialog regression', () => {
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
 
     expect(html).toContain('settings-integration-help')
+    expect(html).toContain('LyraMD 使用指南')
+    expect(html).toContain('在 LyraMD 中写笔记，保持当前文档打开')
     expect(html).toContain('在 Codex 里请求它使用 LyraMD MCP 读取或写入当前文档')
     expect(css).toContain('-webkit-app-region: drag')
     expect(css).toContain('text-overflow: ellipsis')
     expect(css).toContain('white-space: nowrap')
+    expect(css).toContain('settings-usage-guide')
   })
 
   it('renders compact background appearance controls', () => {
@@ -90,6 +107,40 @@ describe('settings dialog regression', () => {
     expect(file).toContain('api.updateSettings({ background })')
   })
 
+  it('opens settings from buttons and shortcuts instead of toggling an already open dialog closed', () => {
+    const file = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+
+    expect(file).toContain('settingsDialog.open()')
+    expect(file).not.toContain('settingsDialog.toggle()')
+  })
+
+  it('renders editor font controls and persists font settings through app settings', () => {
+    const file = readFileSync(join(process.cwd(), 'src/renderer/settings-dialog.ts'), 'utf8')
+    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+
+    expect(html).toContain('id="settings-font-preset"')
+    expect(html).toContain('id="settings-font-custom"')
+    expect(html).toContain('value="theme"')
+    expect(html).toContain('value="custom"')
+    expect(file).toContain('api.updateSettings({ font:')
+    expect(css).toContain('--theme-editor-font-family')
+    expect(css).toContain('--lyra-editor-font-family')
+  })
+
+  it('renders AI helper prompt template controls and persists templates through app settings', () => {
+    const file = readFileSync(join(process.cwd(), 'src/renderer/settings-dialog.ts'), 'utf8')
+    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+
+    expect(html).toContain('id="settings-ai-template-list"')
+    expect(html).toContain('id="settings-ai-template-prompt"')
+    expect(html).toContain('data-settings-ai-template="polish"')
+    expect(file).toContain('updateAiHelperSettings')
+    expect(file).toContain('api.updateSettings({ aiHelper')
+    expect(css).toContain('.settings-ai-template-list')
+  })
+
   it('applies background settings through renderer CSS variables', () => {
     const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
@@ -99,6 +150,6 @@ describe('settings dialog regression', () => {
     expect(renderer).toContain("--lyra-bg-image")
     expect(css).toContain(':root[data-background-scope="editor"]')
     expect(css).toContain(':root[data-background-scope="window"]')
-    expect(css).toContain('#app-shell.context-panel-open.agent-panel-bottom #editor-shell')
+    expect(css).toContain('#app-shell.agent-drawer-open #editor-shell')
   })
 })

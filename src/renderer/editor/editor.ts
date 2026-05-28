@@ -30,6 +30,7 @@ import {
   type SearchState,
   type SearchMatchPreview,
 } from './search'
+import { resolveAutoPairTextInput } from './auto-pair'
 import { resolveActiveMatchAfterRefresh } from './search-memory'
 import {
   createOutlineId,
@@ -150,6 +151,37 @@ function createMarkdownTokenPlugin(): Plugin {
   })
 }
 
+function createAutoPairInputPlugin(): Plugin {
+  return new Plugin({
+    props: {
+      handleTextInput(view, from, to, text) {
+        const nextText = view.state.doc.textBetween(
+          from,
+          Math.min(from + text.length, view.state.doc.content.size),
+          '\n\n',
+          '\n',
+        )
+        const selectedText = from === to
+          ? ''
+          : view.state.doc.textBetween(from, to, '\n\n', '\n')
+        const action = resolveAutoPairTextInput({
+          text,
+          selectedText,
+          nextText,
+          cursor: from,
+        })
+        if (!action) return false
+
+        const tr = view.state.tr
+        if (action.insertText) tr.insertText(action.insertText, from, to)
+        tr.setSelection(TextSelection.create(tr.doc, action.selectionAnchor, action.selectionHead))
+        view.dispatch(tr.scrollIntoView())
+        return true
+      },
+    },
+  })
+}
+
 export async function createEditor(
   rootId: string,
   onChange?: (markdown: string) => void
@@ -163,6 +195,7 @@ export async function createEditor(
       ctx.set(defaultValueCtx, defaultContent)
       ctx.set(remarkPluginsCtx, [{ plugin: remarkBreaks, options: undefined }])
       ctx.update(prosePluginsCtx, (plugins) => plugins.concat(
+        createAutoPairInputPlugin(),
         createProsemirrorSearchPlugin(),
         createMarkdownTokenPlugin(),
       ))
@@ -238,6 +271,14 @@ export function getHTML(): string {
     html = div.innerHTML
   })
   return html
+}
+
+export function getSelectedPlainText(): string {
+  return withEditorView((view) => {
+    const { from, to, empty } = view.state.selection
+    if (empty) return ''
+    return view.state.doc.textBetween(from, to, '\n\n', '\n')
+  }) ?? ''
 }
 
 export function setMarkdown(content: string): void {

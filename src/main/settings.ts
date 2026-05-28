@@ -6,6 +6,7 @@ export type SaveAsMode = 'switch' | 'move'
 export type AgentPanelPosition = 'auto' | 'bottom' | 'right'
 export type BackgroundMode = 'default' | 'color' | 'image'
 export type BackgroundScope = 'editor' | 'window'
+export type EditorFontPreset = 'theme' | 'elegant' | 'sans' | 'serif' | 'mono' | 'custom'
 export type ShortcutAction =
   | 'save'
   | 'saveAs'
@@ -27,6 +28,21 @@ export interface BackgroundSettings {
   dim: number
 }
 
+export interface FontSettings {
+  preset: EditorFontPreset
+  customFamily: string
+}
+
+export interface AiPromptTemplate {
+  id: string
+  title: string
+  prompt: string
+}
+
+export interface AiHelperSettings {
+  templates: AiPromptTemplate[]
+}
+
 export interface AppSettings {
   titleSyncMode: TitleSyncMode
   saveAsMode: SaveAsMode
@@ -34,6 +50,8 @@ export interface AppSettings {
   shortcuts: ShortcutMap
   agentPanelPosition: AgentPanelPosition
   background: BackgroundSettings
+  font: FontSettings
+  aiHelper: AiHelperSettings
 }
 
 export const DEFAULT_SHORTCUTS: ShortcutMap = {
@@ -45,6 +63,24 @@ export const DEFAULT_SHORTCUTS: ShortcutMap = {
   toggleOutline: 'CmdOrCtrl+Shift+O',
   cleanCjkTypography: 'CmdOrCtrl+Shift+F',
 }
+
+export const DEFAULT_AI_PROMPT_TEMPLATES: AiPromptTemplate[] = [
+  {
+    id: 'polish',
+    title: '润色',
+    prompt: '请润色下面这段文字，保持原意，不要额外解释：\n\n{{selection}}',
+  },
+  {
+    id: 'expand',
+    title: '扩写',
+    prompt: '请基于下面这段文字继续扩写，保持语气自然：\n\n{{selection}}',
+  },
+  {
+    id: 'summarize',
+    title: '总结',
+    prompt: '请把下面这段文字总结成简洁要点：\n\n{{selection}}',
+  },
+]
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   titleSyncMode: 'ask',
@@ -60,6 +96,13 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     opacity: 1,
     blur: 0,
     dim: 0.18,
+  },
+  font: {
+    preset: 'theme',
+    customFamily: '',
+  },
+  aiHelper: {
+    templates: DEFAULT_AI_PROMPT_TEMPLATES,
   },
 }
 
@@ -84,6 +127,15 @@ function isBackgroundMode(value: unknown): value is BackgroundMode {
 
 function isBackgroundScope(value: unknown): value is BackgroundScope {
   return value === 'editor' || value === 'window'
+}
+
+function isEditorFontPreset(value: unknown): value is EditorFontPreset {
+  return value === 'theme'
+    || value === 'elegant'
+    || value === 'sans'
+    || value === 'serif'
+    || value === 'mono'
+    || value === 'custom'
 }
 
 function isThemeName(value: unknown): value is string {
@@ -115,6 +167,67 @@ function normalizeBackgroundSettings(input: unknown): BackgroundSettings {
     opacity: clampNumber(candidate.opacity, defaults.opacity, 0, 1),
     blur: clampNumber(candidate.blur, defaults.blur, 0, 40),
     dim: clampNumber(candidate.dim, defaults.dim, 0, 1),
+  }
+}
+
+function normalizeFontFamily(input: unknown): string {
+  if (typeof input !== 'string') return ''
+  const trimmed = input.trim().replace(/\s+/g, ' ')
+  if (!trimmed || trimmed.length > 180) return ''
+  if (/[{};<>]/.test(trimmed)) return ''
+  return trimmed
+}
+
+function normalizeFontSettings(input: unknown): FontSettings {
+  const candidate = input && typeof input === 'object'
+    ? input as Partial<Record<keyof FontSettings, unknown>>
+    : {}
+  const preset = isEditorFontPreset(candidate.preset)
+    ? candidate.preset
+    : DEFAULT_APP_SETTINGS.font.preset
+  const customFamily = normalizeFontFamily(candidate.customFamily)
+
+  if (preset === 'custom' && !customFamily) {
+    return DEFAULT_APP_SETTINGS.font
+  }
+
+  return {
+    preset,
+    customFamily,
+  }
+}
+
+function normalizePromptText(input: unknown, maxLength: number): string {
+  if (typeof input !== 'string') return ''
+  return input.trim().replace(/\r\n/g, '\n').slice(0, maxLength)
+}
+
+function normalizePromptTemplate(input: unknown): AiPromptTemplate | null {
+  const candidate = input && typeof input === 'object'
+    ? input as Partial<Record<keyof AiPromptTemplate, unknown>>
+    : {}
+  const id = normalizePromptText(candidate.id, 80)
+  const title = normalizePromptText(candidate.title, 60)
+  const prompt = normalizePromptText(candidate.prompt, 4000)
+  if (!id || !title || !prompt) return null
+
+  return { id, title, prompt }
+}
+
+function normalizeAiHelperSettings(input: unknown): AiHelperSettings {
+  const candidate = input && typeof input === 'object'
+    ? input as Partial<Record<keyof AiHelperSettings, unknown>>
+    : {}
+  const templates = Array.isArray(candidate.templates)
+    ? candidate.templates
+      .map(normalizePromptTemplate)
+      .filter((template): template is AiPromptTemplate => template !== null)
+    : []
+
+  if (templates.length === 0) return DEFAULT_APP_SETTINGS.aiHelper
+
+  return {
+    templates: templates.slice(0, 12),
   }
 }
 
@@ -177,6 +290,8 @@ export function normalizeAppSettings(input: PersistedAppSettings | null | undefi
       ? input.agentPanelPosition
       : DEFAULT_APP_SETTINGS.agentPanelPosition,
     background: normalizeBackgroundSettings(input?.background),
+    font: normalizeFontSettings(input?.font),
+    aiHelper: normalizeAiHelperSettings(input?.aiHelper),
   }
 }
 
@@ -221,6 +336,12 @@ export async function updateAppSettings(
     background: patch.background === undefined
       ? normalizeBackgroundSettings(currentSettings.background)
       : normalizeBackgroundSettings(patch.background),
+    font: patch.font === undefined
+      ? normalizeFontSettings(currentSettings.font)
+      : normalizeFontSettings(patch.font),
+    aiHelper: patch.aiHelper === undefined
+      ? normalizeAiHelperSettings(currentSettings.aiHelper)
+      : normalizeAiHelperSettings(patch.aiHelper),
   }
 
   await persistAppSettings(settingsPath, nextSettings)

@@ -23,7 +23,7 @@ describe('outline shortcut affordance', () => {
   it('keeps the outline panel mounted so open and close can slide', () => {
     expect(css).toContain('#app-shell.context-panel-open.agent-panel-right #context-panel')
     expect(css).toMatch(/#context-panel[\s\S]*transition:.*(?:width|transform)/)
-    expect(renderer).toContain("setContextPanelMode(open ? 'outline' : 'agent')")
-    expect(renderer).toContain('outlinePanel.hidden = !showOutline')
+    expect(renderer).toContain("setContextPanelMode('outline')")
+    expect(renderer).toContain('outlinePanel.hidden = !showOutlineInRightPanel')
   })
 })

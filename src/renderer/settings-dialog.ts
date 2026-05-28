@@ -1,4 +1,4 @@
-import type { AppSettings, BackgroundMode, BackgroundScope, BackgroundSettings, CodexIntegrationStatus, ElectronAPI, SaveAsMode, ShortcutAction, SidebarState, TitleSyncMode } from '../preload/index'
+import type { AiHelperSettings, AiPromptTemplate, AppSettings, BackgroundMode, BackgroundScope, BackgroundSettings, CodexIntegrationStatus, EditorFontPreset, ElectronAPI, FontSettings, SaveAsMode, ShortcutAction, SidebarState, TitleSyncMode } from '../preload/index'
 import { applyTheme } from './themes/theme-manager'
 
 const BUILT_IN_THEMES = [
@@ -16,6 +16,33 @@ const DEFAULT_BACKGROUND_SETTINGS: BackgroundSettings = {
   opacity: 1,
   blur: 0,
   dim: 0.18,
+}
+
+const DEFAULT_FONT_SETTINGS: FontSettings = {
+  preset: 'theme',
+  customFamily: '',
+}
+
+const DEFAULT_AI_PROMPT_TEMPLATES: AiPromptTemplate[] = [
+  {
+    id: 'polish',
+    title: '润色',
+    prompt: '请润色下面这段文字，保持原意，不要额外解释：\n\n{{selection}}',
+  },
+  {
+    id: 'expand',
+    title: '扩写',
+    prompt: '请基于下面这段文字继续扩写，保持语气自然：\n\n{{selection}}',
+  },
+  {
+    id: 'summarize',
+    title: '总结',
+    prompt: '请把下面这段文字总结成简洁要点：\n\n{{selection}}',
+  },
+]
+
+const DEFAULT_AI_HELPER_SETTINGS: AiHelperSettings = {
+  templates: DEFAULT_AI_PROMPT_TEMPLATES,
 }
 
 function getThemeSummary(themeName: string): string {
@@ -58,6 +85,15 @@ function isBackgroundScope(value: string): value is BackgroundScope {
 
 function isBackgroundMode(value: string): value is BackgroundMode {
   return value === 'default' || value === 'color' || value === 'image'
+}
+
+function isEditorFontPreset(value: string): value is EditorFontPreset {
+  return value === 'theme'
+    || value === 'elegant'
+    || value === 'sans'
+    || value === 'serif'
+    || value === 'mono'
+    || value === 'custom'
 }
 
 const SHORTCUT_ACTION_LABELS: Record<ShortcutAction, string> = {
@@ -105,12 +141,12 @@ const SETTINGS_PANE_META: Record<
 > = {
   general: {
     description: '决定标题和文件名如何一起工作，以及另存为后的切换方式。',
-    kicker: '通用',
+    kicker: '基础',
     title: '编辑器行为',
   },
   workspace: {
     description: '管理草稿落点与视觉主题，让编辑器保持稳定且顺手。',
-    kicker: '工作区',
+    kicker: '基础',
     title: '文件与外观',
   },
   shortcuts: {
@@ -119,9 +155,9 @@ const SETTINGS_PANE_META: Record<
     title: '键盘操作',
   },
   integrations: {
-    description: '配置 AI 助手和 LyraMD 当前文档之间的本地连接。',
-    kicker: '集成',
-    title: 'Codex MCP',
+    description: '配置 AI 助手、MCP bridge 和后续终端能力。',
+    kicker: '进阶',
+    title: '集成与终端',
   },
 }
 
@@ -168,6 +204,12 @@ export function createSettingsDialogController({
   const backgroundBlurInput = document.getElementById('settings-background-blur') as HTMLInputElement | null
   const backgroundDimInput = document.getElementById('settings-background-dim') as HTMLInputElement | null
   const backgroundResetButton = document.getElementById('settings-background-reset') as HTMLButtonElement | null
+  const fontPresetSelect = document.getElementById('settings-font-preset') as HTMLSelectElement | null
+  const fontCustomInput = document.getElementById('settings-font-custom') as HTMLInputElement | null
+  const aiTemplateButtons = Array.from(
+    document.querySelectorAll<HTMLButtonElement>('[data-settings-ai-template]'),
+  )
+  const aiTemplatePrompt = document.getElementById('settings-ai-template-prompt') as HTMLTextAreaElement | null
   const shortcutKeys = Array.from(
     document.querySelectorAll<HTMLElement>('[data-shortcut-action]'),
   )
@@ -185,6 +227,7 @@ export function createSettingsDialogController({
   let recordingShortcut: HTMLElement | null = null
   let codexStatus: CodexIntegrationStatus | null = null
   let codexLoading = false
+  let activeAiTemplateId = 'polish'
 
   const renderPane = (): void => {
     const meta = SETTINGS_PANE_META[activePane]
@@ -277,6 +320,25 @@ export function createSettingsDialogController({
     if (backgroundOpacityInput) backgroundOpacityInput.value = String(appSettings.background.opacity)
     if (backgroundBlurInput) backgroundBlurInput.value = String(appSettings.background.blur)
     if (backgroundDimInput) backgroundDimInput.value = String(appSettings.background.dim)
+
+    const font = appSettings.font ?? DEFAULT_FONT_SETTINGS
+    if (fontPresetSelect) fontPresetSelect.value = font.preset
+    if (fontCustomInput) {
+      fontCustomInput.value = font.customFamily
+      fontCustomInput.disabled = font.preset !== 'custom'
+    }
+
+    const aiHelper = appSettings.aiHelper ?? DEFAULT_AI_HELPER_SETTINGS
+    const activeAiTemplate = aiHelper.templates.find((template) => template.id === activeAiTemplateId)
+      ?? aiHelper.templates[0]
+      ?? DEFAULT_AI_PROMPT_TEMPLATES[0]
+    if (activeAiTemplate) {
+      activeAiTemplateId = activeAiTemplate.id
+      if (aiTemplatePrompt) aiTemplatePrompt.value = activeAiTemplate.prompt
+    }
+    for (const button of aiTemplateButtons) {
+      button.classList.toggle('active', button.dataset.settingsAiTemplate === activeAiTemplateId)
+    }
 
     for (const key of shortcutKeys) {
       const action = key.dataset.shortcutAction as ShortcutAction | undefined
@@ -417,6 +479,41 @@ export function createSettingsDialogController({
     }
     onAppSettingsChange(next)
     render()
+  }
+
+  const updateFontSettings = async (patch: Partial<FontSettings>): Promise<void> => {
+    const current = getAppSettings()
+    const font = {
+      ...(current.font ?? DEFAULT_FONT_SETTINGS),
+      ...patch,
+    }
+    const next = (await api.updateSettings({ font: font }).catch(() => null)) ?? {
+      ...current,
+      font,
+    }
+    onAppSettingsChange(next)
+    render()
+  }
+
+  const updateAiHelperSettings = async (aiHelper: AiHelperSettings): Promise<void> => {
+    const current = getAppSettings()
+    const next = (await api.updateSettings({ aiHelper }).catch(() => null)) ?? {
+      ...current,
+      aiHelper,
+    }
+    onAppSettingsChange(next)
+    render()
+  }
+
+  const updateSelectedAiPromptTemplate = async (prompt: string): Promise<void> => {
+    const current = getAppSettings()
+    const currentAiHelper = current.aiHelper ?? DEFAULT_AI_HELPER_SETTINGS
+    const templates = currentAiHelper.templates.map((template) => (
+      template.id === activeAiTemplateId
+        ? { ...template, prompt }
+        : template
+    ))
+    await updateAiHelperSettings({ templates })
   }
 
   const updateShortcut = async (action: ShortcutAction, accelerator: string): Promise<void> => {
@@ -561,6 +658,29 @@ export function createSettingsDialogController({
 
   backgroundResetButton?.addEventListener('click', () => {
     void updateBackgroundSettings(DEFAULT_BACKGROUND_SETTINGS)
+  })
+
+  fontPresetSelect?.addEventListener('change', () => {
+    const preset = fontPresetSelect.value
+    if (!isEditorFontPreset(preset)) return
+    void updateFontSettings({ preset })
+  })
+
+  fontCustomInput?.addEventListener('change', () => {
+    void updateFontSettings({ customFamily: fontCustomInput.value })
+  })
+
+  for (const button of aiTemplateButtons) {
+    button.addEventListener('click', () => {
+      const templateId = button.dataset.settingsAiTemplate
+      if (!templateId || templateId === activeAiTemplateId) return
+      activeAiTemplateId = templateId
+      render()
+    })
+  }
+
+  aiTemplatePrompt?.addEventListener('change', () => {
+    void updateSelectedAiPromptTemplate(aiTemplatePrompt.value)
   })
 
   for (const tab of paneTabs) {

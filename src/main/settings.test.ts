@@ -73,6 +73,10 @@ describe('loadAppSettings', () => {
     expect(settings.agentPanelPosition).toBe('auto')
     expect(settings.background.mode).toBe('default')
     expect(settings.background.scope).toBe('editor')
+    expect(settings.font).toEqual({
+      customFamily: '',
+      preset: 'theme',
+    })
   })
 
   it('rejects invalid background settings', async () => {
@@ -92,6 +96,73 @@ describe('loadAppSettings', () => {
     expect(settings.background.opacity).toBeLessThanOrEqual(1)
     expect(settings.background.blur).toBeGreaterThanOrEqual(0)
     expect(settings.background.dim).toBeLessThanOrEqual(1)
+  })
+
+  it('normalizes supported editor font presets and custom font families', async () => {
+    const settingsModule = await loadSettingsModule()
+
+    expect(settingsModule.normalizeAppSettings({
+      font: {
+        preset: 'serif',
+        customFamily: 'Georgia, Songti SC, serif',
+      },
+    }).font).toEqual({
+      preset: 'serif',
+      customFamily: 'Georgia, Songti SC, serif',
+    })
+
+    expect(settingsModule.normalizeAppSettings({
+      font: {
+        preset: 'custom',
+        customFamily: '',
+      },
+    }).font).toEqual(settingsModule.DEFAULT_APP_SETTINGS.font)
+  })
+
+  it('normalizes AI helper prompt templates and keeps usable custom prompts', async () => {
+    const settingsModule = await loadSettingsModule()
+
+    const settings = settingsModule.normalizeAppSettings({
+      aiHelper: {
+        templates: [
+          {
+            id: 'custom-polish',
+            title: '  轻润色  ',
+            prompt: '  请润色：{{selection}}  ',
+          },
+          {
+            id: '',
+            title: '无效',
+            prompt: '没有稳定 id',
+          },
+          {
+            id: 'bad',
+            title: '',
+            prompt: '没有标题',
+          },
+        ],
+      },
+    })
+
+    expect(settings.aiHelper.templates).toEqual([
+      {
+        id: 'custom-polish',
+        title: '轻润色',
+        prompt: '请润色：{{selection}}',
+      },
+    ])
+  })
+
+  it('falls back to default AI helper prompts when persisted templates are unusable', async () => {
+    const settingsModule = await loadSettingsModule()
+
+    expect(settingsModule.normalizeAppSettings({
+      aiHelper: {
+        templates: [
+          { id: 'x', title: 'x', prompt: '' },
+        ],
+      },
+    }).aiHelper).toEqual(settingsModule.DEFAULT_APP_SETTINGS.aiHelper)
   })
 
   it('loads default shortcuts when none are persisted', async () => {
@@ -245,6 +316,37 @@ describe('updateAppSettings', () => {
 
     expect(updated.shortcuts.cleanCjkTypography).toBe('CmdOrCtrl+Alt+K')
     expect(JSON.parse(await readFile(settingsPath, 'utf-8')).shortcuts.cleanCjkTypography).toBe('CmdOrCtrl+Alt+K')
+  })
+
+  it('persists supported AI helper prompt templates', async () => {
+    const settingsModule = await loadSettingsModule()
+    const tempDir = await createTempDir()
+    const settingsPath = join(tempDir, 'settings.json')
+
+    const updated = await settingsModule.updateAppSettings(
+      settingsPath,
+      settingsModule.DEFAULT_APP_SETTINGS,
+      {
+        aiHelper: {
+          templates: [
+            {
+              id: 'meeting-summary',
+              title: '会议纪要',
+              prompt: '把选区整理成会议纪要：{{selection}}',
+            },
+          ],
+        },
+      },
+    )
+
+    expect(updated.aiHelper.templates).toEqual([
+      {
+        id: 'meeting-summary',
+        title: '会议纪要',
+        prompt: '把选区整理成会议纪要：{{selection}}',
+      },
+    ])
+    expect(JSON.parse(await readFile(settingsPath, 'utf-8')).aiHelper.templates).toEqual(updated.aiHelper.templates)
   })
 
   it('rejects shortcut updates that conflict with another action', async () => {

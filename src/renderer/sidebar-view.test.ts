@@ -4,6 +4,7 @@ import { join } from 'node:path'
 
 import type { SidebarState } from '../preload/index'
 import {
+  createWorkspaceRootTreeNode,
   isPinnedDraft,
   isPinnedFile,
   resolvePinnedItems,
@@ -66,7 +67,18 @@ describe('workspace view helpers', () => {
 
     expect(html).toContain('<div id="library-scroll-region">')
     expect(css).toMatch(/#sidebar\s*\{[\s\S]*overflow:\s*hidden/)
+    expect(css).toMatch(/#library-section\s*\{[\s\S]*max-height:\s*calc\(\(34px \+ 4px\) \* 5 - 4px \+ 47px\)/)
     expect(css).toMatch(/#library-scroll-region\s*\{[\s\S]*overflow-y:\s*auto/)
+    expect(css).toMatch(/#library-scroll-region\s*\{[\s\S]*max-height:\s*calc\(\(34px \+ 4px\) \* 5 - 4px\)/)
+    expect(css).toMatch(/#library-scroll-region\s*\{[\s\S]*overscroll-behavior:\s*contain/)
+    expect(css).toMatch(/#library-section\.library-tab-workdir\s*\{[\s\S]*max-height:\s*none/)
+  })
+
+  it('keeps workspace scrolling bounded inside the workspace list', () => {
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+
+    expect(css).toMatch(/\.workspace-list\.scrollable\s*\{[\s\S]*max-height:\s*calc\(\(34px \+ 5px\) \* 4 - 5px\)/)
+    expect(css).toMatch(/\.workspace-list\.scrollable\s*\{[\s\S]*overscroll-behavior:\s*contain/)
   })
 })
 
@@ -268,6 +280,30 @@ describe('tab view helpers', () => {
 })
 
 describe('workdir tree helpers', () => {
+  it('wraps each workspace tree under its own root folder', () => {
+    expect(createWorkspaceRootTreeNode('/Users/cherry/Notes', [
+      {
+        absolutePath: '/Users/cherry/Notes/a.md',
+        kind: 'file',
+        name: 'a.md',
+        relativePath: 'a.md',
+      },
+    ])).toEqual({
+      absolutePath: '/Users/cherry/Notes',
+      children: [
+        {
+          absolutePath: '/Users/cherry/Notes/a.md',
+          kind: 'file',
+          name: 'a.md',
+          relativePath: 'a.md',
+        },
+      ],
+      kind: 'directory',
+      name: 'Notes',
+      relativePath: 'Notes',
+    })
+  })
+
   it('flattens tree rows with active files and collapsed folders', () => {
     const state = createSidebarState({
       currentFilePath: '/workspace/notes/nested/c.md',
@@ -325,6 +361,15 @@ describe('workdir tree helpers', () => {
 })
 
 describe('library create action regression', () => {
+  it('renders a dedicated draft create button next to drafts and recent', () => {
+    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+
+    expect(html).toContain('id="draft-new"')
+    expect(renderer).toContain('draftNew?.addEventListener')
+    expect(renderer).toContain('beginBlankDocumentFromSidebar()')
+  })
+
   it('routes the library plus button to workdir file creation on the workdir tab', () => {
     const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
     const preload = readFileSync(join(process.cwd(), 'src/preload/index.ts'), 'utf8')
@@ -332,7 +377,7 @@ describe('library create action regression', () => {
 
     expect(renderer).toContain("sidebarState?.activeSidebarTab !== 'workdir'")
     expect(renderer).toContain('api.createWorkdirFile()')
-    expect(renderer).toContain("const label = activeTab === 'workdir' ? '新建工作目录文稿' : '新建草稿'")
+    expect(renderer).toContain("currentFileNew.hidden = activeTab !== 'workdir'")
     expect(preload).toContain("createWorkdirFile: () => ipcRenderer.invoke('create-workdir-file')")
     expect(main).toContain("ipcMain.handle('create-workdir-file'")
   })

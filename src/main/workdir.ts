@@ -1,5 +1,5 @@
 import { readdir } from 'fs/promises'
-import { join, relative } from 'path'
+import { basename, join, relative } from 'path'
 
 export interface WorkdirEntry {
   absolutePath: string
@@ -58,6 +58,19 @@ export function resolveNewWorkdirFolderPath(
   }
 
   return candidatePath
+}
+
+export function createWorkspaceRootTreeNode(
+  rootPath: string,
+  children: WorkdirTreeNode[],
+): WorkdirTreeNode {
+  return {
+    absolutePath: rootPath,
+    children,
+    kind: 'directory',
+    name: basename(rootPath),
+    relativePath: basename(rootPath),
+  }
 }
 
 export async function scanWorkdir(rootPath: string): Promise<WorkdirEntry[]> {

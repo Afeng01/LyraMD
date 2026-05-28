@@ -1,11 +1,25 @@
 export type AgentPanelPosition = 'auto' | 'bottom' | 'right'
 export type AgentPanelPlacement = 'bottom' | 'right'
+export type ContextPanelMode = 'agent' | 'outline'
 
 export interface ResolveAgentPanelPlacementInput {
   preference: AgentPanelPosition
   width: number
   height: number
   previous: AgentPanelPlacement
+}
+
+export interface ResolveContextPanelStateInput {
+  placement: AgentPanelPlacement
+  activeContextPanel: ContextPanelMode
+  agentPanelOpen: boolean
+  outlinePanelOpen: boolean
+}
+
+export interface ContextPanelState {
+  activeContextPanel: ContextPanelMode
+  agentPanelOpen: boolean
+  outlinePanelOpen: boolean
 }
 
 const RIGHT_PANEL_MIN_WIDTH = 1240
@@ -31,4 +45,34 @@ export function resolveAgentPanelPlacement({
 
 export function resolveAgentPanelClassName(placement: AgentPanelPlacement): string {
   return placement === 'right' ? 'agent-panel-right' : 'agent-panel-bottom'
+}
+
+export function resolveContextPanelState({
+  placement,
+  activeContextPanel,
+  agentPanelOpen,
+  outlinePanelOpen,
+}: ResolveContextPanelStateInput): ContextPanelState {
+  let nextActiveContextPanel = activeContextPanel
+  let nextAgentPanelOpen = agentPanelOpen
+  let nextOutlinePanelOpen = outlinePanelOpen
+
+  if (!nextAgentPanelOpen && nextOutlinePanelOpen && nextActiveContextPanel === 'agent') {
+    nextActiveContextPanel = 'outline'
+  }
+
+  if (!nextOutlinePanelOpen && nextAgentPanelOpen && nextActiveContextPanel === 'outline') {
+    nextActiveContextPanel = 'agent'
+  }
+
+  if (placement === 'right' && nextAgentPanelOpen && nextOutlinePanelOpen) {
+    if (nextActiveContextPanel === 'agent') nextOutlinePanelOpen = false
+    else nextAgentPanelOpen = false
+  }
+
+  return {
+    activeContextPanel: nextActiveContextPanel,
+    agentPanelOpen: nextAgentPanelOpen,
+    outlinePanelOpen: nextOutlinePanelOpen,
+  }
 }

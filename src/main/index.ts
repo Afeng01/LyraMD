@@ -33,7 +33,7 @@ import {
 import { DEFAULT_SHORTCUTS, DEFAULT_APP_SETTINGS, loadAppSettings, updateAppSettings, type AppSettings, type ShortcutAction } from './settings'
 import { shouldPromptForFormalSave, shouldRemoveSourceAfterSaveAs } from './save-as'
 import { buildTitleSyncPath, decideTitleSync } from './title-sync'
-import { resolveNewWorkdirFolderPath, resolveNewWorkdirMarkdownPath, scanWorkdir, scanWorkdirTree, shouldRefreshWorkdirForWatchEvent, type WorkdirEntry, type WorkdirTreeNode } from './workdir'
+import { createWorkspaceRootTreeNode, resolveNewWorkdirFolderPath, resolveNewWorkdirMarkdownPath, scanWorkdir, scanWorkdirTree, shouldRefreshWorkdirForWatchEvent, type WorkdirEntry, type WorkdirTreeNode } from './workdir'
 import { moveFileToTrashAndVerify } from './file-removal'
 import { summarizeAgentChange } from './agent-change-summary'
 import { createWindowOptions } from './window-platform'
@@ -94,8 +94,8 @@ interface SidebarSnapshot extends PersistedSidebarState {
 let sidebarState: PersistedSidebarState = normalizeSidebarState(null)
 let workdirEntries: WorkdirEntry[] = []
 let workdirTree: WorkdirTreeNode[] = []
-let workdirWatcher: FSWatcher | null = null
-let watchedWorkdirPath: string | null = null
+let workdirWatchers: FSWatcher[] = []
+let watchedWorkdirPaths: string[] = []
 let workdirRefreshTimer: NodeJS.Timeout | null = null
 let persistedSessionState: PersistedSessionState = {
   lastActiveDocument: null,
@@ -124,11 +124,13 @@ function stopWatchingWorkdir(): void {
     clearTimeout(workdirRefreshTimer)
     workdirRefreshTimer = null
   }
-  if (workdirWatcher) {
-    workdirWatcher.close()
-    workdirWatcher = null
+  if (workdirWatchers.length > 0) {
+    for (const watcher of workdirWatchers) {
+      watcher.close()
+    }
+    workdirWatchers = []
   }
-  watchedWorkdirPath = null
+  watchedWorkdirPaths = []
 }
 
 function scheduleWorkdirRefresh(): void {
@@ -143,12 +145,16 @@ function scheduleWorkdirRefresh(): void {
   }, 160)
 }
 
-function watchWorkdirPath(workdirPath: string | null): void {
-  if (watchedWorkdirPath === workdirPath) return
-  stopWatchingWorkdir()
-  if (!workdirPath) return
+function samePathList(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((pathValue, index) => pathValue === b[index])
+}
 
-  const attachWatcher = (recursive: boolean): FSWatcher => watch(
+function watchWorkdirPaths(workdirPaths: string[]): void {
+  if (samePathList(watchedWorkdirPaths, workdirPaths)) return
+  stopWatchingWorkdir()
+  if (workdirPaths.length === 0) return
+
+  const attachWatcher = (workdirPath: string, recursive: boolean): FSWatcher => watch(
     workdirPath,
     { recursive },
     (_eventType, fileName) => {
@@ -157,49 +163,51 @@ function watchWorkdirPath(workdirPath: string | null): void {
     },
   )
 
-  try {
-    workdirWatcher = attachWatcher(true)
-  } catch {
+  for (const workdirPath of workdirPaths) {
     try {
-      workdirWatcher = attachWatcher(false)
+      workdirWatchers.push(attachWatcher(workdirPath, true))
     } catch {
-      workdirWatcher = null
-      return
+      try {
+        workdirWatchers.push(attachWatcher(workdirPath, false))
+      } catch {
+        continue
+      }
     }
   }
-  watchedWorkdirPath = workdirPath
+  watchedWorkdirPaths = workdirPaths
 }
 
 async function refreshWorkdirEntries(): Promise<void> {
-  if (!sidebarState.workdirPath) {
-    workdirEntries = []
-    workdirTree = []
-    watchWorkdirPath(null)
-    return
-  }
+  const existingWorkspacePaths = sidebarState.workspacePaths.filter((workspacePath) => existsSync(workspacePath))
+  const activeWorkdirPath = sidebarState.workdirPath && existsSync(sidebarState.workdirPath)
+    ? sidebarState.workdirPath
+    : existingWorkspacePaths[0] ?? null
 
-  if (!existsSync(sidebarState.workdirPath)) {
-    sidebarState.workspacePaths = sidebarState.workspacePaths.filter((workspacePath) => workspacePath !== sidebarState.workdirPath)
-    sidebarState.workdirPath = null
+  sidebarState.workspacePaths = existingWorkspacePaths
+  sidebarState.workdirPath = activeWorkdirPath
+
+  if (!activeWorkdirPath || existingWorkspacePaths.length === 0) {
     workdirEntries = []
     workdirTree = []
-    watchWorkdirPath(null)
-    await persistSidebarState()
+    watchWorkdirPaths([])
     return
   }
 
   try {
-    const [nextEntries, nextTree] = await Promise.all([
-      scanWorkdir(sidebarState.workdirPath),
-      scanWorkdirTree(sidebarState.workdirPath),
-    ])
-    workdirEntries = nextEntries
-    workdirTree = nextTree
-    watchWorkdirPath(sidebarState.workdirPath)
+    const scannedWorkspaces = await Promise.all(existingWorkspacePaths.map(async (rootPath) => ({
+      entries: await scanWorkdir(rootPath),
+      rootPath,
+      tree: await scanWorkdirTree(rootPath),
+    })))
+    workdirEntries = scannedWorkspaces.flatMap((workspace) => workspace.entries)
+    workdirTree = scannedWorkspaces.length === 1
+      ? scannedWorkspaces[0]?.tree ?? []
+      : scannedWorkspaces.map((workspace) => createWorkspaceRootTreeNode(workspace.rootPath, workspace.tree))
+    watchWorkdirPaths(existingWorkspacePaths)
   } catch {
     workdirEntries = []
     workdirTree = []
-    watchWorkdirPath(null)
+    watchWorkdirPaths([])
   }
 }
 
@@ -561,7 +569,7 @@ async function renameCurrentFileToPath(win: BrowserWindow, nextPath: string): Pr
   updateTitle(win)
   replaceRecentFilePath(previousPath, nextPath)
   await persistSidebarState()
-  if (isPathInsideWorkdir(previousPath) || isPathInsideWorkdir(nextPath)) {
+  if (isPathInsideAnyWorkspace(previousPath) || isPathInsideAnyWorkspace(nextPath)) {
     await refreshWorkdirEntries()
   }
   broadcastSidebarState()
@@ -611,7 +619,7 @@ async function renameFormalFileByTitleForAllWindows(
     updateTitle(window)
   }
 
-  if (isPathInsideWorkdir(previousPath) || isPathInsideWorkdir(nextPath)) {
+  if (isPathInsideAnyWorkspace(previousPath) || isPathInsideAnyWorkspace(nextPath)) {
     await refreshWorkdirEntries()
   }
 
@@ -690,10 +698,26 @@ function setFileDocumentState(win: BrowserWindow, filePath: string, documentKind
   persistLastActiveDocument(state)
 }
 
-function isPathInsideWorkdir(filePath: string): boolean {
-  if (!sidebarState.workdirPath) return false
-  const relativePath = relative(sidebarState.workdirPath, filePath)
+function isPathInsideDirectory(rootPath: string, filePath: string): boolean {
+  const relativePath = relative(rootPath, filePath)
   return relativePath !== '' && !relativePath.startsWith('..') && !relativePath.startsWith(`..${process.platform === 'win32' ? '\\' : '/'}`)
+}
+
+function getWorkspaceRootForPath(filePath: string | null): string | null {
+  if (!filePath) return null
+  return sidebarState.workspacePaths.find((workspacePath) => isPathInsideDirectory(workspacePath, filePath)) ?? null
+}
+
+function isPathInsideAnyWorkspace(filePath: string): boolean {
+  return getWorkspaceRootForPath(filePath) !== null
+}
+
+function resolveWorkdirCreationRoot(win: BrowserWindow): string | null {
+  const state = getState(win)
+  const currentRoot = getWorkspaceRootForPath(state.filePath)
+  if (currentRoot && existsSync(currentRoot)) return currentRoot
+  if (sidebarState.workdirPath && existsSync(sidebarState.workdirPath)) return sidebarState.workdirPath
+  return sidebarState.workspacePaths.find((workspacePath) => existsSync(workspacePath)) ?? null
 }
 
 function createWindow(initialDocument?: { filePath: string; documentKind?: Exclude<DocumentKind, 'blank'>; draftId?: string | null }): BrowserWindow {
@@ -1028,10 +1052,10 @@ async function saveToPath(win: BrowserWindow, filePath: string, content: string)
         }
       }
     }
-    if (isPathInsideWorkdir(filePath)) {
+    if (isPathInsideAnyWorkspace(filePath)) {
       await refreshWorkdirEntries()
     }
-    if (state.filePath && state.filePath !== filePath && isPathInsideWorkdir(state.filePath)) {
+    if (state.filePath && state.filePath !== filePath && isPathInsideAnyWorkspace(state.filePath)) {
       await refreshWorkdirEntries()
     }
     broadcastSidebarState()
@@ -1085,7 +1109,7 @@ async function saveFileAsForWindow(win: BrowserWindow, nextPath: string, content
       state.displayTitle = resolveFileDisplayTitle(nextPath, content)
       updateTitle(win)
       recordRecentFile(nextPath)
-      if (isPathInsideWorkdir(sourcePath) || isPathInsideWorkdir(nextPath)) {
+      if (isPathInsideAnyWorkspace(sourcePath) || isPathInsideAnyWorkspace(nextPath)) {
         await refreshWorkdirEntries()
       }
       broadcastSidebarState()
@@ -1237,12 +1261,14 @@ async function clearDraftsForAllWindows(triggerWin: BrowserWindow): Promise<Side
 }
 
 async function createWorkdirFileInWindow(win: BrowserWindow): Promise<SidebarSnapshot> {
-  if (!sidebarState.workdirPath || !existsSync(sidebarState.workdirPath)) {
+  const creationRoot = resolveWorkdirCreationRoot(win)
+  if (!creationRoot) {
     return createSidebarSnapshot(win)
   }
 
-  const nextPath = resolveNewWorkdirMarkdownPath(sidebarState.workdirPath, (candidatePath) => existsSync(candidatePath))
+  const nextPath = resolveNewWorkdirMarkdownPath(creationRoot, (candidatePath) => existsSync(candidatePath))
   await writeFile(nextPath, '', 'utf-8')
+  sidebarState.workdirPath = creationRoot
   sidebarState.activeSidebarTab = 'workdir'
   await refreshWorkdirEntries()
   await persistSidebarState()
@@ -1252,12 +1278,14 @@ async function createWorkdirFileInWindow(win: BrowserWindow): Promise<SidebarSna
 }
 
 async function createWorkdirFolderInWindow(win: BrowserWindow): Promise<SidebarSnapshot> {
-  if (!sidebarState.workdirPath || !existsSync(sidebarState.workdirPath)) {
+  const creationRoot = resolveWorkdirCreationRoot(win)
+  if (!creationRoot) {
     return createSidebarSnapshot(win)
   }
 
-  const nextPath = resolveNewWorkdirFolderPath(sidebarState.workdirPath, (candidatePath) => existsSync(candidatePath))
+  const nextPath = resolveNewWorkdirFolderPath(creationRoot, (candidatePath) => existsSync(candidatePath))
   await mkdir(nextPath)
+  sidebarState.workdirPath = creationRoot
   sidebarState.activeSidebarTab = 'workdir'
   await refreshWorkdirEntries()
   await persistSidebarState()
@@ -1310,7 +1338,7 @@ async function removeFormalFileReferences(filePath: string): Promise<void> {
 }
 
 async function removeWorkdirFileForAllWindows(triggerWin: BrowserWindow, filePath: string): Promise<SidebarSnapshot> {
-  if (!isPathInsideWorkdir(filePath)) {
+  if (!isPathInsideAnyWorkspace(filePath)) {
     return createSidebarSnapshot(triggerWin)
   }
 

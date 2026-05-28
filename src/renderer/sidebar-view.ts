@@ -64,7 +64,7 @@ export function resolveWorkspaceLabel(workspacePath: string | null): string {
   return basename(workspacePath)
 }
 
-export function shouldScrollWorkspaces(workspacePaths: string[], threshold = 3): boolean {
+export function shouldScrollWorkspaces(workspacePaths: string[], threshold = 2): boolean {
   return workspacePaths.length > threshold
 }
 

@@ -343,11 +343,6 @@
     <div id="settings-overlay" hidden aria-hidden="true">
       <div id="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-pane-title">
         <header class="settings-top-bar">
-          <div class="settings-window-controls" aria-hidden="true">
-            <span class="settings-window-dot close"></span>
-            <span class="settings-window-dot minimize"></span>
-            <span class="settings-window-dot zoom"></span>
-          </div>
           <div class="settings-title-block">
             <h2 id="settings-pane-title">编辑器行为</h2>
           </div>
@@ -436,7 +431,15 @@
               <section class="settings-group">
                 <div class="settings-group-heading">
                   <h4 class="settings-group-title">AI 精灵 Prompt</h4>
-                  <p class="settings-group-copy">这些模板会用于后续选中文本后的 AI 操作。使用 {{selection}} 表示当前选区。</p>
+                  <p class="settings-group-copy">这些模板会用于后续选中文本后的 AI 操作。使用 {{selection}} 表示当前选区。选中文本后按 Cmd/Ctrl+Y 可以直接用当前模板改写。</p>
+                </div>
+                <div class="settings-integration-help">
+                  <h5>AI 精灵怎么用</h5>
+                  <ol>
+                    <li>OpenAI 官方账号：Base URL 保持 https://api.openai.com/v1，填入 API Key 和模型名。</li>
+                    <li>cpa/new-api：把 Base URL 换成你的网关地址，Model 填网关里可用的模型。</li>
+                    <li>在正文里选中文本后按 Cmd/Ctrl+Y，会用当前选中的 Prompt 模板直接改写选区。</li>
+                  </ol>
                 </div>
                 <div class="settings-field-grid">
                   <label class="settings-field span-2">

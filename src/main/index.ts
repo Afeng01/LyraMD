@@ -10,6 +10,7 @@ import {
   normalizeSidebarState,
   pushRecentFile,
   removeRecentFile,
+  removeWorkspacePath,
   type PersistedSidebarState,
 } from './sidebar-state'
 import {
@@ -33,7 +34,7 @@ import {
 import { DEFAULT_SHORTCUTS, DEFAULT_APP_SETTINGS, loadAppSettings, updateAppSettings, type AppSettings, type ShortcutAction } from './settings'
 import { shouldPromptForFormalSave, shouldRemoveSourceAfterSaveAs } from './save-as'
 import { buildTitleSyncPath, decideTitleSync } from './title-sync'
-import { createWorkspaceRootTreeNode, resolveNewWorkdirFolderPath, resolveNewWorkdirMarkdownPath, scanWorkdir, scanWorkdirTree, shouldRefreshWorkdirForWatchEvent, type WorkdirEntry, type WorkdirTreeNode } from './workdir'
+import { resolveNewWorkdirFolderPath, resolveNewWorkdirMarkdownPath, scanWorkdir, scanWorkdirTree, shouldRefreshWorkdirForWatchEvent, type WorkdirEntry, type WorkdirTreeNode } from './workdir'
 import { moveFileToTrashAndVerify } from './file-removal'
 import { summarizeAgentChange } from './agent-change-summary'
 import { createWindowOptions } from './window-platform'
@@ -195,16 +196,9 @@ async function refreshWorkdirEntries(): Promise<void> {
   }
 
   try {
-    const scannedWorkspaces = await Promise.all(existingWorkspacePaths.map(async (rootPath) => ({
-      entries: await scanWorkdir(rootPath),
-      rootPath,
-      tree: await scanWorkdirTree(rootPath),
-    })))
-    workdirEntries = scannedWorkspaces.flatMap((workspace) => workspace.entries)
-    workdirTree = scannedWorkspaces.length === 1
-      ? scannedWorkspaces[0]?.tree ?? []
-      : scannedWorkspaces.map((workspace) => createWorkspaceRootTreeNode(workspace.rootPath, workspace.tree))
-    watchWorkdirPaths(existingWorkspacePaths)
+    workdirEntries = await scanWorkdir(activeWorkdirPath)
+    workdirTree = await scanWorkdirTree(activeWorkdirPath)
+    watchWorkdirPaths([activeWorkdirPath])
   } catch {
     workdirEntries = []
     workdirTree = []
@@ -1695,6 +1689,20 @@ ipcMain.handle('select-workspace', async (event, workspacePath: string) => {
   sidebarState.workdirPath = workspacePath
   sidebarState.workspacePaths = addWorkspacePath(sidebarState.workspacePaths, workspacePath)
   sidebarState.workdirExpanded = true
+  await refreshWorkdirEntries()
+  await persistSidebarState()
+  broadcastSidebarState()
+  return createSidebarSnapshot(win)
+})
+
+ipcMain.handle('remove-workspace', async (event, workspacePath: string) => {
+  const win = getWinFromEvent(event)
+  if (!win) return null
+  if (typeof workspacePath !== 'string') return createSidebarSnapshot(win)
+
+  const next = removeWorkspacePath(sidebarState.workspacePaths, workspacePath, sidebarState.workdirPath)
+  sidebarState.workspacePaths = next.workspacePaths
+  sidebarState.workdirPath = next.workdirPath
   await refreshWorkdirEntries()
   await persistSidebarState()
   broadcastSidebarState()

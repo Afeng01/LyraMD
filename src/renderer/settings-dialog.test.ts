@@ -154,10 +154,20 @@ describe('settings dialog regression', () => {
     const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
 
-    expect(html).toContain('class="settings-window-controls"')
+    expect(html).not.toContain('class="settings-window-controls"')
+    expect(html).not.toContain('settings-window-dot')
     expect(file).toContain('initSettingsDialogDrag')
-    expect(css).toContain('.settings-window-controls')
+    expect(css).not.toContain('.settings-window-controls')
     expect(css).not.toContain('settings-pane-kicker')
+  })
+
+  it('explains how to use OpenAI-compatible AI helper settings', () => {
+    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
+
+    expect(html).toContain('AI 精灵怎么用')
+    expect(html).toContain('OpenAI 官方账号')
+    expect(html).toContain('cpa/new-api')
+    expect(html).toContain('选中文本后按 Cmd/Ctrl+Y')
   })
 
   it('applies background settings through renderer CSS variables', () => {

@@ -132,6 +132,22 @@ export function removeRecentFile(recentFiles: string[], filePath: string): strin
   return recentFiles.filter((entry) => entry !== filePath)
 }
 
+export function removeWorkspacePath(
+  workspacePaths: string[],
+  pathToRemove: string,
+  activeWorkdirPath: string | null,
+): { workspacePaths: string[]; workdirPath: string | null } {
+  const nextWorkspacePaths = workspacePaths.filter((workspacePath) => workspacePath !== pathToRemove)
+  const nextWorkdirPath = activeWorkdirPath === pathToRemove
+    ? nextWorkspacePaths[0] ?? null
+    : activeWorkdirPath
+
+  return {
+    workspacePaths: nextWorkspacePaths,
+    workdirPath: nextWorkdirPath,
+  }
+}
+
 export function normalizeSidebarState(value: unknown): PersistedSidebarState {
   if (!value || typeof value !== 'object') return { ...DEFAULT_SIDEBAR_STATE }
 

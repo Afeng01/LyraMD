@@ -56,29 +56,42 @@ describe('workspace view helpers', () => {
     expect(resolveWorkspaceLabel('/Users/cherry/鹿鸣与小北')).toBe('鹿鸣与小北')
   })
 
-  it('scrolls workspace history only after three entries', () => {
-    expect(shouldScrollWorkspaces(['/a', '/b', '/c'])).toBe(false)
-    expect(shouldScrollWorkspaces(['/a', '/b', '/c', '/d'])).toBe(true)
+  it('scrolls workspace history after two entries', () => {
+    expect(shouldScrollWorkspaces(['/a', '/b'])).toBe(false)
+    expect(shouldScrollWorkspaces(['/a', '/b', '/c'])).toBe(true)
   })
 
-  it('keeps the fixed sidebar regions separate from the scrolling library list', () => {
+  it('lets the library list fill the remaining sidebar height', () => {
     const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
 
     expect(html).toContain('<div id="library-scroll-region">')
     expect(css).toMatch(/#sidebar\s*\{[\s\S]*overflow:\s*hidden/)
-    expect(css).toMatch(/#library-section\s*\{[\s\S]*max-height:\s*calc\(\(34px \+ 4px\) \* 5 - 4px \+ 47px\)/)
+    expect(css).toMatch(/#library-section\s*\{[\s\S]*flex:\s*1/)
+    expect(css).toMatch(/#library-section\s*\{[\s\S]*max-height:\s*none/)
     expect(css).toMatch(/#library-scroll-region\s*\{[\s\S]*overflow-y:\s*auto/)
-    expect(css).toMatch(/#library-scroll-region\s*\{[\s\S]*max-height:\s*calc\(\(34px \+ 4px\) \* 5 - 4px\)/)
+    expect(css).toMatch(/#library-scroll-region\s*\{[\s\S]*flex:\s*1/)
+    expect(css).toMatch(/#library-scroll-region\s*\{[\s\S]*max-height:\s*none/)
     expect(css).toMatch(/#library-scroll-region\s*\{[\s\S]*overscroll-behavior:\s*contain/)
-    expect(css).toMatch(/#library-section\.library-tab-workdir\s*\{[\s\S]*max-height:\s*none/)
   })
 
-  it('keeps workspace scrolling bounded inside the workspace list', () => {
+  it('keeps workspace scrolling bounded to two visible workspaces', () => {
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
 
-    expect(css).toMatch(/\.workspace-list\.scrollable\s*\{[\s\S]*max-height:\s*calc\(\(34px \+ 5px\) \* 4 - 5px\)/)
+    expect(css).toMatch(/\.workspace-list\.scrollable\s*\{[\s\S]*max-height:\s*calc\(\(34px \+ 5px\) \* 2 - 5px\)/)
     expect(css).toMatch(/\.workspace-list\.scrollable\s*\{[\s\S]*overscroll-behavior:\s*contain/)
+  })
+
+  it('renders workspace remove controls and preserves library scroll when toggling folders', () => {
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+    const preload = readFileSync(join(process.cwd(), 'src/preload/index.ts'), 'utf8')
+    const main = readFileSync(join(process.cwd(), 'src/main/index.ts'), 'utf8')
+
+    expect(renderer).toContain('data-remove-workspace-path')
+    expect(renderer).toContain('renderSidebarPreservingLibraryScroll')
+    expect(readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')).toContain('.workspace-item.active + .workspace-row-actions')
+    expect(preload).toContain("removeWorkspace: (path: string) => ipcRenderer.invoke('remove-workspace', path)")
+    expect(main).toContain("ipcMain.handle('remove-workspace'")
   })
 })
 
@@ -388,7 +401,7 @@ describe('library create action regression', () => {
     const preload = readFileSync(join(process.cwd(), 'src/preload/index.ts'), 'utf8')
     const main = readFileSync(join(process.cwd(), 'src/main/index.ts'), 'utf8')
 
-    expect(renderer).toContain('data-create-workdir-folder')
+    expect(renderer).not.toContain('data-create-workdir-folder')
     expect(renderer).toContain('api.createWorkdirFolder()')
     expect(preload).toContain("createWorkdirFolder: () => ipcRenderer.invoke('create-workdir-folder')")
     expect(main).toContain("ipcMain.handle('create-workdir-folder'")

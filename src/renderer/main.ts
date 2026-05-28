@@ -545,6 +545,7 @@ async function init(): Promise<void> {
   const recentTab = document.getElementById('recent-tab') as HTMLButtonElement | null
   const workdirTab = document.getElementById('workdir-tab') as HTMLButtonElement | null
   const librarySection = document.getElementById('library-section') as HTMLElement | null
+  const libraryScrollRegion = document.getElementById('library-scroll-region') as HTMLDivElement | null
   const libraryList = document.getElementById('library-list') as HTMLDivElement | null
   const currentFile = document.getElementById('current-file')
   const draftsList = document.getElementById('drafts-list')
@@ -1960,6 +1961,9 @@ async function init(): Promise<void> {
       workspacesList.appendChild(action)
     } else {
       for (const workspacePath of sidebarState.workspacePaths) {
+        const row = document.createElement('div')
+        row.className = 'workspace-item-row with-remove'
+
         const item = document.createElement('button')
         item.type = 'button'
         item.className = 'workspace-item'
@@ -1969,7 +1973,29 @@ async function init(): Promise<void> {
         item.classList.toggle('active', workspacePath === sidebarState.workdirPath)
         item.appendChild(createTextBlock('workspace-item-label', resolveWorkspaceLabel(workspacePath)))
         item.appendChild(createTextBlock('workspace-drag-handle', '⋮⋮'))
-        workspacesList.appendChild(item)
+
+        const actions = document.createElement('div')
+        actions.className = 'workspace-row-actions'
+        const remove = document.createElement('button')
+        remove.type = 'button'
+        remove.className = `row-action-button remove-action-button${pendingRemoveActionKey === `workspace:${workspacePath}` ? ' confirm-delete' : ''}`
+        remove.dataset.removeWorkspacePath = workspacePath
+        remove.title = pendingRemoveActionKey === `workspace:${workspacePath}`
+          ? `确认移除 ${resolveWorkspaceLabel(workspacePath)}`
+          : `从列表移除 ${resolveWorkspaceLabel(workspacePath)}`
+        remove.setAttribute('aria-label', remove.title)
+        remove.appendChild(pendingRemoveActionKey === `workspace:${workspacePath}`
+          ? createIconSvg(['M4 9.5 7.3 12.8 14 5.8'])
+          : createIconSvg([
+              'M5 6h8',
+              'M7 6V4.5h4V6',
+              'M6 6l.5 8h5L12 6',
+            ]))
+        actions.appendChild(remove)
+
+        row.appendChild(item)
+        row.appendChild(actions)
+        workspacesList.appendChild(row)
       }
     }
 
@@ -2025,13 +2051,6 @@ async function init(): Promise<void> {
     }
 
     if (hasWorkdirTree) {
-      const folderPlaceholder = document.createElement('button')
-      folderPlaceholder.type = 'button'
-      folderPlaceholder.className = 'sidebar-empty-action workdir-folder-placeholder'
-      folderPlaceholder.dataset.createWorkdirFolder = 'true'
-      folderPlaceholder.textContent = '新建文件夹'
-      folderPlaceholder.title = '在当前工作目录中新建文件夹'
-      libraryList.appendChild(folderPlaceholder)
       appendWorkdirTreeRows(libraryList)
       return
     }
@@ -2041,6 +2060,14 @@ async function init(): Promise<void> {
         allowInlineEdit: true,
         showRemove: true,
       })
+    }
+  }
+
+  const renderSidebarPreservingLibraryScroll = (): void => {
+    const previousScrollTop = libraryScrollRegion?.scrollTop ?? 0
+    renderSidebar()
+    if (libraryScrollRegion) {
+      libraryScrollRegion.scrollTop = previousScrollTop
     }
   }
 
@@ -2876,6 +2903,23 @@ img{max-width:100%}
       return
     }
 
+    const removeWorkspaceButton = target?.closest('[data-remove-workspace-path]') as HTMLElement | null
+    if (removeWorkspaceButton) {
+      event.preventDefault()
+      event.stopPropagation()
+      const workspacePath = removeWorkspaceButton.dataset.removeWorkspacePath
+      if (!workspacePath) return
+      if (!requestRemoveConfirmation(`workspace:${workspacePath}`)) return
+      api.removeWorkspace(workspacePath).then((state) => {
+        if (state) {
+          setSidebarState(state)
+          return
+        }
+        syncSidebarState()
+      }).catch(() => syncSidebarState())
+      return
+    }
+
     if (pendingRemoveActionKey) {
       clearPendingRemoveConfirmation()
       renderSidebar()
@@ -2894,14 +2938,7 @@ img{max-width:100%}
         collapsedWorkdirFolders.delete(folderPath)
         expandedWorkdirFolders.add(folderPath)
       }
-      renderSidebar()
-      return
-    }
-
-    const createWorkdirFolderButton = target?.closest('[data-create-workdir-folder]') as HTMLElement | null
-    if (createWorkdirFolderButton) {
-      event.preventDefault()
-      createWorkdirFolderFromSidebar()
+      renderSidebarPreservingLibraryScroll()
       return
     }
 

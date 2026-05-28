@@ -764,10 +764,14 @@ body.platform-win32 #agent-dot {
 }
 
 .workspace-list.scrollable {
-  max-height: calc((34px + 5px) * 4 - 5px);
+  max-height: calc((34px + 5px) * 2 - 5px);
   overflow-y: auto;
   overscroll-behavior: contain;
   padding-right: 2px;
+}
+
+.workspace-item-row {
+  position: relative;
 }
 
 .workspace-item {
@@ -787,6 +791,39 @@ body.platform-win32 #agent-dot {
   align-items: center;
   gap: 8px;
   -webkit-app-region: no-drag;
+}
+
+.workspace-item-row.with-remove .workspace-item {
+  padding-right: 38px;
+}
+
+.workspace-row-actions {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  display: inline-flex;
+  transform: translateY(-50%);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+
+.workspace-item-row:hover .workspace-row-actions,
+.workspace-item-row:focus-within .workspace-row-actions {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.workspace-item.active + .workspace-row-actions {
+  opacity: 0.72;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.workspace-item.active + .workspace-row-actions:hover {
+  opacity: 1;
 }
 
 .workspace-item:hover {
@@ -994,33 +1031,24 @@ body.platform-win32 #agent-dot {
 
 #library-section {
   min-height: 0;
-  flex: 0 0 auto;
+  flex: 1;
   display: flex;
   flex-direction: column;
-  max-height: calc((34px + 4px) * 5 - 4px + 47px);
+  max-height: none;
   padding: 6px;
   border: 1px solid color-mix(in srgb, var(--border-color) 58%, transparent 42%);
   border-radius: 8px;
   background: color-mix(in srgb, var(--bg-color) 96%, var(--border-color) 4%);
 }
 
-#library-section.library-tab-workdir {
-  flex: 1;
-  max-height: none;
-}
-
 #library-scroll-region {
   min-height: 0;
-  max-height: calc((34px + 4px) * 5 - 4px);
+  flex: 1;
+  max-height: none;
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 2px;
   overscroll-behavior: contain;
-}
-
-#library-section.library-tab-workdir #library-scroll-region {
-  flex: 1;
-  max-height: none;
 }
 
 .workdir-name {
@@ -1933,7 +1961,7 @@ body.theme-dark #settings-dialog {
 .settings-top-bar {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: 1fr auto;
   align-items: center;
   gap: 12px;
   padding: 0 12px 0 16px;
@@ -1942,31 +1970,6 @@ body.theme-dark #settings-dialog {
   -webkit-app-region: drag;
   cursor: move;
   user-select: none;
-}
-
-.settings-window-controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.settings-window-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 999px;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
-}
-
-.settings-window-dot.close {
-  background: #ff5f57;
-}
-
-.settings-window-dot.minimize {
-  background: #ffbd2e;
-}
-
-.settings-window-dot.zoom {
-  background: #28c840;
 }
 
 .settings-title-block {

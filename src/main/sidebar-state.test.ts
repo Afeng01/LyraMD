@@ -10,6 +10,7 @@ import {
   normalizeSidebarState,
   pushRecentFile,
   removeRecentFile,
+  removeWorkspacePath,
 } from './sidebar-state'
 
 describe('sidebar defaults', () => {
@@ -64,6 +65,22 @@ describe('filterMissingRecentFiles', () => {
 describe('removeRecentFile', () => {
   it('removes only the selected recent file', () => {
     expect(removeRecentFile(['a.md', 'b.md', 'c.md'], 'b.md')).toEqual(['a.md', 'c.md'])
+  })
+})
+
+describe('removeWorkspacePath', () => {
+  it('removes the selected workspace and falls back from the active workspace', () => {
+    expect(removeWorkspacePath(['/a', '/b', '/c'], '/b', '/b')).toEqual({
+      workspacePaths: ['/a', '/c'],
+      workdirPath: '/a',
+    })
+  })
+
+  it('keeps the active workspace when removing another workspace', () => {
+    expect(removeWorkspacePath(['/a', '/b', '/c'], '/c', '/b')).toEqual({
+      workspacePaths: ['/a', '/b'],
+      workdirPath: '/b',
+    })
   })
 })
 

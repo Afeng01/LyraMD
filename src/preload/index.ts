@@ -206,6 +206,7 @@ export interface ElectronAPI {
   setSidebarWidth: (width: number) => Promise<number>
   chooseWorkdir: () => Promise<SidebarState | null>
   selectWorkspace: (path: string) => Promise<SidebarState | null>
+  removeWorkspace: (path: string) => Promise<SidebarState | null>
   reorderWorkspaces: (sourcePath: string, targetPath: string) => Promise<SidebarState | null>
   createWorkdirFile: () => Promise<SidebarState | null>
   createWorkdirFolder: () => Promise<SidebarState | null>
@@ -284,6 +285,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setSidebarWidth: (width: number) => ipcRenderer.invoke('set-sidebar-width', width),
   chooseWorkdir: () => ipcRenderer.invoke('choose-workdir'),
   selectWorkspace: (path: string) => ipcRenderer.invoke('select-workspace', path),
+  removeWorkspace: (path: string) => ipcRenderer.invoke('remove-workspace', path),
   reorderWorkspaces: (sourcePath: string, targetPath: string) => ipcRenderer.invoke('reorder-workspaces', sourcePath, targetPath),
   createWorkdirFile: () => ipcRenderer.invoke('create-workdir-file'),
   createWorkdirFolder: () => ipcRenderer.invoke('create-workdir-folder'),

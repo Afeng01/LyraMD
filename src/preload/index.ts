@@ -57,8 +57,23 @@ export interface AiPromptTemplate {
   prompt: string
 }
 
+export interface AiHelperProviderSettings {
+  type: 'openai-compatible'
+  baseUrl: string
+  apiKey: string
+  model: string
+  temperature: number
+}
+
 export interface AiHelperSettings {
+  provider: AiHelperProviderSettings
   templates: AiPromptTemplate[]
+}
+
+export interface AiHelperCompletionResult {
+  ok: boolean
+  text?: string
+  error?: string
 }
 
 export interface AppSettings {
@@ -166,6 +181,7 @@ export interface ElectronAPI {
   loadThemeCSS: (fileName: string) => Promise<string | null>
   getSettings: () => Promise<AppSettings | null>
   updateSettings: (patch: Partial<AppSettings>) => Promise<AppSettings | null>
+  completeAiPrompt: (prompt: string) => Promise<AiHelperCompletionResult>
   getCodexIntegrationStatus: () => Promise<CodexIntegrationStatus | null>
   installCodexIntegration: () => Promise<CodexIntegrationStatus | null>
   removeCodexIntegration: () => Promise<CodexIntegrationStatus | null>
@@ -243,6 +259,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   loadThemeCSS: (fileName: string) => ipcRenderer.invoke('load-theme-css', fileName),
   getSettings: () => ipcRenderer.invoke('get-settings'),
   updateSettings: (patch: Partial<AppSettings>) => ipcRenderer.invoke('update-settings', patch),
+  completeAiPrompt: (prompt: string) => ipcRenderer.invoke('complete-ai-prompt', prompt),
   getCodexIntegrationStatus: () => ipcRenderer.invoke('codex-integration-status'),
   installCodexIntegration: () => ipcRenderer.invoke('codex-integration-install'),
   removeCodexIntegration: () => ipcRenderer.invoke('codex-integration-remove'),

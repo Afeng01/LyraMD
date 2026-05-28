@@ -223,6 +223,13 @@ function createDefaultSettings(): AppSettings {
       customFamily: '',
     },
     aiHelper: {
+      provider: {
+        type: 'openai-compatible',
+        baseUrl: 'https://api.openai.com/v1',
+        apiKey: '',
+        model: 'gpt-4.1-mini',
+        temperature: 0.7,
+      },
       templates: [
         {
           id: 'polish',
@@ -553,12 +560,23 @@ async function init(): Promise<void> {
   const contextPanelResizer = document.getElementById('context-panel-resizer') as HTMLDivElement | null
   const agentPanel = document.getElementById('agent-panel') as HTMLElement | null
   const aiHelperTemplate = document.getElementById('ai-helper-template') as HTMLSelectElement | null
+  const aiHelperDrawerTemplate = document.getElementById('ai-helper-drawer-template') as HTMLSelectElement | null
   const aiHelperSelectionPreview = document.getElementById('ai-helper-selection-preview') as HTMLDivElement | null
+  const aiHelperDrawerSelectionPreview = document.getElementById('ai-helper-drawer-selection-preview') as HTMLDivElement | null
   const aiHelperPromptPreview = document.getElementById('ai-helper-prompt-preview') as HTMLTextAreaElement | null
+  const aiHelperDrawerPromptPreview = document.getElementById('ai-helper-drawer-prompt-preview') as HTMLTextAreaElement | null
   const aiHelperResult = document.getElementById('ai-helper-result') as HTMLTextAreaElement | null
+  const aiHelperDrawerResult = document.getElementById('ai-helper-drawer-result') as HTMLTextAreaElement | null
+  const aiHelperStatus = document.getElementById('ai-helper-status') as HTMLDivElement | null
+  const aiHelperDrawerStatus = document.getElementById('ai-helper-drawer-status') as HTMLDivElement | null
+  const aiHelperRun = document.getElementById('ai-helper-run') as HTMLButtonElement | null
+  const aiHelperDrawerRun = document.getElementById('ai-helper-drawer-run') as HTMLButtonElement | null
   const aiHelperCopyPrompt = document.getElementById('ai-helper-copy-prompt') as HTMLButtonElement | null
+  const aiHelperDrawerCopyPrompt = document.getElementById('ai-helper-drawer-copy-prompt') as HTMLButtonElement | null
   const aiHelperReplaceSelection = document.getElementById('ai-helper-replace-selection') as HTMLButtonElement | null
+  const aiHelperDrawerReplaceSelection = document.getElementById('ai-helper-drawer-replace-selection') as HTMLButtonElement | null
   const aiHelperInsertBelow = document.getElementById('ai-helper-insert-below') as HTMLButtonElement | null
+  const aiHelperDrawerInsertBelow = document.getElementById('ai-helper-drawer-insert-below') as HTMLButtonElement | null
   const agentDrawer = document.getElementById('agent-drawer') as HTMLElement | null
   const agentDrawerResizer = document.getElementById('agent-drawer-resizer') as HTMLDivElement | null
   const outlinePanel = document.getElementById('outline-panel') as HTMLElement | null
@@ -1142,6 +1160,9 @@ async function init(): Promise<void> {
   let contextPanelWidth = 310
   let agentDrawerHeight = 230
   let activeAiHelperTemplateId = 'polish'
+  let aiHelperBusy = false
+  let aiHelperResultText = ''
+  let aiHelperStatusText = ''
   let searchInputComposing = false
   let searchQueryMemory: SearchMemoryState = {}
   let agentChangeSession: AgentChangeSession | null = null
@@ -1400,35 +1421,56 @@ async function init(): Promise<void> {
   const renderAiHelperPanel = (): void => {
     const templates = getAiHelperTemplates()
     const activeTemplate = resolveAiHelperTemplate()
-    if (aiHelperTemplate) {
-      clearElement(aiHelperTemplate)
+    const templateSelects = [aiHelperTemplate, aiHelperDrawerTemplate].filter((element): element is HTMLSelectElement => Boolean(element))
+    const selectionPreviews = [aiHelperSelectionPreview, aiHelperDrawerSelectionPreview].filter((element): element is HTMLDivElement => Boolean(element))
+    const promptPreviews = [aiHelperPromptPreview, aiHelperDrawerPromptPreview].filter((element): element is HTMLTextAreaElement => Boolean(element))
+    const resultInputs = [aiHelperResult, aiHelperDrawerResult].filter((element): element is HTMLTextAreaElement => Boolean(element))
+    const statusElements = [aiHelperStatus, aiHelperDrawerStatus].filter((element): element is HTMLDivElement => Boolean(element))
+    const runButtons = [aiHelperRun, aiHelperDrawerRun].filter((element): element is HTMLButtonElement => Boolean(element))
+    const copyButtons = [aiHelperCopyPrompt, aiHelperDrawerCopyPrompt].filter((element): element is HTMLButtonElement => Boolean(element))
+    const replaceButtons = [aiHelperReplaceSelection, aiHelperDrawerReplaceSelection].filter((element): element is HTMLButtonElement => Boolean(element))
+    const insertButtons = [aiHelperInsertBelow, aiHelperDrawerInsertBelow].filter((element): element is HTMLButtonElement => Boolean(element))
+
+    for (const templateSelect of templateSelects) {
+      clearElement(templateSelect)
       for (const template of templates) {
         const option = document.createElement('option')
         option.value = template.id
         option.textContent = template.title
-        aiHelperTemplate.appendChild(option)
+        templateSelect.appendChild(option)
       }
-      aiHelperTemplate.value = activeTemplate?.id ?? ''
+      templateSelect.value = activeTemplate?.id ?? ''
     }
 
     const selection = getSelectedPlainText().trim()
     const prompt = selection ? buildAiHelperPrompt(selection) : ''
-    if (aiHelperSelectionPreview) {
-      aiHelperSelectionPreview.textContent = selection || '先选中文本，再打开 AI 精灵。'
-      aiHelperSelectionPreview.classList.toggle('empty', !selection)
+    for (const selectionPreview of selectionPreviews) {
+      selectionPreview.textContent = selection || '先选中文本，再打开 AI 精灵。'
+      selectionPreview.classList.toggle('empty', !selection)
     }
-    if (aiHelperPromptPreview) {
-      aiHelperPromptPreview.value = prompt
+    for (const promptPreview of promptPreviews) {
+      promptPreview.value = prompt
     }
-    if (aiHelperCopyPrompt) {
-      aiHelperCopyPrompt.disabled = !prompt
+    for (const resultInput of resultInputs) {
+      if (document.activeElement !== resultInput) resultInput.value = aiHelperResultText
     }
-    const hasResult = Boolean(aiHelperResult?.value.trim())
-    if (aiHelperReplaceSelection) {
-      aiHelperReplaceSelection.disabled = !selection || !hasResult
+    for (const copyButton of copyButtons) {
+      copyButton.disabled = !prompt
     }
-    if (aiHelperInsertBelow) {
-      aiHelperInsertBelow.disabled = !hasResult
+    for (const runButton of runButtons) {
+      runButton.disabled = !prompt || aiHelperBusy
+      runButton.textContent = aiHelperBusy ? '生成中...' : '直接生成'
+    }
+    for (const statusElement of statusElements) {
+      statusElement.textContent = aiHelperStatusText
+      statusElement.hidden = !aiHelperStatusText
+    }
+    const hasResult = Boolean(aiHelperResultText.trim())
+    for (const replaceButton of replaceButtons) {
+      replaceButton.disabled = !selection || !hasResult
+    }
+    for (const insertButton of insertButtons) {
+      insertButton.disabled = !hasResult
     }
   }
 
@@ -2246,39 +2288,89 @@ img{max-width:100%}
     toggleAgentPanel()
   })
 
-  aiHelperTemplate?.addEventListener('change', () => {
-    activeAiHelperTemplateId = aiHelperTemplate.value
+  const handleAiHelperTemplateChange = (templateSelect: HTMLSelectElement): void => {
+    activeAiHelperTemplateId = templateSelect.value
     renderAiHelperPanel()
-  })
+  }
 
-  aiHelperCopyPrompt?.addEventListener('click', async () => {
+  const copyAiHelperPrompt = async (): Promise<void> => {
     const selection = getSelectedPlainText().trim()
     if (!selection) return
     const prompt = buildAiHelperPrompt(selection)
     await navigator.clipboard.writeText(prompt)
-  })
-
-  aiHelperResult?.addEventListener('input', () => {
+    aiHelperStatusText = '已复制 Prompt。'
     renderAiHelperPanel()
-  })
+  }
 
-  aiHelperReplaceSelection?.addEventListener('click', () => {
-    const result = aiHelperResult?.value.trim() ?? ''
+  const runAiHelperPrompt = async (): Promise<void> => {
+    const selection = getSelectedPlainText().trim()
+    if (!selection || aiHelperBusy) return
+    const prompt = buildAiHelperPrompt(selection)
+    aiHelperBusy = true
+    aiHelperStatusText = '正在请求 AI...'
+    renderAiHelperPanel()
+    const result = await api.completeAiPrompt(prompt).catch((error) => ({
+      ok: false,
+      error: error instanceof Error ? error.message : 'AI 请求失败。',
+    }))
+    aiHelperBusy = false
+    if (result.ok && result.text) {
+      aiHelperResultText = result.text
+      aiHelperStatusText = 'AI 结果已生成，可替换或插入。'
+    } else {
+      aiHelperStatusText = result.error ?? 'AI 请求失败。'
+    }
+    renderAiHelperPanel()
+  }
+
+  const handleAiHelperResultInput = (resultInput: HTMLTextAreaElement): void => {
+    aiHelperResultText = resultInput.value
+    renderAiHelperPanel()
+  }
+
+  const replaceSelectionWithAiHelperResult = (): void => {
+    const result = aiHelperResultText.trim()
     if (!result) return
     if (replaceSelectedText(result)) {
-      aiHelperResult.value = ''
+      aiHelperResultText = ''
+      aiHelperStatusText = '已替换选区。'
       renderAiHelperPanel()
     }
-  })
+  }
 
-  aiHelperInsertBelow?.addEventListener('click', () => {
-    const result = aiHelperResult?.value.trim() ?? ''
+  const insertAiHelperResultBelow = (): void => {
+    const result = aiHelperResultText.trim()
     if (!result) return
     if (insertTextBelowSelection(result)) {
-      aiHelperResult.value = ''
+      aiHelperResultText = ''
+      aiHelperStatusText = '已插入到下方。'
       renderAiHelperPanel()
     }
-  })
+  }
+
+  for (const templateSelect of [aiHelperTemplate, aiHelperDrawerTemplate]) {
+    templateSelect?.addEventListener('change', () => handleAiHelperTemplateChange(templateSelect))
+  }
+
+  for (const copyButton of [aiHelperCopyPrompt, aiHelperDrawerCopyPrompt]) {
+    copyButton?.addEventListener('click', () => { void copyAiHelperPrompt() })
+  }
+
+  for (const runButton of [aiHelperRun, aiHelperDrawerRun]) {
+    runButton?.addEventListener('click', () => { void runAiHelperPrompt() })
+  }
+
+  for (const resultInput of [aiHelperResult, aiHelperDrawerResult]) {
+    resultInput?.addEventListener('input', () => handleAiHelperResultInput(resultInput))
+  }
+
+  for (const replaceButton of [aiHelperReplaceSelection, aiHelperDrawerReplaceSelection]) {
+    replaceButton?.addEventListener('click', replaceSelectionWithAiHelperResult)
+  }
+
+  for (const insertButton of [aiHelperInsertBelow, aiHelperDrawerInsertBelow]) {
+    insertButton?.addEventListener('click', insertAiHelperResultBelow)
+  }
 
   document.addEventListener('selectionchange', () => {
     if (!agentPanelOpen) return

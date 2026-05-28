@@ -42,4 +42,10 @@ describe('application menu shortcut regression', () => {
     expect(main).toContain("ipcMain.handle('create-new-window', async (event) => {")
     expect(main).toContain('createWindowMatchingSize(getWinFromEvent(event))')
   })
+
+  it('does not let an installed packaged app swallow development preview launches', () => {
+    const main = readFileSync(join(process.cwd(), 'src/main/index.ts'), 'utf8')
+
+    expect(main).toContain('const hasSingleInstanceLock = app.isPackaged ? app.requestSingleInstanceLock() : true')
+  })
 })

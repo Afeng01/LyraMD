@@ -61,6 +61,7 @@ import {
   type CodexIntegrationStatus,
 } from './codex-integration'
 import { createMcpBridgeController, type McpBridgeRequest } from './mcp-bridge'
+import { completeAiHelperPrompt } from './ai-provider'
 
 // Custom themes directory
 const appDataDir = join(app.getPath('home'), '.lyramd')
@@ -295,7 +296,7 @@ interface WindowState {
 
 const windowStates = new Map<number, WindowState>()
 let pendingFilePaths: string[] = []
-const hasSingleInstanceLock = app.requestSingleInstanceLock()
+const hasSingleInstanceLock = app.isPackaged ? app.requestSingleInstanceLock() : true
 
 interface RendererMcpRequestPayload {
   args?: Record<string, unknown>
@@ -1459,6 +1460,12 @@ ipcMain.handle('update-settings', async (event, patch: Partial<AppSettings>) => 
   appSettings = await updateAppSettings(settingsPath, appSettings, patch ?? {})
   buildMenu()
   return appSettings
+})
+
+ipcMain.handle('complete-ai-prompt', async (event, prompt: string) => {
+  const win = getWinFromEvent(event)
+  if (!win) return { ok: false, error: '当前窗口不可用。' }
+  return completeAiHelperPrompt(appSettings.aiHelper.provider, typeof prompt === 'string' ? prompt : '')
 })
 
 ipcMain.handle('codex-integration-status', async () => {

@@ -141,6 +141,16 @@ describe('settings dialog regression', () => {
     expect(css).toContain('.settings-ai-template-list')
   })
 
+  it('renders OpenAI-compatible AI helper provider controls', () => {
+    const file = readFileSync(join(process.cwd(), 'src/renderer/settings-dialog.ts'), 'utf8')
+    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
+
+    expect(html).toContain('id="settings-ai-base-url"')
+    expect(html).toContain('id="settings-ai-api-key"')
+    expect(html).toContain('id="settings-ai-model"')
+    expect(file).toContain('updateAiHelperProviderSettings')
+  })
+
   it('applies background settings through renderer CSS variables', () => {
     const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')

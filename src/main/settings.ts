@@ -39,7 +39,16 @@ export interface AiPromptTemplate {
   prompt: string
 }
 
+export interface AiHelperProviderSettings {
+  type: 'openai-compatible'
+  baseUrl: string
+  apiKey: string
+  model: string
+  temperature: number
+}
+
 export interface AiHelperSettings {
+  provider: AiHelperProviderSettings
   templates: AiPromptTemplate[]
 }
 
@@ -102,6 +111,13 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     customFamily: '',
   },
   aiHelper: {
+    provider: {
+      type: 'openai-compatible',
+      baseUrl: 'https://api.openai.com/v1',
+      apiKey: '',
+      model: 'gpt-4.1-mini',
+      temperature: 0.7,
+    },
     templates: DEFAULT_AI_PROMPT_TEMPLATES,
   },
 }
@@ -214,6 +230,39 @@ function normalizePromptTemplate(input: unknown): AiPromptTemplate | null {
   return { id, title, prompt }
 }
 
+function normalizeAiBaseUrl(input: unknown): string {
+  if (typeof input !== 'string') return DEFAULT_APP_SETTINGS.aiHelper.provider.baseUrl
+  const trimmed = input.trim().replace(/\/+$/u, '')
+  try {
+    const url = new URL(trimmed)
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+      return DEFAULT_APP_SETTINGS.aiHelper.provider.baseUrl
+    }
+    return url.toString().replace(/\/+$/u, '')
+  } catch {
+    return DEFAULT_APP_SETTINGS.aiHelper.provider.baseUrl
+  }
+}
+
+function normalizeAiProviderText(input: unknown, maxLength: number): string {
+  if (typeof input !== 'string') return ''
+  return input.trim().replace(/\s+/g, ' ').slice(0, maxLength)
+}
+
+function normalizeAiHelperProviderSettings(input: unknown): AiHelperProviderSettings {
+  const candidate = input && typeof input === 'object'
+    ? input as Partial<Record<keyof AiHelperProviderSettings, unknown>>
+    : {}
+  const model = normalizeAiProviderText(candidate.model, 120)
+  return {
+    type: 'openai-compatible',
+    baseUrl: normalizeAiBaseUrl(candidate.baseUrl),
+    apiKey: normalizeAiProviderText(candidate.apiKey, 400),
+    model: model || DEFAULT_APP_SETTINGS.aiHelper.provider.model,
+    temperature: clampNumber(candidate.temperature, DEFAULT_APP_SETTINGS.aiHelper.provider.temperature, 0, 2),
+  }
+}
+
 function normalizeAiHelperSettings(input: unknown): AiHelperSettings {
   const candidate = input && typeof input === 'object'
     ? input as Partial<Record<keyof AiHelperSettings, unknown>>
@@ -224,9 +273,17 @@ function normalizeAiHelperSettings(input: unknown): AiHelperSettings {
       .filter((template): template is AiPromptTemplate => template !== null)
     : []
 
-  if (templates.length === 0) return DEFAULT_APP_SETTINGS.aiHelper
+  const provider = normalizeAiHelperProviderSettings(candidate.provider)
+
+  if (templates.length === 0) {
+    return {
+      provider,
+      templates: DEFAULT_APP_SETTINGS.aiHelper.templates,
+    }
+  }
 
   return {
+    provider,
     templates: templates.slice(0, 12),
   }
 }

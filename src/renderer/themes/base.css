@@ -1232,13 +1232,13 @@ body.platform-win32 #agent-dot {
   height: calc(100% - 18px);
   margin: 6px 12px 12px;
   padding: 14px;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
+  display: grid;
+  align-content: start;
   gap: 8px;
   border: 1px solid color-mix(in srgb, var(--border-color) 78%, transparent 22%);
   border-radius: 8px;
   background: color-mix(in srgb, var(--bg-color) 92%, var(--text-color) 8%);
+  overflow: auto;
 }
 
 #agent-terminal-placeholder {
@@ -1308,6 +1308,11 @@ body.platform-win32 #agent-dot {
   resize: vertical;
 }
 
+#agent-drawer .ai-helper-field textarea,
+#agent-drawer .ai-helper-preview {
+  min-height: 74px;
+}
+
 .ai-helper-preview {
   max-height: 120px;
   overflow: auto;
@@ -1316,6 +1321,13 @@ body.platform-win32 #agent-dot {
 
 .ai-helper-preview.empty {
   color: var(--text-muted);
+}
+
+.ai-helper-status {
+  min-height: 18px;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.5;
 }
 
 .ai-helper-actions {

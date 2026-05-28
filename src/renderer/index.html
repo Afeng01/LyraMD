@@ -247,8 +247,10 @@
               <span>AI 返回结果</span>
               <textarea id="ai-helper-result" rows="7" placeholder="把 AI 返回的内容粘贴到这里，再应用到正文。"></textarea>
             </label>
+            <div id="ai-helper-status" class="ai-helper-status" hidden></div>
             <div class="ai-helper-actions">
               <button id="ai-helper-copy-prompt" type="button" class="overlay-button primary">复制 Prompt</button>
+              <button id="ai-helper-run" type="button" class="overlay-button primary">直接生成</button>
               <button id="ai-helper-replace-selection" type="button" class="overlay-button">替换选区</button>
               <button id="ai-helper-insert-below" type="button" class="overlay-button">插入下方</button>
             </div>
@@ -263,8 +265,30 @@
         <div id="agent-drawer-resizer" aria-hidden="true"></div>
         <div id="agent-drawer-grip" aria-hidden="true"></div>
         <div id="agent-drawer-placeholder">
-          <div class="agent-terminal-title">Agent CLI</div>
-          <div class="agent-terminal-copy">选择一段文字后，可以把上下文送到这里继续交给终端里的 Agent 处理。</div>
+          <div class="agent-terminal-title">AI 精灵</div>
+          <label class="ai-helper-field">
+            <span>Prompt 模板</span>
+            <select id="ai-helper-drawer-template"></select>
+          </label>
+          <div class="ai-helper-field">
+            <span>当前选区</span>
+            <div id="ai-helper-drawer-selection-preview" class="ai-helper-preview">先选中文本，再打开 AI 精灵。</div>
+          </div>
+          <div class="ai-helper-field">
+            <span>完整 Prompt</span>
+            <textarea id="ai-helper-drawer-prompt-preview" readonly rows="5"></textarea>
+          </div>
+          <label class="ai-helper-field">
+            <span>AI 返回结果</span>
+            <textarea id="ai-helper-drawer-result" rows="5" placeholder="把 AI 返回的内容粘贴到这里，再应用到正文。"></textarea>
+          </label>
+          <div id="ai-helper-drawer-status" class="ai-helper-status" hidden></div>
+          <div class="ai-helper-actions">
+            <button id="ai-helper-drawer-copy-prompt" type="button" class="overlay-button primary">复制 Prompt</button>
+            <button id="ai-helper-drawer-run" type="button" class="overlay-button primary">直接生成</button>
+            <button id="ai-helper-drawer-replace-selection" type="button" class="overlay-button">替换选区</button>
+            <button id="ai-helper-drawer-insert-below" type="button" class="overlay-button">插入下方</button>
+          </div>
         </div>
       </section>
     </div>
@@ -408,6 +432,24 @@
                 <div class="settings-group-heading">
                   <h4 class="settings-group-title">AI 精灵 Prompt</h4>
                   <p class="settings-group-copy">这些模板会用于后续选中文本后的 AI 操作。使用 {{selection}} 表示当前选区。</p>
+                </div>
+                <div class="settings-field-grid">
+                  <label class="settings-field span-2">
+                    <span>Base URL</span>
+                    <input id="settings-ai-base-url" type="text" spellcheck="false" placeholder="https://api.openai.com/v1">
+                  </label>
+                  <label class="settings-field">
+                    <span>Model</span>
+                    <input id="settings-ai-model" type="text" spellcheck="false" placeholder="gpt-4.1-mini">
+                  </label>
+                  <label class="settings-field">
+                    <span>Temperature</span>
+                    <input id="settings-ai-temperature" type="number" min="0" max="2" step="0.1">
+                  </label>
+                  <label class="settings-field span-2">
+                    <span>API Key</span>
+                    <input id="settings-ai-api-key" type="password" spellcheck="false" placeholder="sk-...">
+                  </label>
                 </div>
                 <div id="settings-ai-template-list" class="settings-ai-template-list" role="tablist" aria-label="AI prompt 模板">
                   <button type="button" class="settings-ai-template-button active" data-settings-ai-template="polish">润色</button>

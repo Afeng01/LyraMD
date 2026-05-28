@@ -1,4 +1,4 @@
-import type { AiHelperSettings, AiPromptTemplate, AppSettings, BackgroundMode, BackgroundScope, BackgroundSettings, CodexIntegrationStatus, EditorFontPreset, ElectronAPI, FontSettings, SaveAsMode, ShortcutAction, SidebarState, TitleSyncMode } from '../preload/index'
+import type { AiHelperProviderSettings, AiHelperSettings, AiPromptTemplate, AppSettings, BackgroundMode, BackgroundScope, BackgroundSettings, CodexIntegrationStatus, EditorFontPreset, ElectronAPI, FontSettings, SaveAsMode, ShortcutAction, SidebarState, TitleSyncMode } from '../preload/index'
 import { applyTheme } from './themes/theme-manager'
 
 const BUILT_IN_THEMES = [
@@ -42,6 +42,13 @@ const DEFAULT_AI_PROMPT_TEMPLATES: AiPromptTemplate[] = [
 ]
 
 const DEFAULT_AI_HELPER_SETTINGS: AiHelperSettings = {
+  provider: {
+    type: 'openai-compatible',
+    baseUrl: 'https://api.openai.com/v1',
+    apiKey: '',
+    model: 'gpt-4.1-mini',
+    temperature: 0.7,
+  },
   templates: DEFAULT_AI_PROMPT_TEMPLATES,
 }
 
@@ -210,6 +217,10 @@ export function createSettingsDialogController({
     document.querySelectorAll<HTMLButtonElement>('[data-settings-ai-template]'),
   )
   const aiTemplatePrompt = document.getElementById('settings-ai-template-prompt') as HTMLTextAreaElement | null
+  const aiBaseUrlInput = document.getElementById('settings-ai-base-url') as HTMLInputElement | null
+  const aiApiKeyInput = document.getElementById('settings-ai-api-key') as HTMLInputElement | null
+  const aiModelInput = document.getElementById('settings-ai-model') as HTMLInputElement | null
+  const aiTemperatureInput = document.getElementById('settings-ai-temperature') as HTMLInputElement | null
   const shortcutKeys = Array.from(
     document.querySelectorAll<HTMLElement>('[data-shortcut-action]'),
   )
@@ -329,6 +340,11 @@ export function createSettingsDialogController({
     }
 
     const aiHelper = appSettings.aiHelper ?? DEFAULT_AI_HELPER_SETTINGS
+    const aiProvider = aiHelper.provider ?? DEFAULT_AI_HELPER_SETTINGS.provider
+    if (aiBaseUrlInput) aiBaseUrlInput.value = aiProvider.baseUrl
+    if (aiApiKeyInput) aiApiKeyInput.value = aiProvider.apiKey
+    if (aiModelInput) aiModelInput.value = aiProvider.model
+    if (aiTemperatureInput) aiTemperatureInput.value = String(aiProvider.temperature)
     const activeAiTemplate = aiHelper.templates.find((template) => template.id === activeAiTemplateId)
       ?? aiHelper.templates[0]
       ?? DEFAULT_AI_PROMPT_TEMPLATES[0]
@@ -503,6 +519,19 @@ export function createSettingsDialogController({
     }
     onAppSettingsChange(next)
     render()
+  }
+
+  const updateAiHelperProviderSettings = async (patch: Partial<AiHelperProviderSettings>): Promise<void> => {
+    const current = getAppSettings()
+    const currentAiHelper = current.aiHelper ?? DEFAULT_AI_HELPER_SETTINGS
+    await updateAiHelperSettings({
+      ...currentAiHelper,
+      provider: {
+        ...(currentAiHelper.provider ?? DEFAULT_AI_HELPER_SETTINGS.provider),
+        ...patch,
+        type: 'openai-compatible',
+      },
+    })
   }
 
   const updateSelectedAiPromptTemplate = async (prompt: string): Promise<void> => {
@@ -681,6 +710,25 @@ export function createSettingsDialogController({
 
   aiTemplatePrompt?.addEventListener('change', () => {
     void updateSelectedAiPromptTemplate(aiTemplatePrompt.value)
+  })
+
+  aiBaseUrlInput?.addEventListener('change', () => {
+    void updateAiHelperProviderSettings({ baseUrl: aiBaseUrlInput.value })
+  })
+
+  aiApiKeyInput?.addEventListener('change', () => {
+    void updateAiHelperProviderSettings({ apiKey: aiApiKeyInput.value })
+  })
+
+  aiModelInput?.addEventListener('change', () => {
+    void updateAiHelperProviderSettings({ model: aiModelInput.value })
+  })
+
+  aiTemperatureInput?.addEventListener('change', () => {
+    const current = getAppSettings().aiHelper?.provider ?? DEFAULT_AI_HELPER_SETTINGS.provider
+    void updateAiHelperProviderSettings({
+      temperature: clampNumber(aiTemperatureInput.value, current.temperature, 0, 2),
+    })
   })
 
   for (const tab of paneTabs) {

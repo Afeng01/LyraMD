@@ -153,6 +153,30 @@ describe('loadAppSettings', () => {
     ])
   })
 
+  it('normalizes OpenAI-compatible AI helper provider settings', async () => {
+    const settingsModule = await loadSettingsModule()
+
+    const settings = settingsModule.normalizeAppSettings({
+      aiHelper: {
+        provider: {
+          baseUrl: ' https://new-api.example.com/v1/ ',
+          apiKey: ' sk-test ',
+          model: ' custom-model ',
+          temperature: 1.2,
+        },
+        templates: settingsModule.DEFAULT_AI_PROMPT_TEMPLATES,
+      },
+    })
+
+    expect(settings.aiHelper.provider).toEqual({
+      type: 'openai-compatible',
+      baseUrl: 'https://new-api.example.com/v1',
+      apiKey: 'sk-test',
+      model: 'custom-model',
+      temperature: 1.2,
+    })
+  })
+
   it('falls back to default AI helper prompts when persisted templates are unusable', async () => {
     const settingsModule = await loadSettingsModule()
 
@@ -347,6 +371,34 @@ describe('updateAppSettings', () => {
       },
     ])
     expect(JSON.parse(await readFile(settingsPath, 'utf-8')).aiHelper.templates).toEqual(updated.aiHelper.templates)
+  })
+
+  it('persists supported AI helper provider settings', async () => {
+    const settingsModule = await loadSettingsModule()
+    const tempDir = await createTempDir()
+    const settingsPath = join(tempDir, 'settings.json')
+
+    const updated = await settingsModule.updateAppSettings(
+      settingsPath,
+      settingsModule.DEFAULT_APP_SETTINGS,
+      {
+        aiHelper: {
+          ...settingsModule.DEFAULT_APP_SETTINGS.aiHelper,
+          provider: {
+            type: 'openai-compatible',
+            baseUrl: 'https://new-api.example.com/v1',
+            apiKey: 'sk-test',
+            model: 'custom-model',
+            temperature: 0.4,
+          },
+        },
+      },
+    )
+
+    expect(updated.aiHelper.provider.baseUrl).toBe('https://new-api.example.com/v1')
+    expect(updated.aiHelper.provider.apiKey).toBe('sk-test')
+    expect(updated.aiHelper.provider.model).toBe('custom-model')
+    expect(JSON.parse(await readFile(settingsPath, 'utf-8')).aiHelper.provider).toEqual(updated.aiHelper.provider)
   })
 
   it('rejects shortcut updates that conflict with another action', async () => {

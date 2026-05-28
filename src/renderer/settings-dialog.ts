@@ -132,6 +132,49 @@ export interface SettingsDialogController {
   toggle: () => void
 }
 
+export function initSettingsDialogDrag(
+  overlay: HTMLElement | null,
+  dialog: HTMLElement | null,
+  handle: HTMLElement | null,
+): void {
+  if (!overlay || !dialog || !handle) return
+
+  let offsetX = 0
+  let offsetY = 0
+
+  const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value))
+
+  const handlePointerMove = (event: PointerEvent): void => {
+    const overlayRect = overlay.getBoundingClientRect()
+    const maxLeft = Math.max(0, overlayRect.width - dialog.offsetWidth)
+    const maxTop = Math.max(0, overlayRect.height - dialog.offsetHeight)
+    dialog.style.left = `${clamp(event.clientX - overlayRect.left - offsetX, 0, maxLeft)}px`
+    dialog.style.top = `${clamp(event.clientY - overlayRect.top - offsetY, 0, maxTop)}px`
+  }
+
+  const stopDrag = (): void => {
+    window.removeEventListener('pointermove', handlePointerMove)
+    window.removeEventListener('pointerup', stopDrag)
+    window.removeEventListener('pointercancel', stopDrag)
+  }
+
+  handle.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) return
+    const target = event.target as HTMLElement | null
+    if (target?.closest('button')) return
+    const overlayRect = overlay.getBoundingClientRect()
+    const dialogRect = dialog.getBoundingClientRect()
+    offsetX = event.clientX - dialogRect.left
+    offsetY = event.clientY - dialogRect.top
+    dialog.style.position = 'absolute'
+    dialog.style.left = `${dialogRect.left - overlayRect.left}px`
+    dialog.style.top = `${dialogRect.top - overlayRect.top}px`
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', stopDrag)
+    window.addEventListener('pointercancel', stopDrag)
+  })
+}
+
 interface CreateSettingsDialogControllerOptions {
   api: ElectronAPI
   getAppSettings: () => AppSettings
@@ -176,6 +219,8 @@ export function createSettingsDialogController({
   onSidebarStateChange,
 }: CreateSettingsDialogControllerOptions): SettingsDialogController {
   const overlay = document.getElementById('settings-overlay') as HTMLDivElement | null
+  const dialog = document.getElementById('settings-dialog') as HTMLDivElement | null
+  const topBar = document.querySelector<HTMLElement>('.settings-top-bar')
   const closeButton = document.getElementById('settings-close') as HTMLButtonElement | null
   const draftPreview = document.getElementById('settings-draft-preview') as HTMLDivElement | null
   const draftChooseButton = document.getElementById('settings-draft-choose') as HTMLButtonElement | null
@@ -239,6 +284,8 @@ export function createSettingsDialogController({
   let codexStatus: CodexIntegrationStatus | null = null
   let codexLoading = false
   let activeAiTemplateId = 'polish'
+
+  initSettingsDialogDrag(overlay, dialog, topBar)
 
   const renderPane = (): void => {
     const meta = SETTINGS_PANE_META[activePane]

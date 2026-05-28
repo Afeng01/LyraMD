@@ -10,6 +10,7 @@ describe('Phase C layout DOM skeleton', () => {
 
     expect(html).toContain('id="context-panel"')
     expect(html).toContain('id="agent-toggle"')
+    expect(html).toContain('aria-label="AI 精灵"')
     expect(html).toContain('id="context-panel-resizer"')
     expect(html).toContain('id="agent-panel"')
     expect(html).toContain('id="ai-helper-template"')
@@ -44,6 +45,9 @@ describe('Phase C layout DOM skeleton', () => {
     expect(renderer).toContain('getSelectedPlainText')
     expect(renderer).toContain('writeText(prompt)')
     expect(renderer).toContain('completeAiPrompt(prompt)')
+    expect(renderer).toContain('runAiHelperShortcutRewrite')
+    expect(renderer).toContain("closest('input, textarea, select')")
+    expect(renderer).not.toContain('[contenteditable="true"]')
     expect(renderer).toContain('replaceSelectedText')
     expect(renderer).toContain('insertTextBelowSelection')
     expect(renderer).not.toContain('function renderFileTabs')

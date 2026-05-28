@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveAutoPairTextInput } from './auto-pair'
+import { resolveAutoPairBackspace, resolveAutoPairTextInput } from './auto-pair'
 
 describe('resolveAutoPairTextInput', () => {
   it('pairs Chinese parentheses and leaves the cursor inside', () => {
@@ -55,6 +55,35 @@ describe('resolveAutoPairTextInput', () => {
       selectedText: '已选中',
       nextText: '',
       cursor: 1,
+    })).toBeNull()
+  })
+
+  it('deletes an untouched paired wrapper together on backspace', () => {
+    expect(resolveAutoPairBackspace({
+      previousText: '（',
+      nextText: '）',
+      cursor: 5,
+      selectedText: '',
+    })).toEqual({
+      deleteFrom: 4,
+      deleteTo: 6,
+      selectionAnchor: 4,
+      selectionHead: 4,
+    })
+  })
+
+  it('does not delete both sides once the pair has content or a selection', () => {
+    expect(resolveAutoPairBackspace({
+      previousText: '字',
+      nextText: '）',
+      cursor: 5,
+      selectedText: '',
+    })).toBeNull()
+    expect(resolveAutoPairBackspace({
+      previousText: '（',
+      nextText: '）',
+      cursor: 5,
+      selectedText: '内容',
     })).toBeNull()
   })
 })

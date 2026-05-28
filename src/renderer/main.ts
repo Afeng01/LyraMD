@@ -314,6 +314,12 @@ function eventMatchesShortcut(event: KeyboardEvent, accelerator: string): boolea
     && (!needsMeta || event.metaKey)
 }
 
+function isFormInputTarget(target: EventTarget | null): boolean {
+  const element = target instanceof HTMLElement ? target : null
+  if (!element) return false
+  return Boolean(element.closest('input, textarea, select'))
+}
+
 function shortcutFor(settings: AppSettings, action: ShortcutAction): string {
   return settings.shortcuts[action] ?? createDefaultSettings().shortcuts[action]
 }
@@ -522,8 +528,10 @@ async function init(): Promise<void> {
   const onboardingChoose = document.getElementById('onboarding-choose') as HTMLButtonElement | null
   const onboardingSkip = document.getElementById('onboarding-skip') as HTMLButtonElement | null
   const onboardingDirectoryPreview = document.getElementById('onboarding-directory-preview') as HTMLDivElement | null
-  const currentFileNew = document.getElementById('current-file-new') as HTMLButtonElement | null
   const draftNew = document.getElementById('draft-new') as HTMLButtonElement | null
+  const libraryCreateMenu = document.getElementById('library-create-menu') as HTMLDivElement | null
+  const libraryCreateFile = document.getElementById('library-create-file') as HTMLButtonElement | null
+  const libraryCreateFolder = document.getElementById('library-create-folder') as HTMLButtonElement | null
   const draftsToggle = document.getElementById('drafts-toggle') as HTMLButtonElement | null
   const recentFilesToggle = document.getElementById('recent-files-toggle') as HTMLButtonElement | null
   const workdirToggle = document.getElementById('workdir-toggle') as HTMLButtonElement | null
@@ -1114,6 +1122,44 @@ async function init(): Promise<void> {
       applyProgrammaticDocumentContent('', 0)
       focusEditorAtLastSelection()
     })
+  }
+
+  const closeLibraryCreateMenu = (): void => {
+    if (libraryCreateMenu) libraryCreateMenu.hidden = true
+    draftNew?.classList.remove('active')
+  }
+
+  const openLibraryCreateMenu = (): void => {
+    if (!libraryCreateMenu) return
+    libraryCreateMenu.hidden = false
+    draftNew?.classList.add('active')
+  }
+
+  const createWorkdirFileFromSidebar = (): void => {
+    closeLibraryCreateMenu()
+    if (!sidebarState?.workdirPath) {
+      api.chooseWorkdir().then((state) => {
+        if (state) setSidebarState(state)
+      }).catch(() => {})
+      return
+    }
+
+    void flushAutoSave().then(async () => {
+      persistCurrentViewportOffset()
+      const snapshot = await api.createWorkdirFile().catch(() => null)
+      if (snapshot) setSidebarState(snapshot)
+      resetLocalEchoState()
+      clearAgentChangePanel()
+      applyProgrammaticDocumentContent('', 0)
+      focusEditorAtLastSelection()
+    })
+  }
+
+  const createWorkdirFolderFromSidebar = (): void => {
+    closeLibraryCreateMenu()
+    api.createWorkdirFolder().then((state) => {
+      if (state) setSidebarState(state)
+    }).catch(() => syncSidebarState())
   }
 
   const getEffectiveDocumentKind = (): SidebarState['currentDocumentKind'] => {
@@ -1945,11 +1991,10 @@ async function init(): Promise<void> {
 
     const activeTab = sidebarState.activeSidebarTab
     librarySection?.classList.toggle('library-tab-workdir', activeTab === 'workdir')
-    if (currentFileNew) {
-      const label = '新建工作目录文稿'
-      currentFileNew.setAttribute('aria-label', label)
-      currentFileNew.title = label
-      currentFileNew.hidden = activeTab !== 'workdir'
+    if (draftNew) {
+      const label = activeTab === 'workdir' ? '新建工作目录项目' : '新建草稿'
+      draftNew.setAttribute('aria-label', label)
+      draftNew.title = label
     }
     if (draftsTab) {
       draftsTab.classList.toggle('active', activeTab === 'drafts')
@@ -2323,6 +2368,28 @@ img{max-width:100%}
     renderAiHelperPanel()
   }
 
+  const runAiHelperShortcutRewrite = async (): Promise<void> => {
+    const selection = getSelectedPlainText().trim()
+    if (!selection || aiHelperBusy) return
+    const prompt = buildAiHelperPrompt(selection)
+    aiHelperBusy = true
+    aiHelperStatusText = '正在快捷改写选区...'
+    renderAiHelperPanel()
+    const result = await api.completeAiPrompt(prompt).catch((error) => ({
+      ok: false,
+      error: error instanceof Error ? error.message : 'AI 请求失败。',
+    }))
+    aiHelperBusy = false
+    if (result.ok && result.text) {
+      replaceSelectedText(result.text)
+      aiHelperResultText = ''
+      aiHelperStatusText = '已快捷改写选区。'
+    } else {
+      aiHelperStatusText = result.error ?? 'AI 请求失败。'
+    }
+    renderAiHelperPanel()
+  }
+
   const handleAiHelperResultInput = (resultInput: HTMLTextAreaElement): void => {
     aiHelperResultText = resultInput.value
     renderAiHelperPanel()
@@ -2477,13 +2544,18 @@ img{max-width:100%}
     api.toggleRecentFilesExpanded().catch(() => {})
   })
 
-  currentFileNew?.addEventListener('click', () => {
-    beginLibraryDocumentFromSidebar()
-  })
-
   draftNew?.addEventListener('click', () => {
+    if (sidebarState?.activeSidebarTab === 'workdir') {
+      openLibraryCreateMenu()
+      return
+    }
+    closeLibraryCreateMenu()
     beginBlankDocumentFromSidebar()
   })
+
+  libraryCreateFile?.addEventListener('click', createWorkdirFileFromSidebar)
+
+  libraryCreateFolder?.addEventListener('click', createWorkdirFolderFromSidebar)
 
   currentFile?.addEventListener('dblclick', (event) => {
     event.preventDefault()
@@ -2673,6 +2745,12 @@ img{max-width:100%}
   })
 
   document.addEventListener('keydown', (event) => {
+    if (!isFormInputTarget(event.target) && eventMatchesShortcut(event, 'CmdOrCtrl+Y')) {
+      event.preventDefault()
+      void runAiHelperShortcutRewrite()
+      return
+    }
+
     if (eventMatchesShortcut(event, shortcutFor(appSettings, 'search'))) {
       event.preventDefault()
       openSearchPanel()
@@ -2714,6 +2792,9 @@ img{max-width:100%}
   document.addEventListener('click', (event) => {
     const target = event.target as HTMLElement | null
     if (!target?.closest('#windows-menu')) closeWindowsMenus()
+    if (!target?.closest('#library-create-menu') && !target?.closest('#draft-new')) {
+      closeLibraryCreateMenu()
+    }
     const pinDraftButton = target?.closest('[data-pin-draft-id]') as HTMLElement | null
     if (pinDraftButton) {
       event.preventDefault()
@@ -2820,9 +2901,7 @@ img{max-width:100%}
     const createWorkdirFolderButton = target?.closest('[data-create-workdir-folder]') as HTMLElement | null
     if (createWorkdirFolderButton) {
       event.preventDefault()
-      api.createWorkdirFolder().then((state) => {
-        if (state) setSidebarState(state)
-      }).catch(() => syncSidebarState())
+      createWorkdirFolderFromSidebar()
       return
     }
 

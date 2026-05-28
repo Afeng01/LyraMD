@@ -376,8 +376,9 @@ describe('library create action regression', () => {
     const main = readFileSync(join(process.cwd(), 'src/main/index.ts'), 'utf8')
 
     expect(renderer).toContain("sidebarState?.activeSidebarTab !== 'workdir'")
+    expect(renderer).toContain('openLibraryCreateMenu()')
     expect(renderer).toContain('api.createWorkdirFile()')
-    expect(renderer).toContain("currentFileNew.hidden = activeTab !== 'workdir'")
+    expect(renderer).not.toContain("currentFileNew.hidden = activeTab !== 'workdir'")
     expect(preload).toContain("createWorkdirFile: () => ipcRenderer.invoke('create-workdir-file')")
     expect(main).toContain("ipcMain.handle('create-workdir-file'")
   })
@@ -391,6 +392,15 @@ describe('library create action regression', () => {
     expect(renderer).toContain('api.createWorkdirFolder()')
     expect(preload).toContain("createWorkdirFolder: () => ipcRenderer.invoke('create-workdir-folder')")
     expect(main).toContain("ipcMain.handle('create-workdir-folder'")
+  })
+
+  it('renders one contextual library plus menu instead of a second workdir plus', () => {
+    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
+
+    expect(html).toContain('id="library-create-menu"')
+    expect(html).toContain('id="library-create-file"')
+    expect(html).toContain('id="library-create-folder"')
+    expect(html).not.toContain('id="current-file-new"')
   })
 
   it('uses the same context-aware creation path for the Cmd/Ctrl+N menu event', () => {

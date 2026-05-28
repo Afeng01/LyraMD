@@ -65,13 +65,11 @@ describe('settings dialog regression', () => {
     expect(file).toContain("activePane === 'integrations'")
   })
 
-  it('separates basic and advanced settings in the navigation and pane header', () => {
+  it('separates basic and advanced settings in the navigation', () => {
     const file = readFileSync(join(process.cwd(), 'src/renderer/settings-dialog.ts'), 'utf8')
     const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
 
-    expect(html).toContain('id="settings-pane-kicker"')
-    expect(html).toContain('id="settings-pane-description"')
     expect(html).toContain('<div class="settings-nav-section-label">基础</div>')
     expect(html).toContain('<div class="settings-nav-section-label advanced">进阶</div>')
     expect(file).toContain("kicker: '进阶'")
@@ -149,6 +147,17 @@ describe('settings dialog regression', () => {
     expect(html).toContain('id="settings-ai-api-key"')
     expect(html).toContain('id="settings-ai-model"')
     expect(file).toContain('updateAiHelperProviderSettings')
+  })
+
+  it('keeps the settings window draggable without the heavy pane title chrome', () => {
+    const file = readFileSync(join(process.cwd(), 'src/renderer/settings-dialog.ts'), 'utf8')
+    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+
+    expect(html).toContain('class="settings-window-controls"')
+    expect(file).toContain('initSettingsDialogDrag')
+    expect(css).toContain('.settings-window-controls')
+    expect(css).not.toContain('settings-pane-kicker')
   })
 
   it('applies background settings through renderer CSS variables', () => {

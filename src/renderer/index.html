@@ -96,12 +96,11 @@
           <line x1="17" y1="16" x2="23" y2="16"></line>
         </svg>
       </button>
-      <button id="agent-toggle" class="context-toggle" type="button" aria-label="打开 Agent" title="打开 Agent">
+      <button id="agent-toggle" class="context-toggle" type="button" aria-label="AI 精灵" title="AI 精灵 (Cmd/Ctrl+Y)">
         <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M4.2 12.5c1.4 1.5 3 2.3 4.8 2.3s3.4-.8 4.8-2.3" />
-          <path d="M4.2 5.5c1.4-1.5 3-2.3 4.8-2.3s3.4.8 4.8 2.3" />
-          <path d="M2.8 9h12.4" />
-          <circle cx="9" cy="9" r="1.4" />
+          <path d="M9 2.8l.78 2.1 2.1.78-2.1.78L9 8.56l-.78-2.1-2.1-.78 2.1-.78L9 2.8z" />
+          <path d="M13.1 9.6l.52 1.42 1.42.52-1.42.52-.52 1.42-.52-1.42-1.42-.52 1.42-.52.52-1.42z" />
+          <path d="M4.9 10.6l.42 1.14 1.14.42-1.14.42-.42 1.14-.42-1.14-1.14-.42 1.14-.42.42-1.14z" />
         </svg>
       </button>
       <button id="outline-toggle" type="button" aria-label="打开大纲" title="打开大纲 (Cmd/Ctrl+Shift+O)">
@@ -142,10 +141,13 @@
               <div id="sidebar-tabs" class="sidebar-tabs" role="tablist" aria-label="文稿列表">
                 <button id="drafts-tab" type="button" data-sidebar-tab="drafts" role="tab">草稿</button>
                 <button id="recent-tab" type="button" data-sidebar-tab="recent" role="tab">最近</button>
-                <button id="draft-new" type="button" class="sidebar-tab-icon-button" aria-label="新建草稿" title="新建草稿">+</button>
+                <button id="draft-new" type="button" class="sidebar-tab-icon-button" aria-label="新建" title="新建">+</button>
                 <button id="workdir-tab" type="button" data-sidebar-tab="workdir" role="tab">工作目录</button>
               </div>
-              <button id="current-file-new" type="button" class="sidebar-icon-button" aria-label="新建草稿">+</button>
+              <div id="library-create-menu" class="library-create-menu" hidden>
+                <button id="library-create-file" type="button">新建文稿</button>
+                <button id="library-create-folder" type="button">新建文件夹</button>
+              </div>
             </div>
             <div id="library-scroll-region">
               <div id="library-list" class="sidebar-list"></div>
@@ -339,12 +341,15 @@
     </div>
 
     <div id="settings-overlay" hidden aria-hidden="true">
-      <div id="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <div id="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-pane-title">
         <header class="settings-top-bar">
+          <div class="settings-window-controls" aria-hidden="true">
+            <span class="settings-window-dot close"></span>
+            <span class="settings-window-dot minimize"></span>
+            <span class="settings-window-dot zoom"></span>
+          </div>
           <div class="settings-title-block">
-            <p id="settings-pane-kicker" class="settings-pane-kicker">基础</p>
             <h2 id="settings-pane-title">编辑器行为</h2>
-            <p id="settings-pane-description" class="settings-pane-description">决定标题、文件名和保存行为如何一起工作。</p>
           </div>
           <button id="settings-close" type="button" class="settings-close-x" aria-label="关闭设置">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>

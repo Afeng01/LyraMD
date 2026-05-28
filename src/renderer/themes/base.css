@@ -797,7 +797,6 @@ body.platform-win32 #agent-dot {
 .workspace-item.active {
   background: color-mix(in srgb, var(--selection-bg) 34%, transparent 66%);
   border-color: color-mix(in srgb, var(--link-color) 24%, transparent 76%);
-  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--link-color) 72%, transparent 28%);
   color: var(--link-color);
   font-weight: 600;
 }
@@ -846,7 +845,7 @@ body.platform-win32 #agent-dot {
 .sidebar-tabs {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 28px minmax(0, 1.35fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.35fr) 28px;
   padding: 2px;
   border: 1px solid color-mix(in srgb, var(--border-color) 58%, transparent 42%);
   border-radius: 7px;
@@ -883,7 +882,7 @@ body.platform-win32 #agent-dot {
   position: absolute;
   z-index: 8;
   top: calc(100% + 4px);
-  left: calc(50% - 2px);
+  right: 0;
   min-width: 104px;
   padding: 4px;
   border: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent 30%);

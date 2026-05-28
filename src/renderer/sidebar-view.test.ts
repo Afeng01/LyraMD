@@ -396,11 +396,15 @@ describe('library create action regression', () => {
 
   it('renders one contextual library plus menu instead of a second workdir plus', () => {
     const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
 
     expect(html).toContain('id="library-create-menu"')
     expect(html).toContain('id="library-create-file"')
     expect(html).toContain('id="library-create-folder"')
     expect(html).not.toContain('id="current-file-new"')
+    expect(html.indexOf('id="workdir-tab"')).toBeLessThan(html.indexOf('id="draft-new"'))
+    expect(css).toContain('grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.35fr) 28px')
+    expect(css).not.toContain('box-shadow: inset 2px 0 0 color-mix(in srgb, var(--link-color) 72%, transparent 28%);')
   })
 
   it('uses the same context-aware creation path for the Cmd/Ctrl+N menu event', () => {

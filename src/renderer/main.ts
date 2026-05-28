@@ -33,6 +33,7 @@ import {
   releaseQueuedContent,
   resolveIncomingContentDecision,
 } from './editor/content-sync'
+import { formatDocumentStats, resolveDocumentStats } from './editor/document-stats'
 import { createAgentChangeAutoDismiss } from './agent-change-autodismiss'
 import {
   createAgentChangeSession,
@@ -506,6 +507,7 @@ async function init(): Promise<void> {
   const editorShell = document.getElementById('editor-shell') as HTMLElement | null
   const editorStage = document.getElementById('editor-stage') as HTMLElement | null
   const editorPlaceholder = document.getElementById('editor-placeholder') as HTMLDivElement | null
+  const documentStats = document.getElementById('document-stats') as HTMLDivElement | null
   const titleSyncOverlay = document.getElementById('title-sync-overlay') as HTMLDivElement | null
   const titleSyncCurrentName = document.getElementById('title-sync-current-name') as HTMLSpanElement | null
   const titleSyncNextName = document.getElementById('title-sync-next-name') as HTMLSpanElement | null
@@ -617,6 +619,11 @@ async function init(): Promise<void> {
     editorPlaceholder.hidden = !shouldShowEmptyEditorPlaceholder(content)
   }
 
+  const updateDocumentStats = (content: string): void => {
+    if (!documentStats) return
+    documentStats.textContent = formatDocumentStats(resolveDocumentStats(content))
+  }
+
   const getCurrentDocumentPathForAssets = (): string | null => {
     if (!sidebarState) return null
     if (sidebarState.currentDocumentKind === 'file') return sidebarState.currentFilePath
@@ -670,10 +677,12 @@ async function init(): Promise<void> {
 
   await createEditor('editor', (markdown) => {
     updateEditorPlaceholder(markdown)
+    updateDocumentStats(markdown)
     refreshRenderedMedia()
     schedulePlaceholderLayoutSync()
   })
   updateEditorPlaceholder(getMarkdown())
+  updateDocumentStats(getMarkdown())
   refreshRenderedMedia()
   schedulePlaceholderLayoutSync()
   const settingsDialog = createSettingsDialogController({
@@ -1007,6 +1016,7 @@ async function init(): Promise<void> {
     if (previousContent !== content) bumpMcpRevision()
     refreshRenderedMedia()
     updateEditorPlaceholder(content)
+    updateDocumentStats(content)
     schedulePlaceholderLayoutSync()
     refreshSearchPanel()
     if (outlinePanelOpen) renderOutlinePanel()
@@ -1172,6 +1182,7 @@ async function init(): Promise<void> {
     bumpMcpRevision()
     const markdown = getMarkdown()
     updateEditorPlaceholder(markdown)
+    updateDocumentStats(markdown)
     refreshRenderedMedia()
     if (outlinePanelOpen) renderOutlinePanel()
 

@@ -1510,6 +1510,26 @@ body.platform-win32 #agent-dot {
   padding: 0 40px 40px;
 }
 
+#document-stats {
+  position: sticky;
+  bottom: 14px;
+  z-index: 9;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  margin: -34px 18px 14px auto;
+  padding: 5px 9px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 52%, transparent 48%);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--bg-color) 88%, transparent 12%);
+  backdrop-filter: blur(14px);
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+}
+
 :root[data-background-scope="window"]:not([data-background-mode="default"]) #editor,
 :root[data-background-scope="editor"]:not([data-background-mode="default"]) #editor {
   padding-top: 18px;

@@ -144,13 +144,16 @@ describe('loadAppSettings', () => {
       },
     })
 
-    expect(settings.aiHelper.templates).toEqual([
+    expect(settings.aiHelper.templates.slice(0, settingsModule.DEFAULT_AI_PROMPT_TEMPLATES.length)).toEqual(
+      settingsModule.DEFAULT_AI_PROMPT_TEMPLATES,
+    )
+    expect(settings.aiHelper.templates.at(-1)).toEqual(
       {
         id: 'custom-polish',
         title: '轻润色',
         prompt: '请润色：{{selection}}',
       },
-    ])
+    )
   })
 
   it('normalizes OpenAI-compatible AI helper provider settings', async () => {
@@ -363,14 +366,35 @@ describe('updateAppSettings', () => {
       },
     )
 
-    expect(updated.aiHelper.templates).toEqual([
+    expect(updated.aiHelper.templates.slice(0, settingsModule.DEFAULT_AI_PROMPT_TEMPLATES.length)).toEqual(
+      settingsModule.DEFAULT_AI_PROMPT_TEMPLATES,
+    )
+    expect(updated.aiHelper.templates.at(-1)).toEqual(
       {
         id: 'meeting-summary',
         title: '会议纪要',
         prompt: '把选区整理成会议纪要：{{selection}}',
       },
-    ])
+    )
     expect(JSON.parse(await readFile(settingsPath, 'utf-8')).aiHelper.templates).toEqual(updated.aiHelper.templates)
+  })
+
+  it('ships VMark-style built-in AI helper templates while keeping prompts editable', async () => {
+    const settingsModule = await loadSettingsModule()
+
+    expect(settingsModule.DEFAULT_AI_PROMPT_TEMPLATES.map((template: { id: string }) => template.id)).toEqual([
+      'polish',
+      'condense',
+      'fix-grammar',
+      'rephrase',
+      'simplify',
+      'rewrite-english',
+      'translate',
+      'summarize',
+    ])
+    expect(settingsModule.DEFAULT_AI_PROMPT_TEMPLATES.every((template: { prompt: string }) => (
+      template.prompt.includes('{{selection}}')
+    ))).toBe(true)
   })
 
   it('persists supported AI helper provider settings', async () => {

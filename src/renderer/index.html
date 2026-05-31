@@ -464,14 +464,14 @@
               <section class="settings-group">
                 <div class="settings-group-heading">
                   <h4 class="settings-group-title">AI 精灵 Prompt</h4>
-                  <p class="settings-group-copy">这些模板会用于后续选中文本后的 AI 操作。使用 {{selection}} 表示当前选区。选中文本后按 Cmd/Ctrl+J 打开 AI 精灵，先预览结果再决定替换、插入或复制。</p>
+                  <p class="settings-group-copy">这些模板会用于选中文本后的 AI 精灵操作。使用 {{selection}} 表示当前选区；你也可以新增自己的精灵标题和 prompt。</p>
                 </div>
                 <div class="settings-integration-help">
                   <h5>AI 精灵怎么用</h5>
                   <ol>
                     <li>OpenAI 官方账号：Base URL 保持 https://api.openai.com/v1，填入 API Key 和模型名。</li>
                     <li>cpa/new-api：把 Base URL 换成你的网关地址，Model 填网关里可用的模型。</li>
-                    <li>在正文里选中文本后按 Cmd/Ctrl+J 打开 AI 精灵，选择模板或输入指令，预览结果后再替换、插入或复制。</li>
+                    <li>在正文里选中文本后按 Cmd/Ctrl+J 打开 AI 精灵，选择模板或输入指令；结果会以内联建议出现，可接受或拒绝。</li>
                   </ol>
                 </div>
                 <div class="settings-field-grid">
@@ -492,11 +492,14 @@
                     <input id="settings-ai-api-key" type="password" spellcheck="false" placeholder="sk-...">
                   </label>
                 </div>
-                <div id="settings-ai-template-list" class="settings-ai-template-list" role="tablist" aria-label="AI prompt 模板">
-                  <button type="button" class="settings-ai-template-button active" data-settings-ai-template="polish">润色</button>
-                  <button type="button" class="settings-ai-template-button" data-settings-ai-template="expand">扩写</button>
-                  <button type="button" class="settings-ai-template-button" data-settings-ai-template="summarize">总结</button>
+                <div class="settings-ai-template-toolbar">
+                  <div id="settings-ai-template-list" class="settings-ai-template-list" role="tablist" aria-label="AI prompt 模板"></div>
+                  <button id="settings-ai-template-add" type="button" class="overlay-button">新增自定义</button>
                 </div>
+                <label class="settings-field">
+                  <span>模板标题</span>
+                  <input id="settings-ai-template-title" type="text" spellcheck="false">
+                </label>
                 <label class="settings-field settings-ai-template-editor">
                   <span>模板内容</span>
                   <textarea id="settings-ai-template-prompt" rows="7" spellcheck="false"></textarea>

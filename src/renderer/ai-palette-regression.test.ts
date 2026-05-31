@@ -43,6 +43,14 @@ describe('AI command palette regression', () => {
     expect(css).toContain('.ai-suggestion-actions')
   })
 
+  it('keeps the page behind the AI palette clear instead of blurred', () => {
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+    const overlayRule = css.match(/#ai-command-overlay\s*\{[\s\S]*?\}/)?.[0] ?? ''
+
+    expect(overlayRule).toContain('background: transparent')
+    expect(overlayRule).not.toContain('backdrop-filter')
+  })
+
   it('implements openAiPalette and closeAiPalette functions', () => {
     const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
 
@@ -64,6 +72,16 @@ describe('AI command palette regression', () => {
     expect(renderer).toContain('let aiPaletteBusy = false')
     expect(renderer).toContain('let aiPaletteActiveTemplateId: string | null = null')
     expect(renderer).toContain('let aiPaletteSelectedIndex = 0')
+  })
+
+  it('renders recently used and built-in category sections in the palette', () => {
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+
+    expect(renderer).toContain("appendSection('最近使用')")
+    expect(renderer).toContain('getAiPaletteTemplateCategory')
+    expect(renderer).toContain('getAiPaletteCategoryLabel')
+    expect(renderer).toContain("return 'EDITING'")
+    expect(renderer).toContain("return 'TOOLS'")
   })
 
   it('creates editor inline suggestion preview after AI completes', () => {

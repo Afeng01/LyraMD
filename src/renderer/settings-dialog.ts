@@ -27,17 +27,42 @@ const DEFAULT_AI_PROMPT_TEMPLATES: AiPromptTemplate[] = [
   {
     id: 'polish',
     title: '润色',
-    prompt: '请润色下面这段文字，保持原意，不要额外解释：\n\n{{selection}}',
+    prompt: '请改善下面文字的清晰度、流畅度和简洁度，保留作者原本的语气和意图。只返回改写后的文字，不要解释：\n\n{{selection}}',
   },
   {
-    id: 'expand',
-    title: '扩写',
-    prompt: '请基于下面这段文字继续扩写，保持语气自然：\n\n{{selection}}',
+    id: 'condense',
+    title: '精简',
+    prompt: '请精简下面这段文字，保留关键信息，删去重复和多余表达。只返回精简后的文字，不要解释：\n\n{{selection}}',
+  },
+  {
+    id: 'fix-grammar',
+    title: '语法',
+    prompt: '请修正下面文字里的语法、错别字和标点问题，不改变原意、语气和风格。只返回修正后的文字，不要解释：\n\n{{selection}}',
+  },
+  {
+    id: 'rephrase',
+    title: '改述',
+    prompt: '请用不同的措辞和句式改写下面文字，严格保留原意和语气。只返回改写后的文字，不要解释：\n\n{{selection}}',
+  },
+  {
+    id: 'simplify',
+    title: 'Simplify',
+    prompt: '请把下面文字改写得更容易理解，使用更简单的词和更短的句子，同时保留原意。只返回改写后的文字，不要解释：\n\n{{selection}}',
+  },
+  {
+    id: 'rewrite-english',
+    title: 'Rewrite In English',
+    prompt: '请把下面文字改写为自然、清晰的英文；如果原文已经是英文，则提升流畅度和可读性。只返回英文结果，不要解释：\n\n{{selection}}',
+  },
+  {
+    id: 'translate',
+    title: 'Translate',
+    prompt: '请把下面文字翻译成英文，保留原意、语气和格式。只返回译文，不要解释：\n\n{{selection}}',
   },
   {
     id: 'summarize',
     title: '总结',
-    prompt: '请把下面这段文字总结成简洁要点：\n\n{{selection}}',
+    prompt: '请把下面文字总结成简洁的一段话，保留主要观点、关键论证和结论。只返回总结，不要解释：\n\n{{selection}}',
   },
 ]
 
@@ -259,9 +284,9 @@ export function createSettingsDialogController({
   const backgroundResetButton = document.getElementById('settings-background-reset') as HTMLButtonElement | null
   const fontPresetSelect = document.getElementById('settings-font-preset') as HTMLSelectElement | null
   const fontCustomInput = document.getElementById('settings-font-custom') as HTMLInputElement | null
-  const aiTemplateButtons = Array.from(
-    document.querySelectorAll<HTMLButtonElement>('[data-settings-ai-template]'),
-  )
+  const aiTemplateList = document.getElementById('settings-ai-template-list') as HTMLDivElement | null
+  const aiTemplateAddButton = document.getElementById('settings-ai-template-add') as HTMLButtonElement | null
+  const aiTemplateTitleInput = document.getElementById('settings-ai-template-title') as HTMLInputElement | null
   const aiTemplatePrompt = document.getElementById('settings-ai-template-prompt') as HTMLTextAreaElement | null
   const aiBaseUrlInput = document.getElementById('settings-ai-base-url') as HTMLInputElement | null
   const aiApiKeyInput = document.getElementById('settings-ai-api-key') as HTMLInputElement | null
@@ -341,6 +366,29 @@ export function createSettingsDialogController({
     return parts.length > 1 ? parts.join('+') : null
   }
 
+  const renderAiTemplateButtons = (templates: AiPromptTemplate[]): void => {
+    if (!aiTemplateList) return
+    aiTemplateList.replaceChildren()
+    for (const template of templates) {
+      const button = document.createElement('button')
+      button.type = 'button'
+      button.className = 'settings-ai-template-button'
+      button.dataset.settingsAiTemplate = template.id
+      button.textContent = template.title
+      button.classList.toggle('active', template.id === activeAiTemplateId)
+      aiTemplateList.appendChild(button)
+    }
+  }
+
+  const createCustomAiTemplate = (): AiPromptTemplate => {
+    const id = `custom-${Date.now().toString(36)}`
+    return {
+      id,
+      title: '自定义精灵',
+      prompt: '请根据我的要求处理下面选区。只返回处理后的文字，不要解释：\n\n{{selection}}',
+    }
+  }
+
   const render = (): void => {
     const appSettings = getAppSettings()
     const sidebarState = getSidebarState()
@@ -398,11 +446,10 @@ export function createSettingsDialogController({
       ?? DEFAULT_AI_PROMPT_TEMPLATES[0]
     if (activeAiTemplate) {
       activeAiTemplateId = activeAiTemplate.id
+      if (aiTemplateTitleInput) aiTemplateTitleInput.value = activeAiTemplate.title
       if (aiTemplatePrompt) aiTemplatePrompt.value = activeAiTemplate.prompt
     }
-    for (const button of aiTemplateButtons) {
-      button.classList.toggle('active', button.dataset.settingsAiTemplate === activeAiTemplateId)
-    }
+    renderAiTemplateButtons(aiHelper.templates)
 
     for (const key of shortcutKeys) {
       const action = key.dataset.shortcutAction as ShortcutAction | undefined
@@ -582,15 +629,29 @@ export function createSettingsDialogController({
     })
   }
 
-  const updateSelectedAiPromptTemplate = async (prompt: string): Promise<void> => {
+  const updateSelectedAiPromptTemplate = async (patch: Partial<Pick<AiPromptTemplate, 'title' | 'prompt'>>): Promise<void> => {
     const current = getAppSettings()
     const currentAiHelper = current.aiHelper ?? DEFAULT_AI_HELPER_SETTINGS
     const templates = currentAiHelper.templates.map((template) => (
       template.id === activeAiTemplateId
-        ? { ...template, prompt }
+        ? { ...template, ...patch }
         : template
     ))
-    await updateAiHelperSettings({ templates })
+    await updateAiHelperSettings({
+      ...currentAiHelper,
+      templates,
+    })
+  }
+
+  const addCustomAiPromptTemplate = async (): Promise<void> => {
+    const current = getAppSettings()
+    const currentAiHelper = current.aiHelper ?? DEFAULT_AI_HELPER_SETTINGS
+    const template = createCustomAiTemplate()
+    activeAiTemplateId = template.id
+    await updateAiHelperSettings({
+      ...currentAiHelper,
+      templates: [...currentAiHelper.templates, template],
+    })
   }
 
   const updateShortcut = async (action: ShortcutAction, accelerator: string): Promise<void> => {
@@ -747,17 +808,27 @@ export function createSettingsDialogController({
     void updateFontSettings({ customFamily: fontCustomInput.value })
   })
 
-  for (const button of aiTemplateButtons) {
-    button.addEventListener('click', () => {
+  aiTemplateList?.addEventListener('click', (event) => {
+    const button = (event.target as HTMLElement | null)?.closest('[data-settings-ai-template]') as HTMLButtonElement | null
+    if (button) {
       const templateId = button.dataset.settingsAiTemplate
       if (!templateId || templateId === activeAiTemplateId) return
       activeAiTemplateId = templateId
       render()
-    })
-  }
+    }
+  })
+
+  aiTemplateAddButton?.addEventListener('click', () => {
+    void addCustomAiPromptTemplate()
+  })
+
+  aiTemplateTitleInput?.addEventListener('change', () => {
+    const title = aiTemplateTitleInput.value.trim() || '自定义精灵'
+    void updateSelectedAiPromptTemplate({ title })
+  })
 
   aiTemplatePrompt?.addEventListener('change', () => {
-    void updateSelectedAiPromptTemplate(aiTemplatePrompt.value)
+    void updateSelectedAiPromptTemplate({ prompt: aiTemplatePrompt.value })
   })
 
   aiBaseUrlInput?.addEventListener('change', () => {

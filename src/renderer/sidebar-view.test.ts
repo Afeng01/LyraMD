@@ -202,11 +202,12 @@ describe('pinned view helpers', () => {
     ])
   })
 
-  it('caps pinned rows at five before scrolling', () => {
+  it('lets pinned rows flow into the main sidebar scroll instead of owning another scrollbar', () => {
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
 
-    expect(css).toMatch(/#pinned-list\s*\{[\s\S]*max-height:\s*calc\(\(34px \+ 4px\) \* 5 - 4px\)/)
-    expect(css).toMatch(/#pinned-list\s*\{[\s\S]*overflow-y:\s*auto/)
+    const pinnedRule = css.match(/#pinned-list\s*\{[\s\S]*?\}/)?.[0] ?? ''
+    expect(pinnedRule).toContain('max-height: none')
+    expect(pinnedRule).toContain('overflow-y: visible')
   })
 })
 
@@ -439,11 +440,22 @@ describe('sidebar polish regression', () => {
     expect(renderer).toContain('item.title = title')
   })
 
-  it('allows active sidebar row title to wrap to two lines', () => {
+  it('keeps active sidebar row titles on one line', () => {
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+    const activeTitleRule = css.match(/\.sidebar-list-item\.active \.sidebar-title\s*\{[\s\S]*?\}/)?.[0] ?? ''
 
-    expect(css).toMatch(/\.sidebar-list-item\.active \.sidebar-title\s*\{[\s\S]*white-space:\s*normal/)
-    expect(css).toMatch(/\.sidebar-list-item\.active \.sidebar-title\s*\{[\s\S]*-webkit-line-clamp:\s*2/)
+    expect(activeTitleRule).toContain('white-space: nowrap')
+    expect(activeTitleRule).toContain('text-overflow: ellipsis')
+    expect(activeTitleRule).not.toContain('-webkit-line-clamp')
+    expect(activeTitleRule).not.toContain('white-space: normal')
+  })
+
+  it('avoids a second visible scrollbar in pinned rows', () => {
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+    const pinnedRule = css.match(/#pinned-list\s*\{[\s\S]*?\}/)?.[0] ?? ''
+
+    expect(pinnedRule).toContain('overflow-y: visible')
+    expect(pinnedRule).not.toContain('overflow-y: auto')
   })
 
   it('uses a stronger tab active state with existing color variables', () => {

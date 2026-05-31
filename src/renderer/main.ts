@@ -237,17 +237,42 @@ function createDefaultSettings(): AppSettings {
         {
           id: 'polish',
           title: '润色',
-          prompt: '请润色下面这段文字，保持原意，不要额外解释：\n\n{{selection}}',
+          prompt: '请改善下面文字的清晰度、流畅度和简洁度，保留作者原本的语气和意图。只返回改写后的文字，不要解释：\n\n{{selection}}',
         },
         {
-          id: 'expand',
-          title: '扩写',
-          prompt: '请基于下面这段文字继续扩写，保持语气自然：\n\n{{selection}}',
+          id: 'condense',
+          title: '精简',
+          prompt: '请精简下面这段文字，保留关键信息，删去重复和多余表达。只返回精简后的文字，不要解释：\n\n{{selection}}',
+        },
+        {
+          id: 'fix-grammar',
+          title: '语法',
+          prompt: '请修正下面文字里的语法、错别字和标点问题，不改变原意、语气和风格。只返回修正后的文字，不要解释：\n\n{{selection}}',
+        },
+        {
+          id: 'rephrase',
+          title: '改述',
+          prompt: '请用不同的措辞和句式改写下面文字，严格保留原意和语气。只返回改写后的文字，不要解释：\n\n{{selection}}',
+        },
+        {
+          id: 'simplify',
+          title: 'Simplify',
+          prompt: '请把下面文字改写得更容易理解，使用更简单的词和更短的句子，同时保留原意。只返回改写后的文字，不要解释：\n\n{{selection}}',
+        },
+        {
+          id: 'rewrite-english',
+          title: 'Rewrite In English',
+          prompt: '请把下面文字改写为自然、清晰的英文；如果原文已经是英文，则提升流畅度和可读性。只返回英文结果，不要解释：\n\n{{selection}}',
+        },
+        {
+          id: 'translate',
+          title: 'Translate',
+          prompt: '请把下面文字翻译成英文，保留原意、语气和格式。只返回译文，不要解释：\n\n{{selection}}',
         },
         {
           id: 'summarize',
           title: '总结',
-          prompt: '请把下面这段文字总结成简洁要点：\n\n{{selection}}',
+          prompt: '请把下面文字总结成简洁的一段话，保留主要观点、关键论证和结论。只返回总结，不要解释：\n\n{{selection}}',
         },
       ],
     },
@@ -1659,9 +1684,30 @@ async function init(): Promise<void> {
 
   const getAiPaletteTemplateDescription = (templateId: string): string => {
     if (templateId === 'polish') return '改善清晰度和流畅度'
-    if (templateId === 'expand') return '展开成更完整的表达'
+    if (templateId === 'condense') return 'Make text more concise'
+    if (templateId === 'fix-grammar') return 'Fix grammar and spelling'
+    if (templateId === 'rephrase') return 'Say the same thing differently'
+    if (templateId === 'simplify') return 'Use simpler language'
+    if (templateId === 'rewrite-english') return 'Rewrite text in English'
+    if (templateId === 'translate') return 'Translate to English'
     if (templateId === 'summarize') return '提炼为简洁要点'
     return '基于当前选区生成建议'
+  }
+
+  const getAiPaletteTemplateCategory = (templateId: string): string => {
+    if (['polish', 'condense', 'fix-grammar', 'simplify'].includes(templateId)) return 'EDITING'
+    if (['rewrite-english', 'translate'].includes(templateId)) return 'TOOLS'
+    if (['rephrase'].includes(templateId)) return 'CREATIVE'
+    if (['summarize'].includes(templateId)) return 'STRUCTURE'
+    return 'CUSTOM'
+  }
+
+  const getAiPaletteCategoryLabel = (category: string): string => {
+    if (category === 'EDITING') return 'EDITING'
+    if (category === 'TOOLS') return 'TOOLS'
+    if (category === 'CREATIVE') return 'CREATIVE'
+    if (category === 'STRUCTURE') return 'STRUCTURE'
+    return 'CUSTOM'
   }
 
   const getAiPaletteFilteredTemplates = (): ReturnType<typeof getAiHelperTemplates> => {
@@ -1680,13 +1726,20 @@ async function init(): Promise<void> {
     return Boolean(query) && getAiPaletteFilteredTemplates().length === 0
   }
 
+  const getAiPaletteVisibleTemplates = (): ReturnType<typeof getAiHelperTemplates> => {
+    const query = aiPaletteSearch?.value.trim() ?? ''
+    const templates = getAiHelperTemplates()
+    if (query) return getAiPaletteFilteredTemplates()
+    return templates.slice(0, 2).concat(templates)
+  }
+
   const clampAiPaletteSelectedIndex = (): void => {
-    const itemCount = getAiPaletteFilteredTemplates().length + (hasAiPaletteCustomItem() ? 1 : 0)
+    const itemCount = getAiPaletteVisibleTemplates().length + (hasAiPaletteCustomItem() ? 1 : 0)
     aiPaletteSelectedIndex = Math.max(0, Math.min(aiPaletteSelectedIndex, Math.max(0, itemCount - 1)))
   }
 
   const runSelectedAiPaletteItem = (): void => {
-    const templates = getAiPaletteFilteredTemplates()
+    const templates = getAiPaletteVisibleTemplates()
     const selectedTemplate = templates[aiPaletteSelectedIndex]
     if (selectedTemplate) {
       selectAiPaletteTemplate(selectedTemplate.id)
@@ -1742,19 +1795,22 @@ async function init(): Promise<void> {
     if (aiPaletteList) {
       clearElement(aiPaletteList)
 
-      const section = document.createElement('div')
-      section.className = 'ai-palette-section-label'
-      section.textContent = customInstruction ? '匹配结果' : '最近使用'
-      aiPaletteList.appendChild(section)
+      let itemIndex = 0
+      const appendSection = (label: string): void => {
+        const section = document.createElement('div')
+        section.className = 'ai-palette-section-label'
+        section.textContent = label
+        aiPaletteList.appendChild(section)
+      }
 
-      for (const [index, template] of filteredTemplates.entries()) {
+      const appendTemplateItem = (template: ReturnType<typeof getAiHelperTemplates>[number]): void => {
         const item = document.createElement('button')
         item.type = 'button'
         item.className = 'ai-palette-item'
         item.dataset.templateId = template.id
         item.setAttribute('role', 'option')
-        item.setAttribute('aria-selected', String(index === aiPaletteSelectedIndex))
-        item.classList.toggle('selected', index === aiPaletteSelectedIndex)
+        item.setAttribute('aria-selected', String(itemIndex === aiPaletteSelectedIndex))
+        item.classList.toggle('selected', itemIndex === aiPaletteSelectedIndex)
         item.disabled = aiPaletteBusy || !selection
 
         const copy = document.createElement('span')
@@ -1776,17 +1832,17 @@ async function init(): Promise<void> {
 
         item.append(copy, scope)
         aiPaletteList.appendChild(item)
+        itemIndex += 1
       }
 
-      if (hasCustomItem) {
-        const customIndex = filteredTemplates.length
+      const appendCustomItem = (): void => {
         const item = document.createElement('button')
         item.type = 'button'
         item.className = 'ai-palette-item'
         item.dataset.customInstruction = customInstruction
         item.setAttribute('role', 'option')
-        item.setAttribute('aria-selected', String(customIndex === aiPaletteSelectedIndex))
-        item.classList.toggle('selected', customIndex === aiPaletteSelectedIndex)
+        item.setAttribute('aria-selected', String(itemIndex === aiPaletteSelectedIndex))
+        item.classList.toggle('selected', itemIndex === aiPaletteSelectedIndex)
         item.disabled = aiPaletteBusy || !selection
 
         const copy = document.createElement('span')
@@ -1808,6 +1864,25 @@ async function init(): Promise<void> {
 
         item.append(copy, scope)
         aiPaletteList.appendChild(item)
+        itemIndex += 1
+      }
+
+      if (customInstruction) {
+        appendSection('匹配结果')
+        for (const template of filteredTemplates) appendTemplateItem(template)
+        if (hasCustomItem) appendCustomItem()
+      } else {
+        const recentTemplates = templates.slice(0, 2)
+        appendSection('最近使用')
+        for (const template of recentTemplates) appendTemplateItem(template)
+
+        const categories = ['EDITING', 'TOOLS', 'CREATIVE', 'STRUCTURE', 'CUSTOM']
+        for (const category of categories) {
+          const categoryTemplates = templates.filter((template) => getAiPaletteTemplateCategory(template.id) === category)
+          if (categoryTemplates.length === 0) continue
+          appendSection(getAiPaletteCategoryLabel(category))
+          for (const template of categoryTemplates) appendTemplateItem(template)
+        }
       }
     }
 
@@ -2784,7 +2859,7 @@ img{max-width:100%}
   aiPaletteSearch?.addEventListener('keydown', (event) => {
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault()
-      const itemCount = getAiPaletteFilteredTemplates().length + (hasAiPaletteCustomItem() ? 1 : 0)
+      const itemCount = getAiPaletteVisibleTemplates().length + (hasAiPaletteCustomItem() ? 1 : 0)
       if (itemCount === 0) return
       aiPaletteSelectedIndex = event.key === 'ArrowDown'
         ? (aiPaletteSelectedIndex + 1) % itemCount

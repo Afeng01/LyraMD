@@ -79,17 +79,42 @@ export const DEFAULT_AI_PROMPT_TEMPLATES: AiPromptTemplate[] = [
   {
     id: 'polish',
     title: '润色',
-    prompt: '请润色下面这段文字，保持原意，不要额外解释：\n\n{{selection}}',
+    prompt: '请改善下面文字的清晰度、流畅度和简洁度，保留作者原本的语气和意图。只返回改写后的文字，不要解释：\n\n{{selection}}',
   },
   {
-    id: 'expand',
-    title: '扩写',
-    prompt: '请基于下面这段文字继续扩写，保持语气自然：\n\n{{selection}}',
+    id: 'condense',
+    title: '精简',
+    prompt: '请精简下面这段文字，保留关键信息，删去重复和多余表达。只返回精简后的文字，不要解释：\n\n{{selection}}',
+  },
+  {
+    id: 'fix-grammar',
+    title: '语法',
+    prompt: '请修正下面文字里的语法、错别字和标点问题，不改变原意、语气和风格。只返回修正后的文字，不要解释：\n\n{{selection}}',
+  },
+  {
+    id: 'rephrase',
+    title: '改述',
+    prompt: '请用不同的措辞和句式改写下面文字，严格保留原意和语气。只返回改写后的文字，不要解释：\n\n{{selection}}',
+  },
+  {
+    id: 'simplify',
+    title: 'Simplify',
+    prompt: '请把下面文字改写得更容易理解，使用更简单的词和更短的句子，同时保留原意。只返回改写后的文字，不要解释：\n\n{{selection}}',
+  },
+  {
+    id: 'rewrite-english',
+    title: 'Rewrite In English',
+    prompt: '请把下面文字改写为自然、清晰的英文；如果原文已经是英文，则提升流畅度和可读性。只返回英文结果，不要解释：\n\n{{selection}}',
+  },
+  {
+    id: 'translate',
+    title: 'Translate',
+    prompt: '请把下面文字翻译成英文，保留原意、语气和格式。只返回译文，不要解释：\n\n{{selection}}',
   },
   {
     id: 'summarize',
     title: '总结',
-    prompt: '请把下面这段文字总结成简洁要点：\n\n{{selection}}',
+    prompt: '请把下面文字总结成简洁的一段话，保留主要观点、关键论证和结论。只返回总结，不要解释：\n\n{{selection}}',
   },
 ]
 
@@ -232,6 +257,17 @@ function normalizePromptTemplate(input: unknown): AiPromptTemplate | null {
   return { id, title, prompt }
 }
 
+function mergeAiPromptTemplates(templates: AiPromptTemplate[]): AiPromptTemplate[] {
+  const defaultIds = new Set(DEFAULT_AI_PROMPT_TEMPLATES.map((template) => template.id))
+  const persistedById = new Map(templates.map((template) => [template.id, template]))
+  const mergedDefaults = DEFAULT_AI_PROMPT_TEMPLATES.map((template) => ({
+    ...template,
+    ...persistedById.get(template.id),
+  }))
+  const customTemplates = templates.filter((template) => !defaultIds.has(template.id))
+  return [...mergedDefaults, ...customTemplates].slice(0, 12)
+}
+
 function normalizeAiBaseUrl(input: unknown): string {
   if (typeof input !== 'string') return DEFAULT_APP_SETTINGS.aiHelper.provider.baseUrl
   const trimmed = input.trim().replace(/\/+$/u, '')
@@ -277,16 +313,11 @@ function normalizeAiHelperSettings(input: unknown): AiHelperSettings {
 
   const provider = normalizeAiHelperProviderSettings(candidate.provider)
 
-  if (templates.length === 0) {
-    return {
-      provider,
-      templates: DEFAULT_APP_SETTINGS.aiHelper.templates,
-    }
-  }
-
   return {
     provider,
-    templates: templates.slice(0, 12),
+    templates: templates.length === 0
+      ? DEFAULT_APP_SETTINGS.aiHelper.templates
+      : mergeAiPromptTemplates(templates),
   }
 }
 

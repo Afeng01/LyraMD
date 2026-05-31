@@ -134,8 +134,12 @@ describe('settings dialog regression', () => {
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
 
     expect(html).toContain('id="settings-ai-template-list"')
+    expect(html).toContain('id="settings-ai-template-add"')
+    expect(html).toContain('id="settings-ai-template-title"')
     expect(html).toContain('id="settings-ai-template-prompt"')
-    expect(html).toContain('data-settings-ai-template="polish"')
+    expect(html).not.toContain('data-settings-ai-template="polish">润色</button>')
+    expect(file).toContain('renderAiTemplateButtons')
+    expect(file).toContain('createCustomAiTemplate')
     expect(file).toContain('updateAiHelperSettings')
     expect(file).toContain('api.updateSettings({ aiHelper')
     expect(css).toContain('.settings-ai-template-list')

@@ -169,7 +169,8 @@ describe('settings dialog regression', () => {
     expect(html).toContain('AI 精灵怎么用')
     expect(html).toContain('OpenAI 官方账号')
     expect(html).toContain('cpa/new-api')
-    expect(html).toContain('选中文本后按 Cmd/Ctrl+Y')
+    expect(html).toContain('选中文本后按 Cmd/Ctrl+J')
+    expect(html).not.toContain('按 Cmd/Ctrl+Y')
   })
 
   it('applies background settings through renderer CSS variables', () => {

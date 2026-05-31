@@ -2611,28 +2611,6 @@ img{max-width:100%}
     renderAiHelperPanel()
   }
 
-  const runAiHelperShortcutRewrite = async (): Promise<void> => {
-    const selection = getSelectedPlainText().trim()
-    if (!selection || aiHelperBusy) return
-    const prompt = buildAiHelperPrompt(selection)
-    aiHelperBusy = true
-    aiHelperStatusText = '正在快捷改写选区...'
-    renderAiHelperPanel()
-    const result = await api.completeAiPrompt(prompt).catch((error) => ({
-      ok: false,
-      error: error instanceof Error ? error.message : 'AI 请求失败。',
-    }))
-    aiHelperBusy = false
-    if (result.ok && result.text) {
-      replaceSelectedText(result.text)
-      aiHelperResultText = ''
-      aiHelperStatusText = '已快捷改写选区。'
-    } else {
-      aiHelperStatusText = result.error ?? 'AI 请求失败。'
-    }
-    renderAiHelperPanel()
-  }
-
   const handleAiHelperResultInput = (resultInput: HTMLTextAreaElement): void => {
     aiHelperResultText = resultInput.value
     renderAiHelperPanel()
@@ -3027,12 +3005,6 @@ img{max-width:100%}
   })
 
   document.addEventListener('keydown', (event) => {
-    if (!isFormInputTarget(event.target) && eventMatchesShortcut(event, 'CmdOrCtrl+Y')) {
-      event.preventDefault()
-      void runAiHelperShortcutRewrite()
-      return
-    }
-
     if (eventMatchesShortcut(event, shortcutFor(appSettings, 'openAiPalette'))) {
       event.preventDefault()
       openAiPalette()

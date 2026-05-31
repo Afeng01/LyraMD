@@ -49,7 +49,7 @@ describe('Phase C layout DOM skeleton', () => {
     expect(renderer).toContain('getSelectedPlainText')
     expect(renderer).toContain('writeText(prompt)')
     expect(renderer).toContain('completeAiPrompt(prompt)')
-    expect(renderer).toContain('runAiHelperShortcutRewrite')
+    expect(renderer).not.toContain('runAiHelperShortcutRewrite')
     expect(renderer).toContain("closest('input, textarea, select')")
     expect(renderer).not.toContain('[contenteditable="true"]')
     expect(renderer).toContain('replaceSelectedText')

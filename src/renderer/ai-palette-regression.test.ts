@@ -126,15 +126,13 @@ describe('AI command palette regression', () => {
     expect(renderer).toContain('event.target === aiPaletteOverlay')
   })
 
-  it('preserves the Cmd/Ctrl+Y shortcut rewrites selection using the existing AI helper', () => {
+  it('does not keep Cmd/Ctrl+Y as a direct rewrite shortcut', () => {
     const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
 
-    expect(renderer).toContain("const runAiHelperShortcutRewrite = async (): Promise<void> => {")
-    // The Cmd/Ctrl+Y handler should call runAiHelperShortcutRewrite, not openAiPalette
-    const shortcutYIdx = renderer.indexOf("eventMatchesShortcut(event, 'CmdOrCtrl+Y')")
-    const yBlock = renderer.slice(shortcutYIdx, shortcutYIdx + 120)
-    expect(yBlock).toContain('runAiHelperShortcutRewrite()')
-    expect(yBlock).not.toContain('openAiPalette()')
+    expect(renderer).not.toContain('runAiHelperShortcutRewrite')
+    expect(renderer).not.toContain("eventMatchesShortcut(event, 'CmdOrCtrl+Y')")
+    expect(renderer).not.toContain('正在快捷改写选区')
+    expect(renderer).not.toContain('已快捷改写选区')
   })
 
   it('exposes openAiPalette shortcut in the settings dialog shortcut list', () => {

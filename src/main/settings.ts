@@ -50,6 +50,7 @@ export interface AiHelperProviderSettings {
 
 export interface AiHelperSettings {
   provider: AiHelperProviderSettings
+  customProvider: AiHelperProviderSettings
   templates: AiPromptTemplate[]
 }
 
@@ -151,6 +152,13 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   },
   aiHelper: {
     provider: {
+      type: 'openai-compatible',
+      baseUrl: 'https://api.openai.com/v1',
+      apiKey: '',
+      model: 'gpt-4.1-mini',
+      temperature: 0.7,
+    },
+    customProvider: {
       type: 'openai-compatible',
       baseUrl: 'https://api.openai.com/v1',
       apiKey: '',
@@ -313,6 +321,12 @@ function normalizeAiHelperProviderSettings(input: unknown): AiHelperProviderSett
   }
 }
 
+function isCustomAiHelperProvider(provider: AiHelperProviderSettings): boolean {
+  const baseUrl = provider.baseUrl.toLowerCase()
+  const model = provider.model.toLowerCase()
+  return !baseUrl.includes('api.openai.com') && !model.includes('claude')
+}
+
 function normalizeAiHelperSettings(input: unknown): AiHelperSettings {
   const candidate = input && typeof input === 'object'
     ? input as Partial<Record<keyof AiHelperSettings, unknown>>
@@ -324,9 +338,13 @@ function normalizeAiHelperSettings(input: unknown): AiHelperSettings {
     : []
 
   const provider = normalizeAiHelperProviderSettings(candidate.provider)
+  const customProvider = candidate.customProvider === undefined && isCustomAiHelperProvider(provider)
+    ? provider
+    : normalizeAiHelperProviderSettings(candidate.customProvider)
 
   return {
     provider,
+    customProvider,
     templates: templates.length === 0
       ? DEFAULT_APP_SETTINGS.aiHelper.templates
       : mergeAiPromptTemplates(templates),

@@ -490,6 +490,30 @@ describe('sidebar polish regression', () => {
     expect(workspaceRule).not.toContain('padding-left')
   })
 
+  it('prevents text selection while resizing the sidebar', () => {
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+
+    expect(renderer).toContain('document.body.classList.add(\'sidebar-resizing\')')
+    expect(renderer).toContain('document.body.classList.remove(\'sidebar-resizing\')')
+    expect(renderer).toContain('event.preventDefault()')
+    expect(css).toContain('body.sidebar-resizing')
+    expect(css).toContain('user-select: none !important')
+  })
+
+  it('uses distinct icons for folder and document rows in the sidebar', () => {
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+
+    expect(renderer).toContain('sidebar-file-icon')
+    expect(renderer).toContain('sidebar-draft-icon')
+    expect(renderer).toContain('workdir-folder-icon')
+    expect(renderer).toContain('workdir-folder-chevron')
+    expect(css).toContain('.sidebar-item-content')
+    expect(css).toContain('.workdir-folder-icon')
+    expect(css).toContain('.workdir-folder-item .sidebar-title')
+  })
+
   it('uses a stronger tab active state with existing color variables', () => {
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
 

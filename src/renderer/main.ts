@@ -235,6 +235,13 @@ function createDefaultSettings(): AppSettings {
         model: 'gpt-4.1-mini',
         temperature: 0.7,
       },
+      customProvider: {
+        type: 'openai-compatible',
+        baseUrl: 'https://api.openai.com/v1',
+        apiKey: '',
+        model: 'gpt-4.1-mini',
+        temperature: 0.7,
+      },
       templates: [
         {
           id: 'polish',
@@ -364,6 +371,26 @@ function shortcutFor(settings: AppSettings, action: ShortcutAction): string {
   return settings.shortcuts[action] ?? createDefaultSettings().shortcuts[action]
 }
 
+function createSidebarIconSvg(paths: string[], className: string): SVGSVGElement {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+  svg.setAttribute('viewBox', '0 0 18 18')
+  svg.setAttribute('width', '15')
+  svg.setAttribute('height', '15')
+  svg.setAttribute('aria-hidden', 'true')
+  svg.setAttribute('fill', 'none')
+  svg.setAttribute('stroke', 'currentColor')
+  svg.setAttribute('stroke-width', '1.45')
+  svg.setAttribute('stroke-linecap', 'round')
+  svg.setAttribute('stroke-linejoin', 'round')
+  svg.setAttribute('class', className)
+  for (const data of paths) {
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+    path.setAttribute('d', data)
+    svg.appendChild(path)
+  }
+  return svg
+}
+
 function createFileItem(
   filePath: string,
   title: string,
@@ -380,8 +407,17 @@ function createFileItem(
   item.title = filePath
   item.classList.toggle('active', isSamePath(filePath, currentFilePath))
 
-  item.appendChild(createTextBlock('sidebar-title', title))
-  if (meta) item.appendChild(createTextBlock('sidebar-meta', meta))
+  const icon = createSidebarIconSvg([
+    'M5.2 3.5h5.1l2.5 2.5v8.5H5.2Z',
+    'M10.3 3.5V6h2.5',
+    'M7.2 8.8h3.6',
+    'M7.2 11.1h3.1',
+  ], 'sidebar-item-icon sidebar-file-icon')
+  const content = document.createElement('div')
+  content.className = 'sidebar-item-content'
+  content.appendChild(createTextBlock('sidebar-title', title))
+  if (meta) content.appendChild(createTextBlock('sidebar-meta', meta))
+  item.append(icon, content)
   return item
 }
 
@@ -396,7 +432,16 @@ function createDraftItem(
   item.dataset.draftId = draftId
   item.title = title
   item.classList.toggle('active', draftId === currentDraftId)
-  item.appendChild(createTextBlock('sidebar-title', title))
+  const icon = createSidebarIconSvg([
+    'M5.2 3.5h5.1l2.5 2.5v8.5H5.2Z',
+    'M10.3 3.5V6h2.5',
+    'M7.2 8.8h3.6',
+    'M7.2 11.1h3.1',
+  ], 'sidebar-item-icon sidebar-draft-icon')
+  const content = document.createElement('div')
+  content.className = 'sidebar-item-content'
+  content.appendChild(createTextBlock('sidebar-title', title))
+  item.append(icon, content)
   return item
 }
 
@@ -2166,7 +2211,7 @@ async function init(): Promise<void> {
 
   const createIconSvg = (
     paths: string[],
-    options: { filled?: boolean } = {},
+    options: { className?: string; filled?: boolean } = {},
   ): SVGSVGElement => {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
     svg.setAttribute('viewBox', '0 0 18 18')
@@ -2178,6 +2223,7 @@ async function init(): Promise<void> {
     svg.setAttribute('stroke-width', '1.45')
     svg.setAttribute('stroke-linecap', 'round')
     svg.setAttribute('stroke-linejoin', 'round')
+    if (options.className) svg.setAttribute('class', options.className)
 
     for (const data of paths) {
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
@@ -2357,7 +2403,13 @@ async function init(): Promise<void> {
     button.title = row.relativePath
     button.appendChild(createIconSvg(row.expanded
       ? ['M5 7.2 9 11.2 13 7.2']
-      : ['M7.2 5 11.2 9 7.2 13']))
+      : ['M7.2 5 11.2 9 7.2 13'],
+      { className: 'workdir-folder-chevron' },
+    ))
+    button.appendChild(createIconSvg([
+      'M3.5 5.4h4.2l1.2 1.4h5.6v6.8h-11Z',
+      'M3.5 6.8h11',
+    ], { className: 'sidebar-item-icon workdir-folder-icon' }))
     button.appendChild(createTextBlock('sidebar-title', row.name))
 
     wrapper.appendChild(button)
@@ -3544,13 +3596,21 @@ img{max-width:100%}
 
   const handlePointerMove = (event: PointerEvent): void => {
     if (!sidebarState) return
+    event.preventDefault()
     const nextWidth = clampSidebarWidth(dragOriginWidth + (event.clientX - dragOriginX))
     appShell?.style.setProperty('--sidebar-width', `${nextWidth}px`)
   }
 
-  const handlePointerUp = async (event: PointerEvent): Promise<void> => {
+  const stopSidebarResize = (): void => {
     window.removeEventListener('pointermove', handlePointerMove)
     window.removeEventListener('pointerup', handlePointerUp)
+    window.removeEventListener('pointercancel', stopSidebarResize)
+    window.removeEventListener('blur', stopSidebarResize)
+    document.body.classList.remove('sidebar-resizing')
+  }
+
+  const handlePointerUp = async (event: PointerEvent): Promise<void> => {
+    stopSidebarResize()
     if (!sidebarState) return
     const nextWidth = clampSidebarWidth(dragOriginWidth + (event.clientX - dragOriginX))
     await api.setSidebarWidth(nextWidth).catch(() => {})
@@ -3558,10 +3618,14 @@ img{max-width:100%}
 
   sidebarResizer?.addEventListener('pointerdown', (event) => {
     if (!sidebarState?.sidebarOpen || sidebarState.isDrawerMode) return
+    event.preventDefault()
     dragOriginX = event.clientX
     dragOriginWidth = sidebarState.sidebarWidth
+    document.body.classList.add('sidebar-resizing')
     window.addEventListener('pointermove', handlePointerMove)
     window.addEventListener('pointerup', handlePointerUp)
+    window.addEventListener('pointercancel', stopSidebarResize)
+    window.addEventListener('blur', stopSidebarResize)
   })
 
   let contextDragOriginX = 0

@@ -225,6 +225,38 @@ describe('loadAppSettings', () => {
       model: 'custom-model',
       temperature: 1.2,
     })
+    expect(settings.aiHelper.customProvider).toEqual(settings.aiHelper.provider)
+  })
+
+  it('preserves a custom AI provider slot when switching active provider presets', async () => {
+    const settingsModule = await loadSettingsModule()
+
+    const settings = settingsModule.normalizeAppSettings({
+      aiHelper: {
+        provider: {
+          baseUrl: 'https://api.openai.com/v1',
+          apiKey: 'sk-openai',
+          model: 'gpt-4.1-mini',
+          temperature: 0.6,
+        },
+        customProvider: {
+          baseUrl: 'https://new-api.example.com/v1',
+          apiKey: 'sk-custom',
+          model: 'custom-model',
+          temperature: 0.4,
+        },
+        templates: settingsModule.DEFAULT_AI_PROMPT_TEMPLATES,
+      },
+    })
+
+    expect(settings.aiHelper.provider.baseUrl).toBe('https://api.openai.com/v1')
+    expect(settings.aiHelper.customProvider).toEqual({
+      type: 'openai-compatible',
+      baseUrl: 'https://new-api.example.com/v1',
+      apiKey: 'sk-custom',
+      model: 'custom-model',
+      temperature: 0.4,
+    })
   })
 
   it('falls back to default AI helper prompts when persisted templates are unusable', async () => {

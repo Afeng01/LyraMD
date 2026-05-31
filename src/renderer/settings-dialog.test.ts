@@ -176,6 +176,9 @@ describe('settings dialog regression', () => {
     expect(file).toContain('aiTestToastOpen')
     expect(file).toContain('applyAiProviderPreset')
     expect(file).toContain('resolveAiProviderPreset')
+    expect(file).toContain('customProvider')
+    expect(file).toContain("resolveAiProviderPreset(provider) === 'custom-gateway'")
+    expect(file).toContain('const currentProvider = readAiProviderSettingsFromInputs()')
     expect(file).toContain('updateAiHelperProviderSettings')
   })
 

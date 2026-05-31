@@ -67,6 +67,7 @@ export interface AiHelperProviderSettings {
 
 export interface AiHelperSettings {
   provider: AiHelperProviderSettings
+  customProvider: AiHelperProviderSettings
   templates: AiPromptTemplate[]
 }
 

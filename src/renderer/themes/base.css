@@ -580,7 +580,28 @@ body.platform-win32 #outline-toggle {
   cursor: pointer;
   color: inherit;
   text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 7px;
   transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+
+.sidebar-item-content {
+  min-width: 0;
+  flex: 1;
+}
+
+.sidebar-item-icon {
+  flex-shrink: 0;
+  color: color-mix(in srgb, var(--text-muted) 82%, transparent 18%);
+}
+
+.sidebar-file-icon {
+  opacity: 0.82;
+}
+
+.sidebar-draft-icon {
+  opacity: 0.74;
 }
 
 .sidebar-list-item:hover {
@@ -1069,6 +1090,10 @@ body.platform-win32 #outline-toggle {
   font-weight: 500;
 }
 
+.workdir-item .sidebar-file-icon {
+  color: color-mix(in srgb, var(--text-muted) 88%, var(--link-color) 12%);
+}
+
 .workdir-folder-item {
   width: 100%;
   min-height: 31px;
@@ -1086,15 +1111,32 @@ body.platform-win32 #outline-toggle {
   text-align: left;
 }
 
-.workdir-folder-item svg {
+.workdir-folder-chevron {
   flex-shrink: 0;
-  width: 13px;
-  height: 13px;
+  width: 12px;
+  height: 12px;
+  color: color-mix(in srgb, var(--text-muted) 86%, transparent 14%);
+}
+
+.workdir-folder-icon {
+  width: 15px;
+  height: 15px;
+  color: color-mix(in srgb, var(--text-muted) 72%, var(--link-color) 28%);
+}
+
+.workdir-folder-item .sidebar-title {
+  font-weight: 600;
+  color: color-mix(in srgb, var(--text-color) 86%, var(--text-muted) 14%);
 }
 
 .workdir-folder-item:hover {
   background: color-mix(in srgb, var(--selection-bg) 24%, transparent 76%);
   color: var(--text-color);
+}
+
+.workdir-folder-item:hover .workdir-folder-icon,
+.workdir-folder-item:hover .workdir-folder-chevron {
+  color: var(--link-color);
 }
 
 .workdir-folder-placeholder {
@@ -1826,6 +1868,13 @@ body.platform-win32 #outline-toggle {
 
 #sidebar-resizer:hover::before {
   background: var(--link-color);
+}
+
+body.sidebar-resizing,
+body.sidebar-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
 }
 
 #app-shell:not(.sidebar-open) #sidebar-resizer {

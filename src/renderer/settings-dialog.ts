@@ -84,6 +84,13 @@ const DEFAULT_AI_HELPER_SETTINGS: AiHelperSettings = {
     model: 'gpt-4.1-mini',
     temperature: 0.7,
   },
+  customProvider: {
+    type: 'openai-compatible',
+    baseUrl: 'https://api.openai.com/v1',
+    apiKey: '',
+    model: 'gpt-4.1-mini',
+    temperature: 0.7,
+  },
   templates: DEFAULT_AI_PROMPT_TEMPLATES,
 }
 
@@ -765,37 +772,60 @@ export function createSettingsDialogController({
   const updateAiHelperProviderSettings = async (patch: Partial<AiHelperProviderSettings>): Promise<void> => {
     const current = getAppSettings()
     const currentAiHelper = current.aiHelper ?? DEFAULT_AI_HELPER_SETTINGS
+    const provider = {
+      ...(currentAiHelper.provider ?? DEFAULT_AI_HELPER_SETTINGS.provider),
+      ...patch,
+      type: 'openai-compatible' as const,
+    }
     await updateAiHelperSettings({
       ...currentAiHelper,
-      provider: {
-        ...(currentAiHelper.provider ?? DEFAULT_AI_HELPER_SETTINGS.provider),
-        ...patch,
-        type: 'openai-compatible',
-      },
+      provider,
+      customProvider: resolveAiProviderPreset(provider) === 'custom-gateway'
+        ? provider
+        : (currentAiHelper.customProvider ?? DEFAULT_AI_HELPER_SETTINGS.customProvider),
     })
   }
 
   const applyAiProviderPreset = async (preset: AiProviderPreset): Promise<void> => {
-    const current = getAppSettings().aiHelper?.provider ?? DEFAULT_AI_HELPER_SETTINGS.provider
+    const currentAiHelper = getAppSettings().aiHelper ?? DEFAULT_AI_HELPER_SETTINGS
+    const currentProvider = readAiProviderSettingsFromInputs()
+    const activeProviderPreset = resolveAiProviderPreset(currentProvider)
+    const customProvider = activeProviderPreset === 'custom-gateway'
+      ? currentProvider
+      : (currentAiHelper.customProvider ?? DEFAULT_AI_HELPER_SETTINGS.customProvider)
+
     if (preset === 'openai') {
-      await updateAiHelperProviderSettings({
-        baseUrl: 'https://api.openai.com/v1',
-        model: current.model.toLowerCase().includes('claude') ? DEFAULT_AI_HELPER_SETTINGS.provider.model : current.model,
+      await updateAiHelperSettings({
+        ...currentAiHelper,
+        customProvider,
+        provider: {
+          ...DEFAULT_AI_HELPER_SETTINGS.provider,
+          temperature: currentProvider.temperature,
+        },
       })
       return
     }
 
     if (preset === 'claude-gateway') {
-      await updateAiHelperProviderSettings({
-        baseUrl: current.baseUrl,
-        model: current.model.toLowerCase().includes('claude') ? current.model : 'claude-sonnet-4-5',
+      await updateAiHelperSettings({
+        ...currentAiHelper,
+        customProvider,
+        provider: {
+          ...currentProvider,
+          model: currentProvider.model.toLowerCase().includes('claude') ? currentProvider.model : 'claude-sonnet-4-5',
+          type: 'openai-compatible',
+        },
       })
       return
     }
 
-    await updateAiHelperProviderSettings({
-      baseUrl: current.baseUrl,
-      model: current.model,
+    await updateAiHelperSettings({
+      ...currentAiHelper,
+      customProvider,
+      provider: {
+        ...customProvider,
+        type: 'openai-compatible',
+      },
     })
   }
 

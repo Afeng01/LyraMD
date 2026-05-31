@@ -2,7 +2,7 @@
 
 **Lyra's agent-native Markdown editor.**
 
-Real-time collaboration between humans and AI agents, adapted for a quieter workflow around Markdown files, recent documents, and a lightweight working directory sidebar.
+Real-time collaboration between humans and AI agents, adapted for a quieter workflow around Markdown files, selected-text AI help, recent documents, and a lightweight working directory sidebar.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![GitHub release](https://img.shields.io/github/v/release/Afeng01/LyraMD?label=release)](https://github.com/Afeng01/LyraMD/releases)
@@ -16,12 +16,16 @@ Real-time collaboration between humans and AI agents, adapted for a quieter work
 
 - **Live file refresh**: when an AI agent edits the current Markdown file, LyraMD reloads it automatically.
 - **Agent change summary** for external edits, with compact preview, burst coalescing, and one-click rollback.
+- **AI Genie command palette** for selected text, with editable prompt templates, model status, preview, replace, insert, and copy actions.
+- **OpenAI-compatible provider settings** for official OpenAI keys or custom gateways, including a built-in connection check.
 - **Codex MCP integration** from Settings, installing the LyraMD MCP bridge so Codex can read and write the current document.
+- **Feedback and issue reporting** from Settings, opening a prefilled GitHub Issue without storing a GitHub token locally.
 - **WYSIWYG Markdown editing** powered by Milkdown.
 - **Markdown outline, images, and tokens** for H1-H6 headings, local/relative images, YAML tags, Obsidian `#tag` / nested tags, and `[[wikilink]]`.
-- **Lightweight sidebar** with fixed workspace/pinned areas and a scrolling draft/recent/workdir list.
+- **Lightweight sidebar** with fixed workspace/pinned areas, clearer draft/recent/workdir tabs, full-title hover, and a scrolling document list.
 - **Recent file management** with a compact delete mode.
 - **Recursive Markdown workdir list** using relative paths.
+- **Writing tools** including deterministic CJK typography cleanup, document stats, search, outline, local images, and Markdown token styling.
 - **Themes, fonts, and export**: built-in themes with per-theme editor fonts, custom font selection, custom CSS import, PDF export, and HTML export.
 
 ## Why This Fork
@@ -45,8 +49,8 @@ Download the latest builds from [Releases](https://github.com/Afeng01/LyraMD/rel
 
 | Platform | Format | Status |
 | --- | --- | --- |
-| macOS | `.dmg` / `.zip` | Stable target |
-| Windows | `.exe` | Preview / needs real-device smoke testing |
+| macOS Apple Silicon | `LyraMD-1.3.0-arm64.dmg` / `.zip` | Stable target |
+| Windows x64 | `LyraMD-Setup-1.3.0-x64.exe` | Preview / needs real-device smoke testing |
 
 ## Install on macOS
 
@@ -65,7 +69,7 @@ Code signing and notarization are different. Signing identifies who produced an 
 
 ## Install on Windows
 
-Windows support is currently a preview path. The v1.2.1 release includes a test Windows installer, but it still needs real-device smoke testing before it should be treated as a stable Windows release.
+Windows support is currently a preview path. The v1.3.0 release includes a Windows x64 installer, but it still needs real-device smoke testing before it should be treated as a stable Windows release.
 
 Download `LyraMD-Setup-*-x64.exe` from [Releases](https://github.com/Afeng01/LyraMD/releases), run the installer, and follow the NSIS setup flow. Please verify launch, opening `.md` files, save / save as, and external file refresh on Windows before relying on it for regular work.
 

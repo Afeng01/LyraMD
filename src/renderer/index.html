@@ -491,10 +491,18 @@
                     <span>API Key</span>
                     <input id="settings-ai-api-key" type="password" spellcheck="false" placeholder="sk-...">
                   </label>
+                  <div class="settings-field">
+                    <span>连接检测</span>
+                    <button id="settings-ai-test" type="button" class="overlay-button">检测</button>
+                  </div>
                 </div>
+                <div id="settings-ai-test-status" class="settings-integration-copy" hidden></div>
                 <div class="settings-ai-template-toolbar">
                   <div id="settings-ai-template-list" class="settings-ai-template-list" role="tablist" aria-label="AI prompt 模板"></div>
-                  <button id="settings-ai-template-add" type="button" class="overlay-button">新增自定义</button>
+                  <div class="settings-integration-actions">
+                    <button id="settings-ai-template-add" type="button" class="overlay-button">新增自定义</button>
+                    <button id="settings-ai-template-delete" type="button" class="overlay-button" hidden>删除自定义</button>
+                  </div>
                 </div>
                 <label class="settings-field">
                   <span>模板标题</span>

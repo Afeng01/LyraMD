@@ -156,6 +156,34 @@ describe('loadAppSettings', () => {
     )
   })
 
+  it('allows removing custom AI helper prompts while restoring built-in prompts', async () => {
+    const settingsModule = await loadSettingsModule()
+
+    const settings = settingsModule.normalizeAppSettings({
+      aiHelper: {
+        templates: [
+          ...settingsModule.DEFAULT_AI_PROMPT_TEMPLATES.filter((template) => template.id !== 'polish'),
+          {
+            id: 'custom-polish',
+            title: '轻润色',
+            prompt: '请润色：{{selection}}',
+          },
+        ],
+      },
+    })
+
+    expect(settings.aiHelper.templates.some((template) => template.id === 'polish')).toBe(true)
+    expect(settings.aiHelper.templates.some((template) => template.id === 'custom-polish')).toBe(true)
+
+    const removedCustom = settingsModule.normalizeAppSettings({
+      aiHelper: {
+        templates: settings.aiHelper.templates.filter((template) => template.id !== 'custom-polish'),
+      },
+    })
+    expect(removedCustom.aiHelper.templates.some((template) => template.id === 'custom-polish')).toBe(false)
+    expect(removedCustom.aiHelper.templates.some((template) => template.id === 'polish')).toBe(true)
+  })
+
   it('normalizes OpenAI-compatible AI helper provider settings', async () => {
     const settingsModule = await loadSettingsModule()
 

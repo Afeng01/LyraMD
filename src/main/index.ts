@@ -62,7 +62,7 @@ import {
   type CodexIntegrationStatus,
 } from './codex-integration'
 import { createMcpBridgeController, type McpBridgeRequest } from './mcp-bridge'
-import { completeAiHelperPrompt } from './ai-provider'
+import { completeAiHelperPrompt, testAiHelperConnection } from './ai-provider'
 
 // Custom themes directory
 const appDataDir = join(app.getPath('home'), '.lyramd')
@@ -1448,6 +1448,20 @@ ipcMain.handle('get-settings', async (event) => {
   return appSettings
 })
 
+ipcMain.handle('get-current-document', async (event) => {
+  const win = getWinFromEvent(event)
+  if (!win) return null
+  const state = getState(win)
+  if (!state.filePath || state.documentKind === 'blank' || state.lastSyncedContent === null) return null
+  return {
+    content: state.lastSyncedContent,
+    draftId: state.draftId,
+    kind: state.documentKind,
+    path: state.filePath,
+    title: state.displayTitle,
+  }
+})
+
 ipcMain.handle('update-settings', async (event, patch: Partial<AppSettings>) => {
   const win = getWinFromEvent(event)
   if (!win) return null
@@ -1460,6 +1474,12 @@ ipcMain.handle('complete-ai-prompt', async (event, prompt: string) => {
   const win = getWinFromEvent(event)
   if (!win) return { ok: false, error: '当前窗口不可用。' }
   return completeAiHelperPrompt(appSettings.aiHelper.provider, typeof prompt === 'string' ? prompt : '')
+})
+
+ipcMain.handle('test-ai-helper-connection', async (event) => {
+  const win = getWinFromEvent(event)
+  if (!win) return { ok: false, error: '当前窗口不可用。' }
+  return testAiHelperConnection(appSettings.aiHelper.provider)
 })
 
 ipcMain.handle('codex-integration-status', async () => {

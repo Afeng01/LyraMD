@@ -76,6 +76,14 @@ export interface AiHelperCompletionResult {
   error?: string
 }
 
+export interface CurrentDocumentSnapshot {
+  content: string
+  draftId: string | null
+  kind: Exclude<DocumentKind, 'blank'>
+  path: string
+  title: string
+}
+
 export interface AppSettings {
   titleSyncMode: TitleSyncMode
   saveAsMode: SaveAsMode
@@ -182,6 +190,8 @@ export interface ElectronAPI {
   getSettings: () => Promise<AppSettings | null>
   updateSettings: (patch: Partial<AppSettings>) => Promise<AppSettings | null>
   completeAiPrompt: (prompt: string) => Promise<AiHelperCompletionResult>
+  testAiHelperConnection: () => Promise<AiHelperCompletionResult>
+  getCurrentDocument: () => Promise<CurrentDocumentSnapshot | null>
   getCodexIntegrationStatus: () => Promise<CodexIntegrationStatus | null>
   installCodexIntegration: () => Promise<CodexIntegrationStatus | null>
   removeCodexIntegration: () => Promise<CodexIntegrationStatus | null>
@@ -262,6 +272,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getSettings: () => ipcRenderer.invoke('get-settings'),
   updateSettings: (patch: Partial<AppSettings>) => ipcRenderer.invoke('update-settings', patch),
   completeAiPrompt: (prompt: string) => ipcRenderer.invoke('complete-ai-prompt', prompt),
+  testAiHelperConnection: () => ipcRenderer.invoke('test-ai-helper-connection'),
+  getCurrentDocument: () => ipcRenderer.invoke('get-current-document'),
   getCodexIntegrationStatus: () => ipcRenderer.invoke('codex-integration-status'),
   installCodexIntegration: () => ipcRenderer.invoke('codex-integration-install'),
   removeCodexIntegration: () => ipcRenderer.invoke('codex-integration-remove'),

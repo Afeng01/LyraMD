@@ -27,42 +27,42 @@ const DEFAULT_AI_PROMPT_TEMPLATES: AiPromptTemplate[] = [
   {
     id: 'polish',
     title: '润色',
-    prompt: '请改善下面文字的清晰度、流畅度和简洁度，保留作者原本的语气和意图。只返回改写后的文字，不要解释：\n\n{{selection}}',
+    prompt: '你是专业文字编辑。请提升下面文字的清晰度、行文流畅度和简洁度，同时保留作者的声音与意图。只返回润色后的文字，不要解释：\n\n{{selection}}',
   },
   {
     id: 'condense',
     title: '精简',
-    prompt: '请精简下面这段文字，保留关键信息，删去重复和多余表达。只返回精简后的文字，不要解释：\n\n{{selection}}',
+    prompt: '请缩短下面文字，保留所有关键信息，去掉重复、松散句子和不必要的词。只返回精简后的文字，不要解释：\n\n{{selection}}',
   },
   {
     id: 'fix-grammar',
     title: '语法',
-    prompt: '请修正下面文字里的语法、错别字和标点问题，不改变原意、语气和风格。只返回修正后的文字，不要解释：\n\n{{selection}}',
+    prompt: '请修正下面文字中的语法、拼写、错别字和标点问题，不改变含义、风格或语气。只返回修正后的文字，不要解释：\n\n{{selection}}',
   },
   {
     id: 'rephrase',
     title: '转述',
-    prompt: '请用不同的措辞和句式改写下面文字，严格保留原意和语气。只返回改写后的文字，不要解释：\n\n{{selection}}',
+    prompt: '请用不同的措辞和句式转述下面文字，严格保留原意和语气。只返回转述后的文字，不要解释：\n\n{{selection}}',
   },
   {
     id: 'simplify',
     title: 'Simplify',
-    prompt: '请把下面文字改写得更容易理解，使用更简单的词和更短的句子，同时保留原意。只返回改写后的文字，不要解释：\n\n{{selection}}',
+    prompt: '请用更简单的词和更短的句子改写下面文字，让更多读者容易理解，同时保留原意。只返回简化后的文字，不要解释：\n\n{{selection}}',
   },
   {
     id: 'expand',
     title: 'Expand',
-    prompt: '请把下面这段简短文字扩写成更完整、自然的段落，补充必要的细节、例子或解释，同时保留作者语气。只返回扩写后的文字，不要解释：\n\n{{selection}}',
+    prompt: '请把下面这段简短文字扩展成更充分、完整的表达，补充必要的细节、例子或解释，同时保留作者的语气和风格。只返回扩写后的文字，不要解释：\n\n{{selection}}',
   },
   {
     id: 'vivid',
     title: 'Vivid',
-    prompt: '请为下面文字增加更具体的感官细节、画面感和有力措辞，让表达更生动，同时保留原意和基本结构。只返回改写后的文字，不要解释：\n\n{{selection}}',
+    prompt: '请为下面文字加入更鲜明的感官细节、具体画面和更有力的措辞，让表达更生动，同时保留原意和基本结构。只返回增强后的文字，不要解释：\n\n{{selection}}',
   },
   {
     id: 'rewrite-english',
     title: 'Rewrite In English',
-    prompt: '请把下面文字改写为自然、清晰的英文；如果原文已经是英文，则提升流畅度和可读性。只返回英文结果，不要解释：\n\n{{selection}}',
+    prompt: '请把下面文字改写成清晰、自然的英文。如果原文已经是英文，请提升它的流畅度和可读性；如果原文是其他语言，请保留原意、语气和结构并改写为英文。只返回英文结果，不要解释：\n\n{{selection}}',
   },
   {
     id: 'translate',
@@ -85,6 +85,12 @@ const DEFAULT_AI_HELPER_SETTINGS: AiHelperSettings = {
     temperature: 0.7,
   },
   templates: DEFAULT_AI_PROMPT_TEMPLATES,
+}
+
+const BUILT_IN_AI_TEMPLATE_IDS = new Set(DEFAULT_AI_PROMPT_TEMPLATES.map((template) => template.id))
+
+function isBuiltInAiTemplate(templateId: string | null | undefined): boolean {
+  return typeof templateId === 'string' && BUILT_IN_AI_TEMPLATE_IDS.has(templateId)
 }
 
 function getThemeSummary(themeName: string): string {
@@ -296,12 +302,15 @@ export function createSettingsDialogController({
   const fontCustomInput = document.getElementById('settings-font-custom') as HTMLInputElement | null
   const aiTemplateList = document.getElementById('settings-ai-template-list') as HTMLDivElement | null
   const aiTemplateAddButton = document.getElementById('settings-ai-template-add') as HTMLButtonElement | null
+  const aiTemplateDeleteButton = document.getElementById('settings-ai-template-delete') as HTMLButtonElement | null
   const aiTemplateTitleInput = document.getElementById('settings-ai-template-title') as HTMLInputElement | null
   const aiTemplatePrompt = document.getElementById('settings-ai-template-prompt') as HTMLTextAreaElement | null
   const aiBaseUrlInput = document.getElementById('settings-ai-base-url') as HTMLInputElement | null
   const aiApiKeyInput = document.getElementById('settings-ai-api-key') as HTMLInputElement | null
   const aiModelInput = document.getElementById('settings-ai-model') as HTMLInputElement | null
   const aiTemperatureInput = document.getElementById('settings-ai-temperature') as HTMLInputElement | null
+  const aiTestButton = document.getElementById('settings-ai-test') as HTMLButtonElement | null
+  const aiTestStatus = document.getElementById('settings-ai-test-status') as HTMLDivElement | null
   const shortcutKeys = Array.from(
     document.querySelectorAll<HTMLElement>('[data-shortcut-action]'),
   )
@@ -320,6 +329,9 @@ export function createSettingsDialogController({
   let codexStatus: CodexIntegrationStatus | null = null
   let codexLoading = false
   let activeAiTemplateId = 'polish'
+  let aiTestLoading = false
+  let aiTestStatusText = ''
+  let aiTestStatusTone: 'error' | 'success' | '' = ''
 
   initSettingsDialogDrag(overlay, dialog, topBar)
 
@@ -458,6 +470,21 @@ export function createSettingsDialogController({
       activeAiTemplateId = activeAiTemplate.id
       if (aiTemplateTitleInput) aiTemplateTitleInput.value = activeAiTemplate.title
       if (aiTemplatePrompt) aiTemplatePrompt.value = activeAiTemplate.prompt
+    }
+    if (aiTemplateDeleteButton) {
+      const canDeleteTemplate = Boolean(activeAiTemplate && !isBuiltInAiTemplate(activeAiTemplate.id))
+      aiTemplateDeleteButton.hidden = !canDeleteTemplate
+      aiTemplateDeleteButton.disabled = !canDeleteTemplate
+    }
+    if (aiTestButton) {
+      aiTestButton.disabled = aiTestLoading
+      aiTestButton.textContent = aiTestLoading ? '检测中...' : '检测'
+    }
+    if (aiTestStatus) {
+      aiTestStatus.hidden = !aiTestStatusText
+      aiTestStatus.textContent = aiTestStatusText
+      aiTestStatus.classList.toggle('settings-integration-error', aiTestStatusTone === 'error')
+      aiTestStatus.classList.toggle('settings-status-success', aiTestStatusTone === 'success')
     }
     renderAiTemplateButtons(aiHelper.templates)
 
@@ -639,6 +666,18 @@ export function createSettingsDialogController({
     })
   }
 
+  const readAiProviderSettingsFromInputs = (): AiHelperProviderSettings => {
+    const current = getAppSettings().aiHelper?.provider ?? DEFAULT_AI_HELPER_SETTINGS.provider
+    return {
+      ...current,
+      baseUrl: aiBaseUrlInput?.value ?? current.baseUrl,
+      apiKey: aiApiKeyInput?.value ?? current.apiKey,
+      model: aiModelInput?.value ?? current.model,
+      temperature: clampNumber(aiTemperatureInput?.value, current.temperature, 0, 2),
+      type: 'openai-compatible',
+    }
+  }
+
   const updateSelectedAiPromptTemplate = async (patch: Partial<Pick<AiPromptTemplate, 'title' | 'prompt'>>): Promise<void> => {
     const current = getAppSettings()
     const currentAiHelper = current.aiHelper ?? DEFAULT_AI_HELPER_SETTINGS
@@ -662,6 +701,50 @@ export function createSettingsDialogController({
       ...currentAiHelper,
       templates: [...currentAiHelper.templates, template],
     })
+  }
+
+  const deleteSelectedCustomAiPromptTemplate = async (): Promise<void> => {
+    if (isBuiltInAiTemplate(activeAiTemplateId)) return
+    const current = getAppSettings()
+    const currentAiHelper = current.aiHelper ?? DEFAULT_AI_HELPER_SETTINGS
+    const templates = currentAiHelper.templates.filter((template) => template.id !== activeAiTemplateId)
+    activeAiTemplateId = templates[0]?.id ?? DEFAULT_AI_PROMPT_TEMPLATES[0].id
+    await updateAiHelperSettings({
+      ...currentAiHelper,
+      templates,
+    })
+  }
+
+  const testAiHelperConnection = async (): Promise<void> => {
+    if (aiTestLoading) return
+    aiTestLoading = true
+    aiTestStatusText = '正在检测 AI 连接...'
+    aiTestStatusTone = ''
+    render()
+    const current = getAppSettings()
+    const currentAiHelper = current.aiHelper ?? DEFAULT_AI_HELPER_SETTINGS
+    const provider = readAiProviderSettingsFromInputs()
+    const next = (await api.updateSettings({
+      aiHelper: {
+        ...currentAiHelper,
+        provider,
+      },
+    }).catch(() => null)) ?? {
+      ...current,
+      aiHelper: {
+        ...currentAiHelper,
+        provider,
+      },
+    }
+    onAppSettingsChange(next)
+    const result = await api.testAiHelperConnection().catch((error) => ({
+      ok: false,
+      error: error instanceof Error ? error.message : 'AI 连接检测失败。',
+    }))
+    aiTestLoading = false
+    aiTestStatusText = result.ok ? (result.text ?? 'AI 连接正常。') : (result.error ?? 'AI 连接检测失败。')
+    aiTestStatusTone = result.ok ? 'success' : 'error'
+    render()
   }
 
   const updateShortcut = async (action: ShortcutAction, accelerator: string): Promise<void> => {
@@ -832,6 +915,10 @@ export function createSettingsDialogController({
     void addCustomAiPromptTemplate()
   })
 
+  aiTemplateDeleteButton?.addEventListener('click', () => {
+    void deleteSelectedCustomAiPromptTemplate()
+  })
+
   aiTemplateTitleInput?.addEventListener('change', () => {
     const title = aiTemplateTitleInput.value.trim() || '自定义精灵'
     void updateSelectedAiPromptTemplate({ title })
@@ -858,6 +945,10 @@ export function createSettingsDialogController({
     void updateAiHelperProviderSettings({
       temperature: clampNumber(aiTemperatureInput.value, current.temperature, 0, 2),
     })
+  })
+
+  aiTestButton?.addEventListener('click', () => {
+    void testAiHelperConnection()
   })
 
   for (const tab of paneTabs) {

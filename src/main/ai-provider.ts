@@ -76,3 +76,51 @@ export async function completeAiHelperPrompt(
     }
   }
 }
+
+export async function testAiHelperConnection(
+  provider: AiHelperProviderSettings,
+  options: CompleteAiHelperPromptOptions = {},
+): Promise<AiHelperCompletionResult> {
+  if (!provider.apiKey) {
+    return { ok: false, error: '请先在设置里填写 AI API Key。' }
+  }
+
+  try {
+    const fetchImpl = options.fetchImpl ?? fetch
+    const response = await fetchImpl(joinChatCompletionsUrl(provider.baseUrl), {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${provider.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: provider.model,
+        messages: [
+          {
+            role: 'user',
+            content: 'Reply with OK to confirm the connection.',
+          },
+        ],
+        max_tokens: 8,
+        temperature: 0,
+      }),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '')
+      return {
+        ok: false,
+        error: errorText.trim() || `AI 请求失败：HTTP ${response.status}`,
+      }
+    }
+
+    const text = readOpenAiCompatibleText(await response.json())
+    if (!text) return { ok: false, error: 'AI 返回为空。' }
+    return { ok: true, text: 'AI 连接正常。' }
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : 'AI 请求失败。',
+    }
+  }
+}

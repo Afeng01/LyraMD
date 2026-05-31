@@ -78,4 +78,23 @@ describe('application menu shortcut regression', () => {
     expect(renderer).toContain('api.onMenuOpenAiPalette')
     expect(renderer).toContain('openAiPalette()')
   })
+
+  it('exposes a pull-based current document snapshot for launch-opened files', () => {
+    const main = readFileSync(join(process.cwd(), 'src/main/index.ts'), 'utf8')
+    const preload = readFileSync(join(process.cwd(), 'src/preload/index.ts'), 'utf8')
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+
+    expect(main).toContain("ipcMain.handle('get-current-document'")
+    expect(preload).toContain('getCurrentDocument: () => ipcRenderer.invoke(\'get-current-document\')')
+    expect(renderer).toContain('api.getCurrentDocument()')
+    expect(renderer).toContain('applyOpenedDocument(startupDocument)')
+  })
+
+  it('exposes AI helper connection testing through main and preload', () => {
+    const main = readFileSync(join(process.cwd(), 'src/main/index.ts'), 'utf8')
+    const preload = readFileSync(join(process.cwd(), 'src/preload/index.ts'), 'utf8')
+
+    expect(main).toContain("ipcMain.handle('test-ai-helper-connection'")
+    expect(preload).toContain('testAiHelperConnection: () => ipcRenderer.invoke(\'test-ai-helper-connection\')')
+  })
 })

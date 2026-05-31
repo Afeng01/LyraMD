@@ -469,6 +469,15 @@ describe('sidebar polish regression', () => {
     expect(pinnedRule).toContain('overflow-y: auto')
   })
 
+  it('hides sidebar scroll thumbs until the scroll region is active', () => {
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+
+    expect(css).toContain('#sidebar :is(#workspaces-list, #pinned-list, #library-scroll-region)::-webkit-scrollbar-thumb')
+    expect(css).toContain('background: transparent')
+    expect(css).toContain('#sidebar :is(#workspaces-list, #pinned-list, #library-scroll-region):hover::-webkit-scrollbar-thumb')
+    expect(css).toContain('#sidebar :is(#workspaces-list, #pinned-list, #library-scroll-region):focus-within::-webkit-scrollbar-thumb')
+  })
+
   it('uses a stronger tab active state with existing color variables', () => {
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
 

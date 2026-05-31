@@ -575,6 +575,25 @@ body.platform-win32 #agent-dot {
   padding-right: 2px;
 }
 
+#sidebar :is(#workspaces-list, #pinned-list, #library-scroll-region) {
+  scrollbar-color: transparent transparent;
+}
+
+#sidebar :is(#workspaces-list, #pinned-list, #library-scroll-region)::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+}
+
+#sidebar :is(#workspaces-list, #pinned-list, #library-scroll-region):hover,
+#sidebar :is(#workspaces-list, #pinned-list, #library-scroll-region):focus-within {
+  scrollbar-color: color-mix(in srgb, var(--border-color) 72%, transparent 28%) transparent;
+}
+
+#sidebar :is(#workspaces-list, #pinned-list, #library-scroll-region):hover::-webkit-scrollbar-thumb,
+#sidebar :is(#workspaces-list, #pinned-list, #library-scroll-region):focus-within::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--border-color) 72%, transparent 28%);
+}
+
 .sidebar-recent-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1411,7 +1430,7 @@ body.platform-win32 #agent-dot {
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding-top: min(14vh, 120px);
+  padding-top: min(12vh, 96px);
   background: transparent;
   -webkit-app-region: no-drag;
 }
@@ -1421,14 +1440,14 @@ body.platform-win32 #agent-dot {
 }
 
 #ai-command-palette {
-  width: min(640px, calc(100vw - 32px));
-  max-height: min(560px, calc(100vh - 180px));
+  width: min(560px, calc(100vw - 32px));
+  max-height: min(460px, calc(100vh - 220px));
   overflow: hidden;
   padding: 0;
   border: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent 40%);
-  border-radius: 12px;
+  border-radius: 10px;
   background: color-mix(in srgb, var(--bg-color) 96%, #fff 4%);
-  box-shadow: 0 20px 46px rgba(15, 23, 42, 0.16);
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.14);
   display: grid;
   grid-template-rows: auto auto auto minmax(0, 1fr) auto;
 }
@@ -1437,24 +1456,24 @@ body.platform-win32 #agent-dot {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-height: 74px;
-  padding: 18px 18px 12px;
+  gap: 8px;
+  min-height: 52px;
+  padding: 10px 14px 8px;
   border-bottom: 1px solid color-mix(in srgb, var(--border-color) 46%, transparent 54%);
 }
 
 .ai-palette-search {
   width: 100%;
-  min-height: 42px;
-  max-height: 120px;
+  min-height: 30px;
+  max-height: 72px;
   border: none;
   outline: none;
   resize: none;
   background: transparent;
   color: var(--text-color);
   font: inherit;
-  font-size: 16px;
-  line-height: 1.55;
+  font-size: 14px;
+  line-height: 1.45;
 }
 
 .ai-palette-search::placeholder {
@@ -1466,8 +1485,8 @@ body.platform-win32 #agent-dot {
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   border: none;
   border-radius: 6px;
   background: transparent;
@@ -1483,19 +1502,19 @@ body.platform-win32 #agent-dot {
 .ai-palette-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  padding: 10px 18px;
+  gap: 6px;
+  padding: 7px 14px;
   border-bottom: 1px solid color-mix(in srgb, var(--border-color) 38%, transparent 62%);
 }
 
 .ai-palette-chip {
-  padding: 6px 13px;
+  padding: 4px 10px;
   border: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent 50%);
   border-radius: 999px;
   background: color-mix(in srgb, var(--bg-color) 98%, var(--border-color) 2%);
   color: var(--text-color);
   font: inherit;
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 500;
   cursor: pointer;
   transition: background 0.12s ease, border-color 0.12s ease;
@@ -1519,7 +1538,7 @@ body.platform-win32 #agent-dot {
 
 .ai-palette-status {
   min-height: 0;
-  padding: 8px 18px;
+  padding: 6px 14px;
   color: var(--text-muted);
   font-size: 11px;
   line-height: 1.5;
@@ -1545,13 +1564,29 @@ body.platform-win32 #agent-dot {
 .ai-palette-list {
   min-height: 0;
   overflow: auto;
-  padding: 10px 8px;
+  padding: 6px;
   display: grid;
-  gap: 4px;
+  gap: 2px;
+  scrollbar-color: transparent transparent;
+}
+
+.ai-palette-list::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+}
+
+.ai-palette-list:hover,
+.ai-palette-list:focus-within {
+  scrollbar-color: color-mix(in srgb, var(--border-color) 72%, transparent 28%) transparent;
+}
+
+.ai-palette-list:hover::-webkit-scrollbar-thumb,
+.ai-palette-list:focus-within::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--border-color) 72%, transparent 28%);
 }
 
 .ai-palette-section-label {
-  padding: 8px 10px 4px;
+  padding: 6px 8px 3px;
   color: var(--text-muted);
   font-size: 11px;
   font-weight: 700;
@@ -1563,10 +1598,10 @@ body.platform-win32 #agent-dot {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
+  gap: 10px;
   width: 100%;
-  min-height: 58px;
-  padding: 9px 10px;
+  min-height: 48px;
+  padding: 7px 8px;
   border: none;
   border-radius: 7px;
   background: transparent;
@@ -1590,19 +1625,19 @@ body.platform-win32 #agent-dot {
 .ai-palette-item-copy {
   min-width: 0;
   display: grid;
-  gap: 5px;
+  gap: 4px;
 }
 
 .ai-palette-item-title {
   color: var(--text-color);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 650;
   line-height: 1.25;
 }
 
 .ai-palette-item-description {
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: 11.5px;
   line-height: 1.35;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1611,11 +1646,11 @@ body.platform-win32 #agent-dot {
 
 .ai-palette-item-scope {
   flex: 0 0 auto;
-  padding: 3px 9px;
+  padding: 2px 7px;
   border: 1px solid color-mix(in srgb, var(--border-color) 52%, transparent 48%);
   border-radius: 999px;
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 10.5px;
   line-height: 1.4;
 }
 
@@ -1623,9 +1658,9 @@ body.platform-win32 #agent-dot {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  min-height: 36px;
-  padding: 8px 18px;
+  gap: 10px;
+  min-height: 30px;
+  padding: 6px 14px;
   border-top: 1px solid color-mix(in srgb, var(--border-color) 45%, transparent 55%);
   color: var(--text-muted);
   font-size: 11px;
@@ -1641,8 +1676,8 @@ body.platform-win32 #agent-dot {
 .ai-palette-footer kbd {
   display: inline-flex;
   align-items: center;
-  min-height: 20px;
-  padding: 2px 6px;
+  min-height: 18px;
+  padding: 1px 5px;
   border: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent 40%);
   border-radius: 6px;
   background: color-mix(in srgb, var(--bg-color) 96%, var(--border-color) 4%);

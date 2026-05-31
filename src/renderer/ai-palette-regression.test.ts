@@ -49,11 +49,38 @@ describe('AI command palette regression', () => {
     const paletteRule = css.match(/#ai-command-palette\s*\{[\s\S]*?\}/)?.[0] ?? ''
     const listRule = css.match(/\.ai-palette-list\s*\{[\s\S]*?\}/)?.[0] ?? ''
 
-    expect(overlayRule).toContain('padding-top: min(14vh, 120px)')
-    expect(paletteRule).toContain('width: min(640px, calc(100vw - 32px))')
-    expect(paletteRule).toContain('max-height: min(560px, calc(100vh - 180px))')
+    expect(overlayRule).toContain('padding-top: min(12vh, 96px)')
+    expect(paletteRule).toContain('width: min(560px, calc(100vw - 32px))')
+    expect(paletteRule).toContain('max-height: min(460px, calc(100vh - 220px))')
     expect(listRule).toContain('min-height: 0')
     expect(listRule).toContain('overflow: auto')
+  })
+
+  it('tightens the search field and command rows to avoid an oversized palette', () => {
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+    const headerRule = css.match(/\.ai-palette-header\s*\{[\s\S]*?\}/)?.[0] ?? ''
+    const searchRule = css.match(/\.ai-palette-search\s*\{[\s\S]*?\}/)?.[0] ?? ''
+    const itemRule = css.match(/\.ai-palette-item\s*\{[\s\S]*?\}/)?.[0] ?? ''
+    const footerRule = css.match(/\.ai-palette-footer\s*\{[\s\S]*?\}/)?.[0] ?? ''
+
+    expect(headerRule).toContain('min-height: 52px')
+    expect(headerRule).toContain('padding: 10px 14px 8px')
+    expect(searchRule).toContain('min-height: 30px')
+    expect(searchRule).toContain('max-height: 72px')
+    expect(searchRule).toContain('font-size: 14px')
+    expect(itemRule).toContain('min-height: 48px')
+    expect(itemRule).toContain('padding: 7px 8px')
+    expect(footerRule).toContain('min-height: 30px')
+    expect(footerRule).toContain('padding: 6px 14px')
+  })
+
+  it('keeps palette scrollbars visually hidden until the command list is active', () => {
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+
+    expect(css).toContain('.ai-palette-list::-webkit-scrollbar-thumb')
+    expect(css).toContain('background: transparent')
+    expect(css).toContain('.ai-palette-list:hover::-webkit-scrollbar-thumb')
+    expect(css).toContain('.ai-palette-list:focus-within::-webkit-scrollbar-thumb')
   })
 
   it('keeps the page behind the AI palette clear instead of blurred', () => {

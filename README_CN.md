@@ -79,9 +79,9 @@ Windows preview 版本目前暂不做代码签名。第一次启动时，Microso
 
 ## 更新
 
-LyraMD 的已打包版本会从 GitHub Releases 检查更新，软件内也提供 **帮助 > 检查更新…**。自动更新依赖 electron-builder 生成并上传的 release 产物和元数据，包括 macOS 的 `latest-mac.yml` 与 Windows 的 `latest.yml`。
+LyraMD 的已打包版本会从 GitHub Releases 检查更新，软件内也提供 **帮助 > 检查更新…**。未签名的 macOS 构建使用手动更新流程：LyraMD 会打开最新版 DMG 或 Release 页面，然后由用户手动覆盖安装。Windows 继续使用基于 `latest.yml` 的 electron-updater 元数据流程。
 
-已经安装了不含 updater 的旧构建的用户，需要先手动安装一次带 updater 的版本；之后的新版本才能在 LyraMD 内被发现。macOS 生产环境自动更新还需要正确签名的 app。
+已经安装了不含 updater 的旧构建的用户，需要先手动安装一次带 updater 的版本；之后的新版本才能在 LyraMD 内被发现。macOS 完全自动替换安装仍需要正确签名的 app。
 
 ## 构建
 

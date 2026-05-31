@@ -1,6 +1,7 @@
-import { app, BrowserWindow, dialog } from 'electron'
+import { app, BrowserWindow, dialog, shell } from 'electron'
 import electronUpdater, { type AppUpdater } from 'electron-updater'
 import type { ProgressInfo, UpdateDownloadedEvent, UpdateInfo } from 'electron-updater'
+import { fetchLatestMacManualUpdate } from './update-release'
 
 const { autoUpdater } = electronUpdater as { autoUpdater: AppUpdater }
 
@@ -42,6 +43,60 @@ async function promptInstallDownloadedUpdate(version: string | null): Promise<vo
 
   if (result.response === 0) {
     autoUpdater.quitAndInstall()
+  }
+}
+
+async function promptManualMacUpdate(version: string, downloadUrl: string | null, releaseUrl: string): Promise<void> {
+  const buttons = downloadUrl
+    ? ['下载 DMG', '打开 Release 页面', '稍后']
+    : ['打开 Release 页面', '稍后']
+  const cancelId = buttons.length - 1
+  const result = await dialog.showMessageBox(getDialogParent(), {
+    type: 'info',
+    buttons,
+    defaultId: 0,
+    cancelId,
+    message: '发现 LyraMD 新版本',
+    detail: `版本 ${version} 已发布。当前 macOS 构建未使用 Apple Developer ID 签名，LyraMD 会打开下载链接，请手动安装覆盖当前版本。`,
+  })
+
+  if (downloadUrl && result.response === 0) {
+    await shell.openExternal(downloadUrl)
+    return
+  }
+
+  if (result.response === (downloadUrl ? 1 : 0)) {
+    await shell.openExternal(releaseUrl)
+  }
+}
+
+async function checkForManualMacUpdate(showNoUpdateMessage: boolean): Promise<void> {
+  if (checking) {
+    if (showNoUpdateMessage) {
+      await showMessage('info', '正在检查更新', 'LyraMD 正在连接 GitHub Releases，请稍候。')
+    }
+    return
+  }
+
+  checking = true
+  try {
+    const update = await fetchLatestMacManualUpdate(app.getVersion())
+    if (!update) {
+      if (showNoUpdateMessage) {
+        await showMessage('info', 'LyraMD 已是最新版本', `当前版本：${app.getVersion()}`)
+      }
+      return
+    }
+
+    await promptManualMacUpdate(update.version, update.downloadUrl, update.releaseUrl)
+  } catch (error) {
+    console.error('[updater] manual macOS update check failed', error)
+    if (showNoUpdateMessage) {
+      const message = error instanceof Error ? error.message : String(error)
+      await showMessage('error', '检查更新失败', message)
+    }
+  } finally {
+    checking = false
   }
 }
 
@@ -90,6 +145,17 @@ export function configureAutoUpdates(): void {
   if (configured) return
   configured = true
 
+  if (process.platform === 'darwin') {
+    if (app.isPackaged) {
+      setTimeout(() => {
+        checkForManualMacUpdate(false).catch((error: Error) => {
+          console.error('[updater] startup manual update check failed', error)
+        })
+      }, 5000)
+    }
+    return
+  }
+
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = false
   autoUpdater.allowPrerelease = false
@@ -107,7 +173,12 @@ export function configureAutoUpdates(): void {
 
 export async function checkForUpdatesFromMenu(): Promise<void> {
   if (!app.isPackaged) {
-    await showMessage('info', '开发模式不检查更新', '自动更新只在已安装的 LyraMD 构建中启用。')
+    await showMessage('info', '开发模式不检查更新', '更新检查只在已安装的 LyraMD 构建中启用。')
+    return
+  }
+
+  if (process.platform === 'darwin') {
+    await checkForManualMacUpdate(true)
     return
   }
 

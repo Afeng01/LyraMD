@@ -68,3 +68,8 @@ macOS automatic installation through Electron/Squirrel.Mac requires a signed
 app. Without an Apple Developer ID certificate, keep macOS updater expectations
 private/best-effort or use an explicit fallback flow such as opening the latest
 release download for manual installation.
+
+The unsigned macOS channel currently uses that fallback flow: LyraMD checks the
+latest GitHub Release, prompts when a newer version exists, and opens the DMG or
+Release page for manual overwrite installation. Do not change it to automatic
+`.app` replacement unless a rollback-safe helper has been designed and tested.

@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       include_experimental_platforms:
-        description: 'Build Windows/Linux preview artifacts'
+        description: 'Build Windows and Linux preview artifacts'
         required: false
         default: false
         type: boolean
@@ -39,14 +39,46 @@ jobs:
             release/latest-mac.yml
           if-no-files-found: error
 
+  build-windows:
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.include_experimental_platforms)
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm install
+
+      - run: npm run build
+
+      - name: Build Windows distributable
+        run: npx electron-builder --win nsis --x64 --publish never
+
+      - name: Assert Windows installer exists
+        shell: pwsh
+        run: |
+          $installers = Get-ChildItem -Path release -Filter *.exe
+          if ($installers.Count -eq 0) {
+            throw "No Windows .exe installer was produced in release/"
+          }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-windows
+          path: |
+            release/*.exe
+            release/latest.yml
+          if-no-files-found: error
+
   build-preview:
     if: github.event_name == 'workflow_dispatch' && inputs.include_experimental_platforms
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
-            platform: win
           - os: ubuntu-latest
             platform: linux
 
@@ -66,29 +98,20 @@ jobs:
       - name: Build distributables
         run: npx electron-builder --${{ matrix.platform }} --publish never
 
-      - name: Assert Windows installer exists
-        if: matrix.platform == 'win'
-        shell: pwsh
-        run: |
-          $installers = Get-ChildItem -Path release -Filter *.exe
-          if ($installers.Count -eq 0) {
-            throw "No Windows .exe installer was produced in release/"
-          }
-
       - uses: actions/upload-artifact@v4
         with:
           name: dist-${{ matrix.platform }}
           path: |
-            release/*.dmg
             release/*.zip
-            release/*.exe
             release/*.AppImage
             release/*.deb
             release/*.yml
           if-no-files-found: ignore
 
   release:
-    needs: build-mac
+    needs:
+      - build-mac
+      - build-windows
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
     permissions:

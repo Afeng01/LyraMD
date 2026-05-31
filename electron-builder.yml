@@ -20,6 +20,11 @@ npmArgs:
 
 afterPack: ./scripts/afterPack.js
 
+publish:
+  provider: github
+  owner: Afeng01
+  repo: LyraMD
+
 fileAssociations:
   - ext: md
     name: Markdown Document

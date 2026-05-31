@@ -1,6 +1,6 @@
 {
   "name": "lyramd",
-  "version": "1.3.5",
+  "version": "1.3.6",
   "description": "Lyra's agent-native Markdown editor",
   "main": "dist/main/index.js",
   "author": "Cherry Xiao",
@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@milkdown/kit": "^7.19.2",
+    "electron-updater": "^6.8.3",
     "prosemirror-search": "^1.1.0",
     "remark-breaks": "^4.0.0"
   },

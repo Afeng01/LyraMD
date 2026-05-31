@@ -63,6 +63,7 @@ import {
 } from './codex-integration'
 import { createMcpBridgeController, type McpBridgeRequest } from './mcp-bridge'
 import { completeAiHelperPrompt, testAiHelperConnection } from './ai-provider'
+import { checkForUpdatesFromMenu, configureAutoUpdates } from './updater'
 
 // Custom themes directory
 const appDataDir = join(app.getPath('home'), '.lyramd')
@@ -1877,6 +1878,10 @@ ipcMain.handle('remove-workdir-file', async (event, filePath: string) => {
   return removeWorkdirFileForAllWindows(win, filePath)
 })
 
+ipcMain.handle('check-for-updates', async () => {
+  await checkForUpdatesFromMenu()
+})
+
 ipcMain.handle('save-file', async (event, content: string) => {
   const win = getWinFromEvent(event)
   if (!win) return false
@@ -2226,6 +2231,13 @@ function buildMenu(): void {
       label: '帮助',
       submenu: [
         {
+          label: '检查更新…',
+          click: () => {
+            checkForUpdatesFromMenu().catch(() => {})
+          }
+        },
+        { type: 'separator' },
+        {
           label: '关于 LyraMD',
           click: () => shell.openExternal('https://github.com/Afeng01/LyraMD')
         }
@@ -2244,6 +2256,7 @@ if (hasSingleInstanceLock) {
       .then(() => Promise.all([loadSidebarState(), loadSessionState(), loadSettingsState()]))
       .catch(() => {})
       .finally(() => {
+        configureAutoUpdates()
         buildMenu()
 
         queuePendingFilePaths(extractMarkdownLaunchPaths(process.argv, { isPackaged: app.isPackaged }))

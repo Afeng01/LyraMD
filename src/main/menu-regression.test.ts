@@ -98,4 +98,17 @@ describe('application menu shortcut regression', () => {
     expect(main).toContain("ipcMain.handle('test-ai-helper-connection'")
     expect(preload).toContain('testAiHelperConnection: () => ipcRenderer.invoke(\'test-ai-helper-connection\')')
   })
+
+  it('exposes manual update checks through native and Windows menus', () => {
+    const main = readFileSync(join(process.cwd(), 'src/main/index.ts'), 'utf8')
+    const preload = readFileSync(join(process.cwd(), 'src/preload/index.ts'), 'utf8')
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
+
+    expect(main).toContain("label: '检查更新…'")
+    expect(main).toContain("ipcMain.handle('check-for-updates'")
+    expect(preload).toContain('checkForUpdates: () => ipcRenderer.invoke(\'check-for-updates\')')
+    expect(html).toContain('data-windows-action="check-updates"')
+    expect(renderer).toContain('api.checkForUpdates?.()')
+  })
 })

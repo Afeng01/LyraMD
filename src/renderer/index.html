@@ -79,7 +79,13 @@
               </div>
             </div>
             <button type="button" class="windows-menu-button" data-windows-action="settings">设置</button>
-            <button type="button" class="windows-menu-button" data-windows-action="help">帮助</button>
+            <div class="windows-menu-group">
+              <button type="button" class="windows-menu-button" data-windows-menu="help">帮助</button>
+              <div class="windows-menu-panel" data-windows-panel="help">
+                <button type="button" data-windows-action="check-updates">检查更新…</button>
+                <button type="button" data-windows-action="help">关于 LyraMD</button>
+              </div>
+            </div>
           </nav>
         </div>
         <div id="windows-window-controls" class="windows-window-controls">

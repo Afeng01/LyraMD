@@ -27,15 +27,20 @@ Use this checklist before publishing a LyraMD release tag.
 
 5. Build distributables.
    - macOS stable path: `npm run dist:mac`
-   - Optional previews: `npm run dist:win`, `npm run dist:linux`
+   - Windows release path: `npm run dist:win`
+   - Optional preview: `npm run dist:linux`
 
 6. Inspect artifacts.
    - Confirm `release/` artifact names match the package version.
+   - Confirm the GitHub Release workflow uploads both macOS artifacts and
+     `LyraMD-Setup-<version>-x64.exe`.
+   - Confirm update metadata is present: `latest-mac.yml` for macOS and
+     `latest.yml` for Windows.
    - Install/open the macOS artifact before publishing when possible.
 
 7. Publish.
    - Create a release commit for version/docs/checklist changes.
-   - Create an annotated tag, for example `git tag -a v1.3.5 -m "LyraMD v1.3.5"`.
+   - Create an annotated tag, for example `git tag -a v1.3.6 -m "LyraMD v1.3.6"`.
    - Push commit and tag to `origin`.
    - When using `gh`, pass `--repo Afeng01/LyraMD`; this checkout also has an
      upstream remote, and `gh` may otherwise inspect the wrong repository.
@@ -47,3 +52,12 @@ worktree was released without a fresh cold-start smoke check. The root cause was
 a Milkdown context mismatch between direct `@milkdown/core` imports and
 `@milkdown/kit/core`. The release process must catch this class of failure
 before a tag is published.
+
+Also on 2026-05-31, `v1.3.5` was published with macOS artifacts only because the
+tag release job depended only on the macOS build. Windows must be part of the
+tag-triggered release workflow, even while the Windows app remains a preview
+until real-device smoke testing is complete.
+
+Auto-update support depends on the release metadata files uploaded with the
+GitHub Release. Do not remove `latest-mac.yml` or `latest.yml` from release
+assets.

@@ -2771,6 +2771,9 @@ img{max-width:100%}
       case 'import-theme':
         void importCustomThemeSelection()
         break
+      case 'check-updates':
+        api.checkForUpdates?.().catch(() => {})
+        break
       case 'help':
         api.openExternal('https://github.com/Afeng01/LyraMD')
         break

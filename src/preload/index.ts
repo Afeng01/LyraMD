@@ -228,6 +228,7 @@ export interface ElectronAPI {
   openDraft: (id: string) => Promise<boolean>
   removeRecentFile: (path: string) => Promise<boolean>
   removeWorkdirFile: (path: string) => Promise<SidebarState | null>
+  checkForUpdates: () => Promise<void>
   createNewWindow: () => Promise<boolean>
   minimizeWindow: () => Promise<boolean>
   toggleMaximizeWindow: () => Promise<boolean>
@@ -310,6 +311,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openDraft: (id: string) => ipcRenderer.invoke('open-draft', id),
   removeRecentFile: (path: string) => ipcRenderer.invoke('remove-recent-file', path),
   removeWorkdirFile: (path: string) => ipcRenderer.invoke('remove-workdir-file', path),
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
   createNewWindow: () => ipcRenderer.invoke('create-new-window'),
   minimizeWindow: () => ipcRenderer.invoke('window-minimize'),
   toggleMaximizeWindow: () => ipcRenderer.invoke('window-toggle-maximize'),

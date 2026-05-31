@@ -18,6 +18,8 @@ Use this checklist before publishing a LyraMD release tag.
    - `npm ls @milkdown/core @milkdown/kit --depth=2`
    - `npm run test`
    - `npm run build`
+   - Release CI uses Node 24. If dependency behavior changes locally, verify
+     once with Node 24 before publishing.
 
 4. Run a cold-start app smoke check.
    - Stop any existing dev/build app processes.
@@ -61,3 +63,8 @@ until real-device smoke testing is complete.
 Auto-update support depends on the release metadata files uploaded with the
 GitHub Release. Do not remove `latest-mac.yml` or `latest.yml` from release
 assets.
+
+macOS automatic installation through Electron/Squirrel.Mac requires a signed
+app. Without an Apple Developer ID certificate, keep macOS updater expectations
+private/best-effort or use an explicit fallback flow such as opening the latest
+release download for manual installation.

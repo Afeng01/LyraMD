@@ -273,7 +273,6 @@ body.platform-win32 #windows-titlebar {
 
 body.platform-win32 #sidebar-toggle,
 body.platform-win32 #settings-toggle,
-body.platform-win32 #agent-toggle,
 body.platform-win32 #outline-toggle {
   top: 4px;
 }
@@ -286,17 +285,8 @@ body.platform-win32 #settings-toggle {
   left: 136px;
 }
 
-body.platform-win32 #agent-toggle {
-  right: 206px;
-}
-
 body.platform-win32 #outline-toggle {
-  right: 174px;
-}
-
-body.platform-win32 #agent-dot {
-  top: 14px;
-  right: 146px;
+  right: 48px;
 }
 
 #sidebar-toggle {
@@ -337,7 +327,6 @@ body.platform-win32 #agent-dot {
   transition: all 0.18s ease;
 }
 
-#agent-toggle,
 #outline-toggle {
   position: absolute;
   top: 12px;
@@ -356,18 +345,12 @@ body.platform-win32 #agent-dot {
   transition: all 0.18s ease;
 }
 
-#agent-toggle {
-  right: 80px;
-}
-
 #outline-toggle {
   right: 48px;
 }
 
 #sidebar-toggle:hover,
 #settings-toggle:hover,
-#agent-toggle:hover,
-#agent-toggle.active,
 #outline-toggle:hover,
 #outline-toggle.active {
   opacity: 1;
@@ -377,41 +360,10 @@ body.platform-win32 #agent-dot {
 
 #sidebar-toggle svg,
 #settings-toggle svg,
-#agent-toggle svg,
 #outline-toggle svg {
   width: 16px;
   height: 16px;
   display: block;
-}
-
-#agent-dot {
-  position: absolute;
-  top: 22px;
-  right: 16px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--text-muted);
-  opacity: 0.3;
-  -webkit-app-region: no-drag;
-  transition: background 0.3s ease, opacity 0.3s ease;
-}
-
-#agent-dot.active {
-  background: #e8913a;
-  opacity: 1;
-  animation: agent-breathe 2s ease-in-out infinite;
-}
-
-#agent-dot.cooldown {
-  background: #3dba5c;
-  opacity: 1;
-  animation: none;
-}
-
-@keyframes agent-breathe {
-  0%, 100% { opacity: 0.45; transform: scale(0.95); }
-  50% { opacity: 1; transform: scale(1.05); }
 }
 
 #workspace {
@@ -1428,9 +1380,10 @@ body.platform-win32 #agent-dot {
   inset: 0;
   z-index: 100;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
-  padding-top: min(12vh, 96px);
+  padding: 24px 16px;
+  box-sizing: border-box;
   background: transparent;
   -webkit-app-region: no-drag;
 }
@@ -1868,6 +1821,16 @@ body.platform-win32 #agent-dot {
   white-space: nowrap;
   pointer-events: none;
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+}
+
+#document-stats[hidden] {
+  display: none;
+}
+
+#document-stats.ai-thinking {
+  border-color: color-mix(in srgb, var(--link-color) 34%, var(--border-color) 66%);
+  color: var(--link-color);
+  background: color-mix(in srgb, var(--bg-color) 90%, var(--link-color) 10%);
 }
 
 :root[data-background-scope="window"]:not([data-background-mode="default"]) #editor,
@@ -2681,6 +2644,39 @@ body.theme-dark .settings-option input[type="radio"]:checked::after {
   border-color: color-mix(in srgb, var(--link-color) 32%, var(--border-color) 68%);
   background: color-mix(in srgb, var(--link-color) 12%, transparent 88%);
   color: var(--text-color);
+}
+
+.settings-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 35%, transparent 65%);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-color) 96%, var(--border-color) 4%);
+}
+
+.settings-toggle-row span {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.settings-toggle-row strong {
+  color: var(--text-color);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.settings-toggle-row small {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.settings-toggle-row input {
+  flex-shrink: 0;
 }
 
 .settings-field-grid {

@@ -86,7 +86,8 @@ describe('application menu shortcut regression', () => {
 
     expect(main).toContain("ipcMain.handle('get-current-document'")
     expect(preload).toContain('getCurrentDocument: () => ipcRenderer.invoke(\'get-current-document\')')
-    expect(renderer).toContain('api.getCurrentDocument()')
+    expect(renderer).toContain("typeof api.getCurrentDocument === 'function'")
+    expect(renderer).toContain('api.getCurrentDocument().catch(() => null)')
     expect(renderer).toContain('applyOpenedDocument(startupDocument)')
   })
 

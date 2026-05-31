@@ -90,6 +90,7 @@ export interface AppSettings {
   themeName: string
   shortcuts: ShortcutMap
   agentPanelPosition: AgentPanelPosition
+  showDocumentStats: boolean
   background: BackgroundSettings
   font: FontSettings
   aiHelper: AiHelperSettings

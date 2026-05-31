@@ -212,6 +212,7 @@ function createDefaultSettings(): AppSettings {
       openAiPalette: 'CmdOrCtrl+J',
     },
     agentPanelPosition: 'auto',
+    showDocumentStats: true,
     background: {
       mode: 'default',
       scope: 'editor',
@@ -555,7 +556,6 @@ async function init(): Promise<void> {
   const appShell = document.getElementById('app-shell')
   const sidebarToggle = document.getElementById('sidebar-toggle') as HTMLButtonElement | null
   const settingsToggle = document.getElementById('settings-toggle') as HTMLButtonElement | null
-  const agentToggle = document.getElementById('agent-toggle') as HTMLButtonElement | null
   const outlineToggle = document.getElementById('outline-toggle') as HTMLButtonElement | null
   const windowsMenu = document.getElementById('windows-menu') as HTMLElement | null
   const windowMinimize = document.getElementById('window-minimize') as HTMLButtonElement | null
@@ -664,9 +664,28 @@ async function init(): Promise<void> {
     editorPlaceholder.hidden = !shouldShowEmptyEditorPlaceholder(content)
   }
 
-  const updateDocumentStats = (content: string): void => {
+  let latestDocumentStatsText = formatDocumentStats(resolveDocumentStats(''))
+  let documentStatsAiStatus = ''
+
+  const renderDocumentStats = (): void => {
     if (!documentStats) return
-    documentStats.textContent = formatDocumentStats(resolveDocumentStats(content))
+    const shouldShow = appSettings.showDocumentStats !== false
+    documentStats.hidden = !shouldShow
+    documentStats.classList.toggle('ai-thinking', Boolean(documentStatsAiStatus))
+    if (!shouldShow) return
+    documentStats.textContent = documentStatsAiStatus
+      ? `${latestDocumentStatsText} · ${documentStatsAiStatus}`
+      : latestDocumentStatsText
+  }
+
+  const updateDocumentStats = (content: string): void => {
+    latestDocumentStatsText = formatDocumentStats(resolveDocumentStats(content))
+    renderDocumentStats()
+  }
+
+  const updateDocumentStatsAiStatus = (status: string): void => {
+    documentStatsAiStatus = status
+    renderDocumentStats()
   }
 
   const getCurrentDocumentPathForAssets = (): string | null => {
@@ -746,6 +765,7 @@ async function init(): Promise<void> {
       appSettings = settings
       applyBackgroundSettings(appSettings.background)
       applyFontSettings(appSettings.font)
+      renderDocumentStats()
       refreshAgentPanelPlacement()
     },
     onSidebarStateChange: (state) => {
@@ -1611,8 +1631,6 @@ async function init(): Promise<void> {
     appShell?.classList.toggle('agent-open', agentPanelOpen)
     appShell?.classList.toggle('context-panel-agent', showAgentInRightPanel)
     appShell?.classList.toggle('context-panel-outline', showOutlineInRightPanel)
-    agentToggle?.classList.toggle('active', agentPanelOpen)
-    agentToggle?.setAttribute('aria-pressed', agentPanelOpen ? 'true' : 'false')
     outlineToggle?.classList.toggle('active', outlinePanelOpen)
     outlineToggle?.setAttribute('aria-pressed', outlinePanelOpen ? 'true' : 'false')
     contextPanel?.setAttribute('aria-hidden', showContextPanel ? 'false' : 'true')
@@ -1687,15 +1705,19 @@ async function init(): Promise<void> {
       aiPaletteTimerInterval = null
     }
     aiPaletteStartedAt = null
+    updateDocumentStatsAiStatus('')
   }
 
   const startAiPaletteTimer = (): void => {
     clearAiPaletteTimer()
     aiPaletteStartedAt = Date.now()
+    aiPaletteStatusText = '思考中… 0s'
+    updateDocumentStatsAiStatus(aiPaletteStatusText)
     aiPaletteTimerInterval = setInterval(() => {
       if (!aiPaletteStartedAt) return
       const elapsed = Math.floor((Date.now() - aiPaletteStartedAt) / 1000)
       aiPaletteStatusText = `思考中… ${elapsed}s`
+      updateDocumentStatsAiStatus(aiPaletteStatusText)
       renderAiPalette()
     }, 250)
   }
@@ -2696,7 +2718,9 @@ img{max-width:100%}
   api.onFileOpened((data) => {
     applyOpenedDocument(data)
   })
-  const startupDocument = await api.getCurrentDocument()
+  const startupDocument = typeof api.getCurrentDocument === 'function'
+    ? await api.getCurrentDocument().catch(() => null)
+    : null
   if (startupDocument) {
     applyOpenedDocument(startupDocument)
   }
@@ -2718,10 +2742,6 @@ img{max-width:100%}
     void importCustomThemeSelection()
   })
 
-  const agentDot = document.getElementById('agent-dot')
-  api.onAgentActivity((state) => {
-    if (agentDot) agentDot.className = state === 'idle' ? '' : state
-  })
   api.onAgentChangeSummary((payload) => {
     queuedAgentChangePayload = payload
   })
@@ -2740,10 +2760,6 @@ img{max-width:100%}
   settingsToggle?.addEventListener('click', () => {
     closeTitleSyncPrompt()
     settingsDialog.open()
-  })
-
-  agentToggle?.addEventListener('click', () => {
-    openAiPalette()
   })
 
   const handleAiHelperTemplateChange = (templateSelect: HTMLSelectElement): void => {

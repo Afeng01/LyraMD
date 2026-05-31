@@ -49,7 +49,8 @@ describe('AI command palette regression', () => {
     const paletteRule = css.match(/#ai-command-palette\s*\{[\s\S]*?\}/)?.[0] ?? ''
     const listRule = css.match(/\.ai-palette-list\s*\{[\s\S]*?\}/)?.[0] ?? ''
 
-    expect(overlayRule).toContain('padding-top: min(12vh, 96px)')
+    expect(overlayRule).toContain('align-items: center')
+    expect(overlayRule).toContain('padding: 24px 16px')
     expect(paletteRule).toContain('width: min(560px, calc(100vw - 32px))')
     expect(paletteRule).toContain('max-height: min(460px, calc(100vh - 220px))')
     expect(listRule).toContain('min-height: 0')
@@ -148,13 +149,24 @@ describe('AI command palette regression', () => {
     expect(renderer).toMatch(/const toggleAgentPanel = \(\): void => \{\s*openAiPalette\(\)\s*\}/)
   })
 
-  it('wires agent-toggle button click to openAiPalette', () => {
+  it('does not keep a top-right agent-toggle button for the built-in palette', () => {
+    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
     const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
 
-    const agentToggleIdx = renderer.indexOf("agentToggle?.addEventListener('click'")
-    expect(agentToggleIdx).not.toBe(-1)
-    const block = renderer.slice(agentToggleIdx, agentToggleIdx + 100)
-    expect(block).toContain('openAiPalette()')
+    expect(html).not.toContain('id="agent-toggle"')
+    expect(html).not.toContain('id="agent-dot"')
+    expect(renderer).not.toContain('agentToggle?.addEventListener')
+  })
+
+  it('mirrors AI thinking state into the bottom document stats area', () => {
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+
+    expect(renderer).toContain('let documentStatsAiStatus')
+    expect(renderer).toContain('const updateDocumentStatsAiStatus')
+    expect(renderer).toContain('updateDocumentStatsAiStatus(aiPaletteStatusText)')
+    expect(renderer).toContain("updateDocumentStatsAiStatus('')")
+    expect(css).toContain('#document-stats.ai-thinking')
   })
 
   it('connects the native menu to the palette via preload and renderer', () => {

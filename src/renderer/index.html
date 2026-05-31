@@ -107,13 +107,6 @@
           <line x1="17" y1="16" x2="23" y2="16"></line>
         </svg>
       </button>
-      <button id="agent-toggle" class="context-toggle" type="button" aria-label="AI 精灵" title="AI 精灵 (Cmd/Ctrl+J)">
-        <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M9 2.8l.78 2.1 2.1.78-2.1.78L9 8.56l-.78-2.1-2.1-.78 2.1-.78L9 2.8z" />
-          <path d="M13.1 9.6l.52 1.42 1.42.52-1.42.52-.52 1.42-.52-1.42-1.42-.52 1.42-.52.52-1.42z" />
-          <path d="M4.9 10.6l.42 1.14 1.14.42-1.14.42-.42 1.14-.42-1.14-1.14-.42 1.14-.42.42-1.14z" />
-        </svg>
-      </button>
       <button id="outline-toggle" type="button" aria-label="打开大纲" title="打开大纲 (Cmd/Ctrl+Shift+O)">
         <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <line x1="4" y1="4" x2="14" y2="4"></line>
@@ -121,7 +114,6 @@
           <line x1="8" y1="14" x2="14" y2="14"></line>
         </svg>
       </button>
-      <div id="agent-dot"></div>
     </div>
     <div id="workspace">
       <div id="sidebar-drawer-backdrop" hidden aria-hidden="true"></div>
@@ -606,56 +598,16 @@
 
               <section class="settings-group">
                 <div class="settings-group-heading">
-                  <h4 class="settings-group-title">背景</h4>
-                  <p class="settings-group-copy">选择背景作用范围，并用遮罩和模糊保护文字可读性。</p>
+                  <h4 class="settings-group-title">底部状态</h4>
+                  <p class="settings-group-copy">控制右下角字数统计和 AI 精灵思考状态是否显示。</p>
                 </div>
-                <div class="settings-compact-row" role="group" aria-label="背景作用范围">
-                  <label class="settings-pill-option">
-                    <input id="settings-background-scope-editor" type="radio" name="settings-background-scope" value="editor">
-                    <span>编辑区</span>
-                  </label>
-                  <label class="settings-pill-option">
-                    <input id="settings-background-scope-window" type="radio" name="settings-background-scope" value="window">
-                    <span>整个窗口</span>
-                  </label>
-                </div>
-                <div class="settings-compact-row" role="group" aria-label="背景类型">
-                  <label class="settings-pill-option">
-                    <input id="settings-background-mode-default" type="radio" name="settings-background-mode" value="default">
-                    <span>默认</span>
-                  </label>
-                  <label class="settings-pill-option">
-                    <input id="settings-background-mode-color" type="radio" name="settings-background-mode" value="color">
-                    <span>颜色</span>
-                  </label>
-                  <label class="settings-pill-option">
-                    <input id="settings-background-mode-image" type="radio" name="settings-background-mode" value="image">
-                    <span>图片</span>
-                  </label>
-                </div>
-                <div class="settings-field-grid">
-                  <label class="settings-field">
-                    <span>颜色</span>
-                    <input id="settings-background-color" type="color" value="#ffffff">
-                  </label>
-                  <label class="settings-field span-2">
-                    <span>图片路径</span>
-                    <input id="settings-background-image-path" type="text" placeholder="/Users/name/Pictures/background.jpg" spellcheck="false">
-                  </label>
-                  <label class="settings-field">
-                    <span>透明度</span>
-                    <input id="settings-background-opacity" type="number" min="0" max="1" step="0.05">
-                  </label>
-                  <label class="settings-field">
-                    <span>模糊</span>
-                    <input id="settings-background-blur" type="number" min="0" max="40" step="1">
-                  </label>
-                  <label class="settings-field">
-                    <span>遮罩</span>
-                    <input id="settings-background-dim" type="number" min="0" max="1" step="0.05">
-                  </label>
-                </div>
-                <button id="settings-background-reset" type="button" class="overlay-button">恢复默认背景</button>
+                <label class="settings-toggle-row">
+                  <span>
+                    <strong>显示字数与 AI 状态</strong>
+                    <small>关闭后隐藏右下角统计和思考计时。</small>
+                  </span>
+                  <input id="settings-show-document-stats" type="checkbox">
+                </label>
               </section>
             </section>
 

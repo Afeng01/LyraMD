@@ -92,19 +92,18 @@ describe('settings dialog regression', () => {
     expect(css).toContain('settings-usage-guide')
   })
 
-  it('renders compact background appearance controls', () => {
+  it('removes background controls and renders bottom status visibility control', () => {
     const file = readFileSync(join(process.cwd(), 'src/renderer/settings-dialog.ts'), 'utf8')
     const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
 
-    expect(html).toContain('name="settings-background-scope"')
-    expect(html).toContain('value="editor"')
-    expect(html).toContain('value="window"')
-    expect(html).toContain('name="settings-background-mode"')
-    expect(html).toContain('id="settings-background-opacity"')
-    expect(html).toContain('id="settings-background-blur"')
-    expect(html).toContain('id="settings-background-dim"')
-    expect(html).toContain('id="settings-background-reset"')
-    expect(file).toContain('api.updateSettings({ background })')
+    expect(html).not.toContain('name="settings-background-scope"')
+    expect(html).not.toContain('name="settings-background-mode"')
+    expect(html).not.toContain('id="settings-background-opacity"')
+    expect(html).not.toContain('id="settings-background-reset"')
+    expect(html).toContain('id="settings-show-document-stats"')
+    expect(html).toContain('显示字数与 AI 状态')
+    expect(file).toContain('updateShowDocumentStats')
+    expect(file).toContain('api.updateSettings({ showDocumentStats')
   })
 
   it('opens settings from buttons and shortcuts instead of toggling an already open dialog closed', () => {

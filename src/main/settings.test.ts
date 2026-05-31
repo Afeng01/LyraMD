@@ -71,12 +71,31 @@ describe('loadAppSettings', () => {
     const settings = settingsModule.normalizeAppSettings({})
 
     expect(settings.agentPanelPosition).toBe('auto')
+    expect(settings.showDocumentStats).toBe(true)
     expect(settings.background.mode).toBe('default')
     expect(settings.background.scope).toBe('editor')
     expect(settings.font).toEqual({
       customFamily: '',
       preset: 'theme',
     })
+  })
+
+  it('normalizes and updates bottom document stats visibility', async () => {
+    const settingsModule = await loadSettingsModule()
+    const tempDir = await createTempDir()
+    const settingsPath = join(tempDir, 'settings.json')
+
+    expect(settingsModule.normalizeAppSettings({ showDocumentStats: false }).showDocumentStats).toBe(false)
+    expect(settingsModule.normalizeAppSettings({ showDocumentStats: 'nope' } as never).showDocumentStats).toBe(true)
+
+    const next = await settingsModule.updateAppSettings(
+      settingsPath,
+      settingsModule.DEFAULT_APP_SETTINGS,
+      { showDocumentStats: false } as never,
+    )
+
+    expect(next.showDocumentStats).toBe(false)
+    expect(JSON.parse(await readFile(settingsPath, 'utf-8')).showDocumentStats).toBe(false)
   })
 
   it('rejects invalid background settings', async () => {

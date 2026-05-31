@@ -286,6 +286,7 @@ export function createSettingsDialogController({
   const saveAsInputs = Array.from(
     document.querySelectorAll<HTMLInputElement>('input[name="settings-save-as-mode"]'),
   )
+  const showDocumentStatsInput = document.getElementById('settings-show-document-stats') as HTMLInputElement | null
   const backgroundScopeInputs = Array.from(
     document.querySelectorAll<HTMLInputElement>('input[name="settings-background-scope"]'),
   )
@@ -422,6 +423,10 @@ export function createSettingsDialogController({
 
     for (const input of saveAsInputs) {
       input.checked = input.value === appSettings.saveAsMode
+    }
+
+    if (showDocumentStatsInput) {
+      showDocumentStatsInput.checked = appSettings.showDocumentStats !== false
     }
 
     if (draftPreview) {
@@ -610,6 +615,16 @@ export function createSettingsDialogController({
     const next = (await api.updateSettings({ saveAsMode: mode }).catch(() => null)) ?? {
       ...current,
       saveAsMode: mode,
+    }
+    onAppSettingsChange(next)
+    render()
+  }
+
+  const updateShowDocumentStats = async (showDocumentStats: boolean): Promise<void> => {
+    const current = getAppSettings()
+    const next = (await api.updateSettings({ showDocumentStats }).catch(() => null)) ?? {
+      ...current,
+      showDocumentStats,
     }
     onAppSettingsChange(next)
     render()
@@ -842,6 +857,10 @@ export function createSettingsDialogController({
       void updateSaveAsMode(input.value as SaveAsMode)
     })
   }
+
+  showDocumentStatsInput?.addEventListener('change', () => {
+    void updateShowDocumentStats(showDocumentStatsInput.checked)
+  })
 
   for (const input of backgroundScopeInputs) {
     input.addEventListener('change', () => {

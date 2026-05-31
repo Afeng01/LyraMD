@@ -59,6 +59,7 @@ export interface AppSettings {
   themeName: string
   shortcuts: ShortcutMap
   agentPanelPosition: AgentPanelPosition
+  showDocumentStats: boolean
   background: BackgroundSettings
   font: FontSettings
   aiHelper: AiHelperSettings
@@ -134,6 +135,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   themeName: 'elegant',
   shortcuts: DEFAULT_SHORTCUTS,
   agentPanelPosition: 'auto',
+  showDocumentStats: true,
   background: {
     mode: 'default',
     scope: 'editor',
@@ -389,6 +391,9 @@ export function normalizeAppSettings(input: PersistedAppSettings | null | undefi
     agentPanelPosition: isAgentPanelPosition(input?.agentPanelPosition)
       ? input.agentPanelPosition
       : DEFAULT_APP_SETTINGS.agentPanelPosition,
+    showDocumentStats: typeof input?.showDocumentStats === 'boolean'
+      ? input.showDocumentStats
+      : DEFAULT_APP_SETTINGS.showDocumentStats,
     background: normalizeBackgroundSettings(input?.background),
     font: normalizeFontSettings(input?.font),
     aiHelper: normalizeAiHelperSettings(input?.aiHelper),
@@ -433,6 +438,9 @@ export async function updateAppSettings(
     agentPanelPosition: isAgentPanelPosition(patch.agentPanelPosition)
       ? patch.agentPanelPosition
       : currentSettings.agentPanelPosition,
+    showDocumentStats: typeof patch.showDocumentStats === 'boolean'
+      ? patch.showDocumentStats
+      : currentSettings.showDocumentStats,
     background: patch.background === undefined
       ? normalizeBackgroundSettings(currentSettings.background)
       : normalizeBackgroundSettings(patch.background),

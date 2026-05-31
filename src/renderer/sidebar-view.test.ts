@@ -202,12 +202,13 @@ describe('pinned view helpers', () => {
     ])
   })
 
-  it('lets pinned rows flow into the main sidebar scroll instead of owning another scrollbar', () => {
+  it('caps pinned rows at three items before vertical scrolling', () => {
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
 
     const pinnedRule = css.match(/#pinned-list\s*\{[\s\S]*?\}/)?.[0] ?? ''
-    expect(pinnedRule).toContain('max-height: none')
-    expect(pinnedRule).toContain('overflow-y: visible')
+    expect(pinnedRule).toContain('max-height: calc((34px + 4px) * 3 - 4px)')
+    expect(pinnedRule).toContain('overflow-y: auto')
+    expect(pinnedRule).toContain('overscroll-behavior: contain')
   })
 })
 
@@ -450,12 +451,22 @@ describe('sidebar polish regression', () => {
     expect(activeTitleRule).not.toContain('white-space: normal')
   })
 
-  it('avoids a second visible scrollbar in pinned rows', () => {
+  it('matches workspace surface color to the library area', () => {
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+    const workspaceRule = css.match(/#workspaces-section\s*\{[\s\S]*?\}/)?.[0] ?? ''
+    const libraryRule = css.match(/#library-section\s*\{[\s\S]*?\}/)?.[0] ?? ''
+
+    expect(workspaceRule).toContain('background: color-mix(in srgb, var(--bg-color) 96%, var(--border-color) 4%)')
+    expect(workspaceRule).toContain('border: 1px solid color-mix(in srgb, var(--border-color) 58%, transparent 42%)')
+    expect(libraryRule).toContain('background: color-mix(in srgb, var(--bg-color) 96%, var(--border-color) 4%)')
+  })
+
+  it('keeps pinned rows in a compact three-item scroll area', () => {
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
     const pinnedRule = css.match(/#pinned-list\s*\{[\s\S]*?\}/)?.[0] ?? ''
 
-    expect(pinnedRule).toContain('overflow-y: visible')
-    expect(pinnedRule).not.toContain('overflow-y: auto')
+    expect(pinnedRule).toContain('max-height: calc((34px + 4px) * 3 - 4px)')
+    expect(pinnedRule).toContain('overflow-y: auto')
   })
 
   it('uses a stronger tab active state with existing color variables', () => {

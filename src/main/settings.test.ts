@@ -388,6 +388,8 @@ describe('updateAppSettings', () => {
       'fix-grammar',
       'rephrase',
       'simplify',
+      'expand',
+      'vivid',
       'rewrite-english',
       'translate',
       'summarize',

@@ -142,6 +142,8 @@ describe('settings dialog regression', () => {
     expect(file).toContain('createCustomAiTemplate')
     expect(file).toContain('updateAiHelperSettings')
     expect(file).toContain('api.updateSettings({ aiHelper')
+    expect(file).toContain("id: 'expand'")
+    expect(file).toContain("id: 'vivid'")
     expect(css).toContain('.settings-ai-template-list')
   })
 

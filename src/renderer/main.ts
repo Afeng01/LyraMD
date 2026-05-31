@@ -251,13 +251,23 @@ function createDefaultSettings(): AppSettings {
         },
         {
           id: 'rephrase',
-          title: '改述',
+          title: '转述',
           prompt: '请用不同的措辞和句式改写下面文字，严格保留原意和语气。只返回改写后的文字，不要解释：\n\n{{selection}}',
         },
         {
           id: 'simplify',
           title: 'Simplify',
           prompt: '请把下面文字改写得更容易理解，使用更简单的词和更短的句子，同时保留原意。只返回改写后的文字，不要解释：\n\n{{selection}}',
+        },
+        {
+          id: 'expand',
+          title: 'Expand',
+          prompt: '请把下面这段简短文字扩写成更完整、自然的段落，补充必要的细节、例子或解释，同时保留作者语气。只返回扩写后的文字，不要解释：\n\n{{selection}}',
+        },
+        {
+          id: 'vivid',
+          title: 'Vivid',
+          prompt: '请为下面文字增加更具体的感官细节、画面感和有力措辞，让表达更生动，同时保留原意和基本结构。只返回改写后的文字，不要解释：\n\n{{selection}}',
         },
         {
           id: 'rewrite-english',
@@ -1688,6 +1698,8 @@ async function init(): Promise<void> {
     if (templateId === 'fix-grammar') return 'Fix grammar and spelling'
     if (templateId === 'rephrase') return 'Say the same thing differently'
     if (templateId === 'simplify') return 'Use simpler language'
+    if (templateId === 'expand') return 'Develop idea into fuller prose'
+    if (templateId === 'vivid') return 'Add sensory details and imagery'
     if (templateId === 'rewrite-english') return 'Rewrite text in English'
     if (templateId === 'translate') return 'Translate to English'
     if (templateId === 'summarize') return '提炼为简洁要点'
@@ -1697,7 +1709,7 @@ async function init(): Promise<void> {
   const getAiPaletteTemplateCategory = (templateId: string): string => {
     if (['polish', 'condense', 'fix-grammar', 'simplify'].includes(templateId)) return 'EDITING'
     if (['rewrite-english', 'translate'].includes(templateId)) return 'TOOLS'
-    if (['rephrase'].includes(templateId)) return 'CREATIVE'
+    if (['rephrase', 'expand', 'vivid'].includes(templateId)) return 'CREATIVE'
     if (['summarize'].includes(templateId)) return 'STRUCTURE'
     return 'CUSTOM'
   }

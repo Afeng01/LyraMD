@@ -43,6 +43,19 @@ describe('AI command palette regression', () => {
     expect(css).toContain('.ai-suggestion-actions')
   })
 
+  it('keeps the palette compact and scrolls surplus commands inside the list', () => {
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+    const overlayRule = css.match(/#ai-command-overlay\s*\{[\s\S]*?\}/)?.[0] ?? ''
+    const paletteRule = css.match(/#ai-command-palette\s*\{[\s\S]*?\}/)?.[0] ?? ''
+    const listRule = css.match(/\.ai-palette-list\s*\{[\s\S]*?\}/)?.[0] ?? ''
+
+    expect(overlayRule).toContain('padding-top: min(14vh, 120px)')
+    expect(paletteRule).toContain('width: min(640px, calc(100vw - 32px))')
+    expect(paletteRule).toContain('max-height: min(560px, calc(100vh - 180px))')
+    expect(listRule).toContain('min-height: 0')
+    expect(listRule).toContain('overflow: auto')
+  })
+
   it('keeps the page behind the AI palette clear instead of blurred', () => {
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
     const overlayRule = css.match(/#ai-command-overlay\s*\{[\s\S]*?\}/)?.[0] ?? ''
@@ -82,6 +95,8 @@ describe('AI command palette regression', () => {
     expect(renderer).toContain('getAiPaletteCategoryLabel')
     expect(renderer).toContain("return 'EDITING'")
     expect(renderer).toContain("return 'TOOLS'")
+    expect(renderer).toContain("if (['rephrase', 'expand', 'vivid'].includes(templateId)) return 'CREATIVE'")
+    expect(renderer).toContain("if (templateId === 'expand') return 'Develop idea into fuller prose'")
   })
 
   it('creates editor inline suggestion preview after AI completes', () => {

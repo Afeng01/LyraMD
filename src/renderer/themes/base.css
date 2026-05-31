@@ -495,10 +495,10 @@ body.platform-win32 #agent-dot {
 }
 
 #workspaces-section {
-  padding: 10px;
-  border: 1px solid color-mix(in srgb, var(--border-color) 72%, transparent 28%);
+  padding: 6px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 58%, transparent 42%);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--bg-color) 94%, var(--border-color) 6%);
+  background: color-mix(in srgb, var(--bg-color) 96%, var(--border-color) 4%);
 }
 
 #workspaces-section .sidebar-section-header {
@@ -568,10 +568,11 @@ body.platform-win32 #agent-dot {
 }
 
 #pinned-list {
-  max-height: none;
-  overflow-y: visible;
+  max-height: calc((34px + 4px) * 3 - 4px);
+  overflow-y: auto;
   overflow-x: hidden;
-  padding-right: 0;
+  overscroll-behavior: contain;
+  padding-right: 2px;
 }
 
 .sidebar-recent-row {
@@ -1410,7 +1411,7 @@ body.platform-win32 #agent-dot {
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding-top: min(15vh, 150px);
+  padding-top: min(14vh, 120px);
   background: transparent;
   -webkit-app-region: no-drag;
 }
@@ -1421,7 +1422,7 @@ body.platform-win32 #agent-dot {
 
 #ai-command-palette {
   width: min(640px, calc(100vw - 32px));
-  max-height: min(680px, calc(100vh - 80px));
+  max-height: min(560px, calc(100vh - 180px));
   overflow: hidden;
   padding: 0;
   border: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent 40%);
@@ -1542,6 +1543,7 @@ body.platform-win32 #agent-dot {
 }
 
 .ai-palette-list {
+  min-height: 0;
   overflow: auto;
   padding: 10px 8px;
   display: grid;

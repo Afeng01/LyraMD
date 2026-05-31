@@ -89,6 +89,8 @@ const DEFAULT_AI_HELPER_SETTINGS: AiHelperSettings = {
 
 const BUILT_IN_AI_TEMPLATE_IDS = new Set(DEFAULT_AI_PROMPT_TEMPLATES.map((template) => template.id))
 
+type AiProviderPreset = 'openai' | 'claude-gateway' | 'custom-gateway'
+
 function isBuiltInAiTemplate(templateId: string | null | undefined): boolean {
   return typeof templateId === 'string' && BUILT_IN_AI_TEMPLATE_IDS.has(templateId)
 }
@@ -170,6 +172,7 @@ export interface SettingsDialogController {
   close: () => void
   isOpen: () => boolean
   open: () => void
+  openPane: (pane: SettingsPaneId) => void
   refresh: () => void
   toggle: () => void
 }
@@ -225,7 +228,7 @@ interface CreateSettingsDialogControllerOptions {
   onSidebarStateChange: (state: SidebarState) => void
 }
 
-type SettingsPaneId = 'general' | 'workspace' | 'shortcuts' | 'integrations'
+export type SettingsPaneId = 'general' | 'workspace' | 'shortcuts' | 'integrations'
 
 const SETTINGS_PANE_META: Record<
   SettingsPaneId,
@@ -306,16 +309,20 @@ export function createSettingsDialogController({
   const aiTemplateDeleteButton = document.getElementById('settings-ai-template-delete') as HTMLButtonElement | null
   const aiTemplateTitleInput = document.getElementById('settings-ai-template-title') as HTMLInputElement | null
   const aiTemplatePrompt = document.getElementById('settings-ai-template-prompt') as HTMLTextAreaElement | null
+  const aiProviderPanel = document.getElementById('settings-ai-provider-panel') as HTMLDivElement | null
+  const aiProviderPresetButtons = Array.from(
+    document.querySelectorAll<HTMLButtonElement>('[data-ai-provider-preset]'),
+  )
   const aiBaseUrlInput = document.getElementById('settings-ai-base-url') as HTMLInputElement | null
   const aiApiKeyInput = document.getElementById('settings-ai-api-key') as HTMLInputElement | null
   const aiModelInput = document.getElementById('settings-ai-model') as HTMLInputElement | null
   const aiTemperatureInput = document.getElementById('settings-ai-temperature') as HTMLInputElement | null
   const aiTestButton = document.getElementById('settings-ai-test') as HTMLButtonElement | null
   const aiTestStatus = document.getElementById('settings-ai-test-status') as HTMLDivElement | null
-  const aiTestModal = document.getElementById('settings-ai-test-modal') as HTMLDivElement | null
-  const aiTestModalTitle = document.getElementById('settings-ai-test-modal-title') as HTMLElement | null
-  const aiTestModalMessage = document.getElementById('settings-ai-test-modal-message') as HTMLParagraphElement | null
-  const aiTestModalClose = document.getElementById('settings-ai-test-modal-close') as HTMLButtonElement | null
+  const aiTestToast = document.getElementById('settings-ai-test-toast') as HTMLDivElement | null
+  const aiTestToastTitle = document.getElementById('settings-ai-test-toast-title') as HTMLElement | null
+  const aiTestToastMessage = document.getElementById('settings-ai-test-toast-message') as HTMLParagraphElement | null
+  const aiTestToastClose = document.getElementById('settings-ai-test-toast-close') as HTMLButtonElement | null
   const shortcutKeys = Array.from(
     document.querySelectorAll<HTMLElement>('[data-shortcut-action]'),
   )
@@ -337,7 +344,8 @@ export function createSettingsDialogController({
   let aiTestLoading = false
   let aiTestStatusText = ''
   let aiTestStatusTone: 'error' | 'success' | '' = ''
-  let aiTestDialogOpen = false
+  let aiTestToastOpen = false
+  let aiTestToastTimer: number | null = null
 
   initSettingsDialogDrag(overlay, dialog, topBar)
 
@@ -400,6 +408,14 @@ export function createSettingsDialogController({
     if (['rewrite-english', 'translate'].includes(templateId)) return { id: 'language', label: '翻译' }
     if (templateId === 'summarize') return { id: 'structure', label: '总结' }
     return { id: 'custom', label: '自定义' }
+  }
+
+  const resolveAiProviderPreset = (provider: AiHelperProviderSettings): AiProviderPreset => {
+    const baseUrl = provider.baseUrl.toLowerCase()
+    const model = provider.model.toLowerCase()
+    if (baseUrl.includes('api.openai.com')) return 'openai'
+    if (model.includes('claude')) return 'claude-gateway'
+    return 'custom-gateway'
   }
 
   const renderAiTemplateButtons = (templates: AiPromptTemplate[]): void => {
@@ -494,10 +510,16 @@ export function createSettingsDialogController({
 
     const aiHelper = appSettings.aiHelper ?? DEFAULT_AI_HELPER_SETTINGS
     const aiProvider = aiHelper.provider ?? DEFAULT_AI_HELPER_SETTINGS.provider
+    const activeProviderPreset = resolveAiProviderPreset(aiProvider)
     if (aiBaseUrlInput) aiBaseUrlInput.value = aiProvider.baseUrl
     if (aiApiKeyInput) aiApiKeyInput.value = aiProvider.apiKey
     if (aiModelInput) aiModelInput.value = aiProvider.model
     if (aiTemperatureInput) aiTemperatureInput.value = String(aiProvider.temperature)
+    for (const button of aiProviderPresetButtons) {
+      const isActive = button.dataset.aiProviderPreset === activeProviderPreset
+      button.classList.toggle('active', isActive)
+      button.setAttribute('aria-pressed', String(isActive))
+    }
     const activeAiTemplate = aiHelper.templates.find((template) => template.id === activeAiTemplateId)
       ?? aiHelper.templates[0]
       ?? DEFAULT_AI_PROMPT_TEMPLATES[0]
@@ -520,18 +542,19 @@ export function createSettingsDialogController({
       aiTestStatus.classList.toggle('settings-integration-error', aiTestStatusTone === 'error')
       aiTestStatus.classList.toggle('settings-status-success', aiTestStatusTone === 'success')
     }
-    if (aiTestModal) {
-      aiTestModal.hidden = !aiTestDialogOpen
-      aiTestModal.classList.toggle('success', aiTestStatusTone === 'success')
-      aiTestModal.classList.toggle('error', aiTestStatusTone === 'error')
+    if (aiTestToast) {
+      aiTestToast.hidden = !aiTestToastOpen
+      aiTestToast.classList.toggle('loading', aiTestLoading)
+      aiTestToast.classList.toggle('success', aiTestStatusTone === 'success')
+      aiTestToast.classList.toggle('error', aiTestStatusTone === 'error')
     }
-    if (aiTestModalTitle) {
-      aiTestModalTitle.textContent = aiTestLoading
+    if (aiTestToastTitle) {
+      aiTestToastTitle.textContent = aiTestLoading
         ? '正在检测'
         : (aiTestStatusTone === 'success' ? '连接正常' : '连接失败')
     }
-    if (aiTestModalMessage) {
-      aiTestModalMessage.textContent = aiTestStatusText || '正在检测 AI 连接...'
+    if (aiTestToastMessage) {
+      aiTestToastMessage.textContent = aiTestStatusText || '正在检测 AI 连接...'
     }
     renderAiTemplateButtons(aiHelper.templates)
 
@@ -612,17 +635,46 @@ export function createSettingsDialogController({
     renderCodexIntegration()
   }
 
+  const clearAiTestToastTimer = (): void => {
+    if (aiTestToastTimer == null) return
+    window.clearTimeout(aiTestToastTimer)
+    aiTestToastTimer = null
+  }
+
+  const showAiTestToast = (text: string, tone: 'error' | 'success' | '' = '', autoHide = true): void => {
+    clearAiTestToastTimer()
+    aiTestStatusText = text
+    aiTestStatusTone = tone
+    aiTestToastOpen = true
+    render()
+    if (!autoHide) return
+    aiTestToastTimer = window.setTimeout(() => {
+      aiTestToastOpen = false
+      aiTestToastTimer = null
+      render()
+    }, tone === 'error' ? 4200 : 2800)
+  }
+
   const open = (): void => {
     dialogOpen = true
     clearShortcutConflict()
     render()
-    void loadCodexStatus()
+    if (activePane === 'integrations') void loadCodexStatus()
     if (!overlay) return
     overlay.hidden = false
     overlay.setAttribute('aria-hidden', 'false')
     queueMicrotask(() => {
+      if (activePane === 'integrations') {
+        aiProviderPanel?.focus()
+        return
+      }
       closeButton?.focus()
     })
+  }
+
+  const openPane = (pane: SettingsPaneId): void => {
+    activePane = pane
+    open()
   }
 
   const close = (): void => {
@@ -723,6 +775,30 @@ export function createSettingsDialogController({
     })
   }
 
+  const applyAiProviderPreset = async (preset: AiProviderPreset): Promise<void> => {
+    const current = getAppSettings().aiHelper?.provider ?? DEFAULT_AI_HELPER_SETTINGS.provider
+    if (preset === 'openai') {
+      await updateAiHelperProviderSettings({
+        baseUrl: 'https://api.openai.com/v1',
+        model: current.model.toLowerCase().includes('claude') ? DEFAULT_AI_HELPER_SETTINGS.provider.model : current.model,
+      })
+      return
+    }
+
+    if (preset === 'claude-gateway') {
+      await updateAiHelperProviderSettings({
+        baseUrl: current.baseUrl,
+        model: current.model.toLowerCase().includes('claude') ? current.model : 'claude-sonnet-4-5',
+      })
+      return
+    }
+
+    await updateAiHelperProviderSettings({
+      baseUrl: current.baseUrl,
+      model: current.model,
+    })
+  }
+
   const readAiProviderSettingsFromInputs = (): AiHelperProviderSettings => {
     const current = getAppSettings().aiHelper?.provider ?? DEFAULT_AI_HELPER_SETTINGS.provider
     return {
@@ -775,10 +851,7 @@ export function createSettingsDialogController({
   const testAiHelperConnection = async (): Promise<void> => {
     if (aiTestLoading) return
     aiTestLoading = true
-    aiTestStatusText = '正在检测 AI 连接...'
-    aiTestStatusTone = ''
-    aiTestDialogOpen = true
-    render()
+    showAiTestToast('正在检测 AI 连接...', '', false)
     const current = getAppSettings()
     const currentAiHelper = current.aiHelper ?? DEFAULT_AI_HELPER_SETTINGS
     const provider = readAiProviderSettingsFromInputs()
@@ -800,10 +873,10 @@ export function createSettingsDialogController({
       error: error instanceof Error ? error.message : 'AI 连接检测失败。',
     }))
     aiTestLoading = false
-    aiTestStatusText = result.ok ? (result.text ?? 'AI 连接正常。') : (result.error ?? 'AI 连接检测失败。')
-    aiTestStatusTone = result.ok ? 'success' : 'error'
-    aiTestDialogOpen = true
-    render()
+    showAiTestToast(
+      result.ok ? (result.text ?? 'AI 连接正常。') : (result.error ?? 'AI 连接检测失败。'),
+      result.ok ? 'success' : 'error',
+    )
   }
 
   const updateShortcut = async (action: ShortcutAction, accelerator: string): Promise<void> => {
@@ -982,8 +1055,17 @@ export function createSettingsDialogController({
     void deleteSelectedCustomAiPromptTemplate()
   })
 
-  aiTestModalClose?.addEventListener('click', () => {
-    aiTestDialogOpen = false
+  for (const button of aiProviderPresetButtons) {
+    button.addEventListener('click', () => {
+      const preset = button.dataset.aiProviderPreset as AiProviderPreset | undefined
+      if (!preset) return
+      void applyAiProviderPreset(preset)
+    })
+  }
+
+  aiTestToastClose?.addEventListener('click', () => {
+    clearAiTestToastTimer()
+    aiTestToastOpen = false
     render()
   })
 
@@ -1071,6 +1153,7 @@ export function createSettingsDialogController({
     close,
     isOpen: () => dialogOpen,
     open,
+    openPane,
     refresh: render,
     toggle,
   }

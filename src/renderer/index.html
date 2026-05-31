@@ -321,7 +321,7 @@
         <div id="ai-palette-list" class="ai-palette-list" role="listbox" aria-label="AI 精灵动作"></div>
         <div class="ai-palette-footer">
           <span id="ai-palette-scope" class="ai-palette-scope">范围：selection</span>
-          <span>通过 OpenAI</span>
+          <button id="ai-palette-provider-link" type="button" class="ai-palette-provider-button">通过 OpenAI</button>
           <span class="ai-palette-hint"><kbd>Tab</kbd> 切换范围 <kbd>↑↓</kbd> 导航</span>
         </div>
       </div>
@@ -473,6 +473,19 @@
                     <li>在正文里选中文本后按 Cmd/Ctrl+J 打开 AI 精灵，选择模板或输入指令；结果会以内联建议出现，可接受或拒绝。</li>
                   </ol>
                 </div>
+                <div id="settings-ai-provider-panel" class="settings-ai-provider-panel" tabindex="-1">
+                  <div class="settings-ai-provider-copy">
+                    <span>API 供应商</span>
+                    <strong>OpenAI 兼容接口</strong>
+                    <p>支持 OpenAI 官方、new-api/cpa，以及 Claude 等兼容网关。</p>
+                  </div>
+                  <span class="settings-ai-provider-badge">OpenAI Compatible</span>
+                  <div class="settings-ai-provider-presets" role="group" aria-label="API 供应商选择">
+                    <button type="button" data-ai-provider-preset="openai">OpenAI</button>
+                    <button type="button" data-ai-provider-preset="claude-gateway">Claude 网关</button>
+                    <button type="button" data-ai-provider-preset="custom-gateway">自定义网关</button>
+                  </div>
+                </div>
                 <div class="settings-field-grid">
                   <label class="settings-field span-2">
                     <span>Base URL</span>
@@ -496,19 +509,20 @@
                   </div>
                 </div>
                 <div id="settings-ai-test-status" class="settings-integration-copy" hidden></div>
-                <div id="settings-ai-test-modal" class="settings-ai-test-modal" role="status" aria-live="polite" hidden>
-                  <div class="settings-ai-test-modal-card">
-                    <strong id="settings-ai-test-modal-title">连接检测</strong>
-                    <p id="settings-ai-test-modal-message">正在检测 AI 连接...</p>
-                    <button id="settings-ai-test-modal-close" type="button" class="overlay-button">知道了</button>
+                <div id="settings-ai-test-toast" class="settings-ai-test-toast" role="status" aria-live="polite" hidden>
+                  <span class="settings-ai-test-toast-dot" aria-hidden="true"></span>
+                  <div class="settings-ai-test-toast-copy">
+                    <strong id="settings-ai-test-toast-title">连接检测</strong>
+                    <p id="settings-ai-test-toast-message">正在检测 AI 连接...</p>
                   </div>
+                  <button id="settings-ai-test-toast-close" type="button" class="settings-ai-test-toast-close" aria-label="关闭连接检测提示">×</button>
                 </div>
                 <div class="settings-ai-template-toolbar">
                   <div id="settings-ai-template-list" class="settings-ai-template-list" role="tablist" aria-label="AI prompt 模板"></div>
                   <div class="settings-ai-template-actions">
-                    <button id="settings-ai-template-add" type="button" class="overlay-button">新增</button>
+                    <button id="settings-ai-template-add" type="button" class="overlay-button settings-ai-template-action add">新增</button>
                     <div class="settings-ai-template-delete-zone">
-                      <button id="settings-ai-template-delete" type="button" class="overlay-button">删除</button>
+                      <button id="settings-ai-template-delete" type="button" class="overlay-button settings-ai-template-action delete">删除</button>
                     </div>
                   </div>
                 </div>

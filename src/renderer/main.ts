@@ -645,6 +645,7 @@ async function init(): Promise<void> {
   const aiPaletteList = document.getElementById('ai-palette-list') as HTMLDivElement | null
   const aiPaletteStatus = document.getElementById('ai-palette-status') as HTMLDivElement | null
   const aiPaletteScope = document.getElementById('ai-palette-scope') as HTMLSpanElement | null
+  const aiPaletteProviderLink = document.getElementById('ai-palette-provider-link') as HTMLButtonElement | null
   const aiPaletteClose = document.getElementById('ai-palette-close') as HTMLButtonElement | null
 
   if (contextPanel) {
@@ -1785,6 +1786,18 @@ async function init(): Promise<void> {
     return 'CUSTOM'
   }
 
+  const getAiProviderLabel = (): string => {
+    const provider = appSettings.aiHelper?.provider ?? createDefaultSettings().aiHelper.provider
+    const baseUrl = provider.baseUrl.toLowerCase()
+    if (baseUrl.includes('api.openai.com')) return 'OpenAI'
+    if (baseUrl.includes('anthropic') || provider.model.toLowerCase().includes('claude')) return 'Claude 网关'
+    try {
+      return new URL(provider.baseUrl).hostname.replace(/^api\./, '')
+    } catch {
+      return 'OpenAI 兼容'
+    }
+  }
+
   const getAiPaletteFilteredTemplates = (): ReturnType<typeof getAiHelperTemplates> => {
     const templates = getAiHelperTemplates()
     const query = aiPaletteSearch?.value.trim().toLowerCase() ?? ''
@@ -1964,6 +1977,9 @@ async function init(): Promise<void> {
 
     if (aiPaletteScope) {
       aiPaletteScope.textContent = '范围：selection'
+    }
+    if (aiPaletteProviderLink) {
+      aiPaletteProviderLink.textContent = `通过 ${getAiProviderLabel()}`
     }
   }
 
@@ -2800,6 +2816,11 @@ img{max-width:100%}
 
   agentToggle?.addEventListener('click', () => {
     openAiPalette()
+  })
+
+  aiPaletteProviderLink?.addEventListener('click', () => {
+    closeAiPalette({ restoreFocus: false })
+    settingsDialog.openPane('integrations')
   })
 
   const handleAiHelperTemplateChange = (templateSelect: HTMLSelectElement): void => {

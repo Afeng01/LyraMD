@@ -478,6 +478,18 @@ describe('sidebar polish regression', () => {
     expect(css).toContain('#sidebar :is(#workspaces-list, #pinned-list, #library-scroll-region):focus-within::-webkit-scrollbar-thumb')
   })
 
+  it('adds left breathing room inside the sidebar without shifting the drawer shell', () => {
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+    const sidebarRule = css.match(/#sidebar\s*\{[\s\S]*?\}/)?.[0] ?? ''
+    const drawerShellRule = css.match(/#sidebar-drawer-shell\s*\{[\s\S]*?\}/)?.[0] ?? ''
+    const workspaceRule = css.match(/#workspace\s*\{[\s\S]*?\}/)?.[0] ?? ''
+
+    expect(sidebarRule).toContain('padding: 14px 12px 16px 18px')
+    expect(css).toMatch(/#app-shell:not\(\.sidebar-open\) #sidebar\s*\{[\s\S]*padding-left:\s*0/)
+    expect(drawerShellRule).not.toContain('margin-left')
+    expect(workspaceRule).not.toContain('padding-left')
+  })
+
   it('uses a stronger tab active state with existing color variables', () => {
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
 

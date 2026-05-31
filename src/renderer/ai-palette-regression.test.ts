@@ -18,6 +18,7 @@ describe('AI command palette regression', () => {
     expect(html).toContain('id="ai-palette-list"')
     expect(html).toContain('id="ai-palette-status"')
     expect(html).toContain('class="ai-palette-footer"')
+    expect(html).toContain('id="ai-palette-provider-link"')
     expect(html).toContain('范围：')
     expect(html).not.toContain('id="ai-palette-result"')
     expect(html).not.toContain('id="ai-palette-replace"')
@@ -177,6 +178,16 @@ describe('AI command palette regression', () => {
     expect(renderer).toContain('document-stats-count')
     expect(css).toContain('.document-stats-ai-status')
     expect(css).not.toContain('#document-stats.ai-thinking')
+  })
+
+  it('links the palette provider footer to the integrations settings pane', () => {
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+    const settings = readFileSync(join(process.cwd(), 'src/renderer/settings-dialog.ts'), 'utf8')
+
+    expect(renderer).toContain('aiPaletteProviderLink')
+    expect(renderer).toContain("settingsDialog.openPane('integrations')")
+    expect(settings).toContain('openPane: (pane: SettingsPaneId) => void')
+    expect(settings).toContain('const openPane = (pane: SettingsPaneId): void => {')
   })
 
   it('does not show busy thinking text inside the centered palette chrome', () => {

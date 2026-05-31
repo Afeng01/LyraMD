@@ -71,12 +71,31 @@ describe('loadAppSettings', () => {
     const settings = settingsModule.normalizeAppSettings({})
 
     expect(settings.agentPanelPosition).toBe('auto')
+    expect(settings.showDocumentStats).toBe(true)
     expect(settings.background.mode).toBe('default')
     expect(settings.background.scope).toBe('editor')
     expect(settings.font).toEqual({
       customFamily: '',
       preset: 'theme',
     })
+  })
+
+  it('normalizes and updates bottom document stats visibility', async () => {
+    const settingsModule = await loadSettingsModule()
+    const tempDir = await createTempDir()
+    const settingsPath = join(tempDir, 'settings.json')
+
+    expect(settingsModule.normalizeAppSettings({ showDocumentStats: false }).showDocumentStats).toBe(false)
+    expect(settingsModule.normalizeAppSettings({ showDocumentStats: 'nope' } as never).showDocumentStats).toBe(true)
+
+    const next = await settingsModule.updateAppSettings(
+      settingsPath,
+      settingsModule.DEFAULT_APP_SETTINGS,
+      { showDocumentStats: false } as never,
+    )
+
+    expect(next.showDocumentStats).toBe(false)
+    expect(JSON.parse(await readFile(settingsPath, 'utf-8')).showDocumentStats).toBe(false)
   })
 
   it('rejects invalid background settings', async () => {
@@ -144,13 +163,44 @@ describe('loadAppSettings', () => {
       },
     })
 
-    expect(settings.aiHelper.templates).toEqual([
+    expect(settings.aiHelper.templates.slice(0, settingsModule.DEFAULT_AI_PROMPT_TEMPLATES.length)).toEqual(
+      settingsModule.DEFAULT_AI_PROMPT_TEMPLATES,
+    )
+    expect(settings.aiHelper.templates.at(-1)).toEqual(
       {
         id: 'custom-polish',
         title: '轻润色',
         prompt: '请润色：{{selection}}',
       },
-    ])
+    )
+  })
+
+  it('allows removing custom AI helper prompts while restoring built-in prompts', async () => {
+    const settingsModule = await loadSettingsModule()
+
+    const settings = settingsModule.normalizeAppSettings({
+      aiHelper: {
+        templates: [
+          ...settingsModule.DEFAULT_AI_PROMPT_TEMPLATES.filter((template) => template.id !== 'polish'),
+          {
+            id: 'custom-polish',
+            title: '轻润色',
+            prompt: '请润色：{{selection}}',
+          },
+        ],
+      },
+    })
+
+    expect(settings.aiHelper.templates.some((template) => template.id === 'polish')).toBe(true)
+    expect(settings.aiHelper.templates.some((template) => template.id === 'custom-polish')).toBe(true)
+
+    const removedCustom = settingsModule.normalizeAppSettings({
+      aiHelper: {
+        templates: settings.aiHelper.templates.filter((template) => template.id !== 'custom-polish'),
+      },
+    })
+    expect(removedCustom.aiHelper.templates.some((template) => template.id === 'custom-polish')).toBe(false)
+    expect(removedCustom.aiHelper.templates.some((template) => template.id === 'polish')).toBe(true)
   })
 
   it('normalizes OpenAI-compatible AI helper provider settings', async () => {
@@ -174,6 +224,38 @@ describe('loadAppSettings', () => {
       apiKey: 'sk-test',
       model: 'custom-model',
       temperature: 1.2,
+    })
+    expect(settings.aiHelper.customProvider).toEqual(settings.aiHelper.provider)
+  })
+
+  it('preserves a custom AI provider slot when switching active provider presets', async () => {
+    const settingsModule = await loadSettingsModule()
+
+    const settings = settingsModule.normalizeAppSettings({
+      aiHelper: {
+        provider: {
+          baseUrl: 'https://api.openai.com/v1',
+          apiKey: 'sk-openai',
+          model: 'gpt-4.1-mini',
+          temperature: 0.6,
+        },
+        customProvider: {
+          baseUrl: 'https://new-api.example.com/v1',
+          apiKey: 'sk-custom',
+          model: 'custom-model',
+          temperature: 0.4,
+        },
+        templates: settingsModule.DEFAULT_AI_PROMPT_TEMPLATES,
+      },
+    })
+
+    expect(settings.aiHelper.provider.baseUrl).toBe('https://api.openai.com/v1')
+    expect(settings.aiHelper.customProvider).toEqual({
+      type: 'openai-compatible',
+      baseUrl: 'https://new-api.example.com/v1',
+      apiKey: 'sk-custom',
+      model: 'custom-model',
+      temperature: 0.4,
     })
   })
 
@@ -363,14 +445,37 @@ describe('updateAppSettings', () => {
       },
     )
 
-    expect(updated.aiHelper.templates).toEqual([
+    expect(updated.aiHelper.templates.slice(0, settingsModule.DEFAULT_AI_PROMPT_TEMPLATES.length)).toEqual(
+      settingsModule.DEFAULT_AI_PROMPT_TEMPLATES,
+    )
+    expect(updated.aiHelper.templates.at(-1)).toEqual(
       {
         id: 'meeting-summary',
         title: '会议纪要',
         prompt: '把选区整理成会议纪要：{{selection}}',
       },
-    ])
+    )
     expect(JSON.parse(await readFile(settingsPath, 'utf-8')).aiHelper.templates).toEqual(updated.aiHelper.templates)
+  })
+
+  it('ships VMark-style built-in AI helper templates while keeping prompts editable', async () => {
+    const settingsModule = await loadSettingsModule()
+
+    expect(settingsModule.DEFAULT_AI_PROMPT_TEMPLATES.map((template: { id: string }) => template.id)).toEqual([
+      'polish',
+      'condense',
+      'fix-grammar',
+      'rephrase',
+      'simplify',
+      'expand',
+      'vivid',
+      'rewrite-english',
+      'translate',
+      'summarize',
+    ])
+    expect(settingsModule.DEFAULT_AI_PROMPT_TEMPLATES.every((template: { prompt: string }) => (
+      template.prompt.includes('{{selection}}')
+    ))).toBe(true)
   })
 
   it('persists supported AI helper provider settings', async () => {

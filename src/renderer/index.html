@@ -17,58 +17,69 @@
           </div>
           <nav id="windows-menu" class="windows-menu" aria-label="应用菜单">
             <div class="windows-menu-group">
-              <button type="button" class="windows-menu-button" data-windows-menu="file">File</button>
+              <button type="button" class="windows-menu-button" data-windows-menu="file">文件</button>
               <div class="windows-menu-panel" data-windows-panel="file">
-                <button type="button" data-windows-action="new">New</button>
-                <button type="button" data-windows-action="new-window">New Window</button>
-                <button type="button" data-windows-action="open">Open...</button>
+                <button type="button" data-windows-action="new">新建</button>
+                <button type="button" data-windows-action="new-window">新建窗口</button>
+                <button type="button" data-windows-action="open">打开…</button>
                 <hr>
-                <button type="button" data-windows-action="save">Save</button>
-                <button type="button" data-windows-action="save-as">Save As...</button>
+                <button type="button" data-windows-action="save">保存</button>
+                <button type="button" data-windows-action="save-as">另存为…</button>
                 <hr>
-                <button type="button" data-windows-action="export-pdf">Export PDF...</button>
-                <button type="button" data-windows-action="export-html">Export HTML...</button>
+                <button type="button" data-windows-action="export-pdf">导出 PDF…</button>
+                <button type="button" data-windows-action="export-html">导出 HTML…</button>
               </div>
             </div>
             <div class="windows-menu-group">
-              <button type="button" class="windows-menu-button" data-windows-menu="edit">Edit</button>
+              <button type="button" class="windows-menu-button" data-windows-menu="edit">编辑</button>
               <div class="windows-menu-panel" data-windows-panel="edit">
-                <button type="button" data-windows-action="undo">Undo</button>
-                <button type="button" data-windows-action="redo">Redo</button>
+                <button type="button" data-windows-action="undo">撤销</button>
+                <button type="button" data-windows-action="redo">重做</button>
                 <hr>
-                <button type="button" data-windows-action="cut">Cut</button>
-                <button type="button" data-windows-action="copy">Copy</button>
-                <button type="button" data-windows-action="paste">Paste</button>
-                <button type="button" data-windows-action="select-all">Select All</button>
+                <button type="button" data-windows-action="cut">剪切</button>
+                <button type="button" data-windows-action="copy">复制</button>
+                <button type="button" data-windows-action="paste">粘贴</button>
+                <button type="button" data-windows-action="select-all">全选</button>
                 <hr>
-                <button type="button" data-windows-action="find">Find</button>
-                <button type="button" data-windows-action="clean-cjk">Clean CJK Typography</button>
+                <button type="button" data-windows-action="find">查找</button>
               </div>
             </div>
             <div class="windows-menu-group">
-              <button type="button" class="windows-menu-button" data-windows-menu="view">View</button>
+              <button type="button" class="windows-menu-button" data-windows-menu="format">格式</button>
+              <div class="windows-menu-panel" data-windows-panel="format">
+                <button type="button" data-windows-action="clean-cjk">清理中英排版</button>
+              </div>
+            </div>
+            <div class="windows-menu-group">
+              <button type="button" class="windows-menu-button" data-windows-menu="view">查看</button>
               <div class="windows-menu-panel" data-windows-panel="view">
-                <button type="button" data-windows-action="toggle-sidebar">Toggle Sidebar</button>
-                <button type="button" data-windows-action="toggle-outline">Toggle Outline</button>
+                <button type="button" data-windows-action="toggle-sidebar">切换侧边栏</button>
+                <button type="button" data-windows-action="toggle-outline">切换大纲</button>
                 <hr>
-                <button type="button" data-windows-action="zoom-in">Zoom In</button>
-                <button type="button" data-windows-action="zoom-out">Zoom Out</button>
-                <button type="button" data-windows-action="zoom-reset">Reset Zoom</button>
+                <button type="button" data-windows-action="zoom-in">放大</button>
+                <button type="button" data-windows-action="zoom-out">缩小</button>
+                <button type="button" data-windows-action="zoom-reset">重置缩放</button>
               </div>
             </div>
             <div class="windows-menu-group">
-              <button type="button" class="windows-menu-button" data-windows-menu="theme">Theme</button>
+              <button type="button" class="windows-menu-button" data-windows-menu="theme">主题</button>
               <div class="windows-menu-panel" data-windows-panel="theme">
-                <button type="button" data-windows-action="theme-light">Light</button>
-                <button type="button" data-windows-action="theme-dark">Dark</button>
-                <button type="button" data-windows-action="theme-elegant">Elegant</button>
-                <button type="button" data-windows-action="theme-newsprint">Newsprint</button>
+                <button type="button" data-windows-action="theme-light">浅色</button>
+                <button type="button" data-windows-action="theme-dark">深色</button>
+                <button type="button" data-windows-action="theme-elegant">雅致</button>
+                <button type="button" data-windows-action="theme-newsprint">报纸</button>
                 <hr>
-                <button type="button" data-windows-action="import-theme">Import Theme...</button>
+                <button type="button" data-windows-action="import-theme">导入主题…</button>
               </div>
             </div>
-            <button type="button" class="windows-menu-button" data-windows-action="settings">Settings</button>
-            <button type="button" class="windows-menu-button" data-windows-action="help">Help</button>
+            <div class="windows-menu-group">
+              <button type="button" class="windows-menu-button" data-windows-menu="tools">工具</button>
+              <div class="windows-menu-panel" data-windows-panel="tools">
+                <button type="button" data-windows-action="open-ai-palette">AI 精灵</button>
+              </div>
+            </div>
+            <button type="button" class="windows-menu-button" data-windows-action="settings">设置</button>
+            <button type="button" class="windows-menu-button" data-windows-action="help">帮助</button>
           </nav>
         </div>
         <div id="windows-window-controls" class="windows-window-controls">
@@ -96,11 +107,11 @@
           <line x1="17" y1="16" x2="23" y2="16"></line>
         </svg>
       </button>
-      <button id="agent-toggle" class="context-toggle" type="button" aria-label="AI 精灵" title="AI 精灵 (Cmd/Ctrl+Y)">
+      <button id="agent-toggle" class="context-toggle" type="button" aria-label="AI 精灵" title="AI 精灵 (Cmd/Ctrl+J)">
         <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M9 2.8l.78 2.1 2.1.78-2.1.78L9 8.56l-.78-2.1-2.1-.78 2.1-.78L9 2.8z" />
-          <path d="M13.1 9.6l.52 1.42 1.42.52-1.42.52-.52 1.42-.52-1.42-1.42-.52 1.42-.52.52-1.42z" />
-          <path d="M4.9 10.6l.42 1.14 1.14.42-1.14.42-.42 1.14-.42-1.14-1.14-.42 1.14-.42.42-1.14z" />
+          <path d="M12.8 2.9l2.3 2.3-8.7 8.7-3.2.9.9-3.2 8.7-8.7z"></path>
+          <path d="M11.2 4.5l2.3 2.3"></path>
+          <path d="M4.1 2.9l.28.82.82.28-.82.28-.28.82-.28-.82L3 4l.82-.28.28-.82z"></path>
         </svg>
       </button>
       <button id="outline-toggle" type="button" aria-label="打开大纲" title="打开大纲 (Cmd/Ctrl+Shift+O)">
@@ -110,7 +121,6 @@
           <line x1="8" y1="14" x2="14" y2="14"></line>
         </svg>
       </button>
-      <div id="agent-dot"></div>
     </div>
     <div id="workspace">
       <div id="sidebar-drawer-backdrop" hidden aria-hidden="true"></div>
@@ -296,6 +306,27 @@
       </section>
     </div>
 
+    <div id="ai-command-overlay" hidden aria-hidden="true">
+      <div id="ai-command-palette" role="dialog" aria-modal="true" aria-labelledby="ai-palette-title">
+        <div class="ai-palette-header">
+          <span id="ai-palette-title" class="sr-only">AI 精灵</span>
+          <label class="sr-only" for="ai-palette-search">搜索精灵或描述需求</label>
+          <textarea id="ai-palette-search" class="ai-palette-search" placeholder="搜索精灵或描述你的需求…" rows="1" autocomplete="off" spellcheck="false"></textarea>
+          <button id="ai-palette-close" type="button" class="ai-palette-close-button" aria-label="关闭 AI 精灵">
+            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/></svg>
+          </button>
+        </div>
+        <div id="ai-palette-chips" class="ai-palette-chips" aria-label="常用 AI 精灵"></div>
+        <div id="ai-palette-status" class="ai-palette-status" hidden></div>
+        <div id="ai-palette-list" class="ai-palette-list" role="listbox" aria-label="AI 精灵动作"></div>
+        <div class="ai-palette-footer">
+          <span id="ai-palette-scope" class="ai-palette-scope">范围：selection</span>
+          <button id="ai-palette-provider-link" type="button" class="ai-palette-provider-button">通过 OpenAI</button>
+          <span class="ai-palette-hint"><kbd>Tab</kbd> 切换范围 <kbd>↑↓</kbd> 导航</span>
+        </div>
+      </div>
+    </div>
+
     <div id="onboarding-overlay" hidden aria-hidden="true">
       <div id="onboarding-dialog" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
         <div class="onboarding-brand-icon">
@@ -438,15 +469,28 @@
               <section class="settings-group">
                 <div class="settings-group-heading">
                   <h4 class="settings-group-title">AI 精灵 Prompt</h4>
-                  <p class="settings-group-copy">这些模板会用于后续选中文本后的 AI 操作。使用 {{selection}} 表示当前选区。选中文本后按 Cmd/Ctrl+Y 可以直接用当前模板改写。</p>
+                  <p class="settings-group-copy">这些模板会用于选中文本后的 AI 精灵操作。使用 {{selection}} 表示当前选区；你也可以新增自己的精灵标题和 prompt。</p>
                 </div>
                 <div class="settings-integration-help">
                   <h5>AI 精灵怎么用</h5>
                   <ol>
                     <li>OpenAI 官方账号：Base URL 保持 https://api.openai.com/v1，填入 API Key 和模型名。</li>
                     <li>cpa/new-api：把 Base URL 换成你的网关地址，Model 填网关里可用的模型。</li>
-                    <li>在正文里选中文本后按 Cmd/Ctrl+Y，会用当前选中的 Prompt 模板直接改写选区。</li>
+                    <li>在正文里选中文本后按 Cmd/Ctrl+J 打开 AI 精灵，选择模板或输入指令；结果会以内联建议出现，可接受或拒绝。</li>
                   </ol>
+                </div>
+                <div id="settings-ai-provider-panel" class="settings-ai-provider-panel" tabindex="-1">
+                  <div class="settings-ai-provider-copy">
+                    <span>API 供应商</span>
+                    <strong>OpenAI 兼容接口</strong>
+                    <p>支持 OpenAI 官方、new-api/cpa，以及 Claude 等兼容网关。</p>
+                  </div>
+                  <span class="settings-ai-provider-badge">OpenAI Compatible</span>
+                  <div class="settings-ai-provider-presets" role="group" aria-label="API 供应商选择">
+                    <button type="button" data-ai-provider-preset="openai">OpenAI</button>
+                    <button type="button" data-ai-provider-preset="claude-gateway">Claude 网关</button>
+                    <button type="button" data-ai-provider-preset="custom-gateway">自定义网关</button>
+                  </div>
                 </div>
                 <div class="settings-field-grid">
                   <label class="settings-field span-2">
@@ -465,12 +509,33 @@
                     <span>API Key</span>
                     <input id="settings-ai-api-key" type="password" spellcheck="false" placeholder="sk-...">
                   </label>
+                  <div class="settings-field">
+                    <span>连接检测</span>
+                    <button id="settings-ai-test" type="button" class="overlay-button">检测</button>
+                  </div>
                 </div>
-                <div id="settings-ai-template-list" class="settings-ai-template-list" role="tablist" aria-label="AI prompt 模板">
-                  <button type="button" class="settings-ai-template-button active" data-settings-ai-template="polish">润色</button>
-                  <button type="button" class="settings-ai-template-button" data-settings-ai-template="expand">扩写</button>
-                  <button type="button" class="settings-ai-template-button" data-settings-ai-template="summarize">总结</button>
+                <div id="settings-ai-test-status" class="settings-integration-copy" hidden></div>
+                <div id="settings-ai-test-toast" class="settings-ai-test-toast" role="status" aria-live="polite" hidden>
+                  <span class="settings-ai-test-toast-dot" aria-hidden="true"></span>
+                  <div class="settings-ai-test-toast-copy">
+                    <strong id="settings-ai-test-toast-title">连接检测</strong>
+                    <p id="settings-ai-test-toast-message">正在检测 AI 连接...</p>
+                  </div>
+                  <button id="settings-ai-test-toast-close" type="button" class="settings-ai-test-toast-close" aria-label="关闭连接检测提示">×</button>
                 </div>
+                <div class="settings-ai-template-toolbar">
+                  <div id="settings-ai-template-list" class="settings-ai-template-list" role="tablist" aria-label="AI prompt 模板"></div>
+                  <div class="settings-ai-template-actions">
+                    <button id="settings-ai-template-add" type="button" class="overlay-button settings-ai-template-action add">新增</button>
+                    <div class="settings-ai-template-delete-zone">
+                      <button id="settings-ai-template-delete" type="button" class="overlay-button settings-ai-template-action delete">删除</button>
+                    </div>
+                  </div>
+                </div>
+                <label class="settings-field">
+                  <span>模板标题</span>
+                  <input id="settings-ai-template-title" type="text" spellcheck="false">
+                </label>
                 <label class="settings-field settings-ai-template-editor">
                   <span>模板内容</span>
                   <textarea id="settings-ai-template-prompt" rows="7" spellcheck="false"></textarea>
@@ -606,56 +671,16 @@
 
               <section class="settings-group">
                 <div class="settings-group-heading">
-                  <h4 class="settings-group-title">背景</h4>
-                  <p class="settings-group-copy">选择背景作用范围，并用遮罩和模糊保护文字可读性。</p>
+                  <h4 class="settings-group-title">底部状态</h4>
+                  <p class="settings-group-copy">控制右下角字数统计和 AI 精灵思考状态是否显示。</p>
                 </div>
-                <div class="settings-compact-row" role="group" aria-label="背景作用范围">
-                  <label class="settings-pill-option">
-                    <input id="settings-background-scope-editor" type="radio" name="settings-background-scope" value="editor">
-                    <span>编辑区</span>
-                  </label>
-                  <label class="settings-pill-option">
-                    <input id="settings-background-scope-window" type="radio" name="settings-background-scope" value="window">
-                    <span>整个窗口</span>
-                  </label>
-                </div>
-                <div class="settings-compact-row" role="group" aria-label="背景类型">
-                  <label class="settings-pill-option">
-                    <input id="settings-background-mode-default" type="radio" name="settings-background-mode" value="default">
-                    <span>默认</span>
-                  </label>
-                  <label class="settings-pill-option">
-                    <input id="settings-background-mode-color" type="radio" name="settings-background-mode" value="color">
-                    <span>颜色</span>
-                  </label>
-                  <label class="settings-pill-option">
-                    <input id="settings-background-mode-image" type="radio" name="settings-background-mode" value="image">
-                    <span>图片</span>
-                  </label>
-                </div>
-                <div class="settings-field-grid">
-                  <label class="settings-field">
-                    <span>颜色</span>
-                    <input id="settings-background-color" type="color" value="#ffffff">
-                  </label>
-                  <label class="settings-field span-2">
-                    <span>图片路径</span>
-                    <input id="settings-background-image-path" type="text" placeholder="/Users/name/Pictures/background.jpg" spellcheck="false">
-                  </label>
-                  <label class="settings-field">
-                    <span>透明度</span>
-                    <input id="settings-background-opacity" type="number" min="0" max="1" step="0.05">
-                  </label>
-                  <label class="settings-field">
-                    <span>模糊</span>
-                    <input id="settings-background-blur" type="number" min="0" max="40" step="1">
-                  </label>
-                  <label class="settings-field">
-                    <span>遮罩</span>
-                    <input id="settings-background-dim" type="number" min="0" max="1" step="0.05">
-                  </label>
-                </div>
-                <button id="settings-background-reset" type="button" class="overlay-button">恢复默认背景</button>
+                <label class="settings-toggle-row">
+                  <span>
+                    <strong>显示字数与 AI 状态</strong>
+                    <small>关闭后隐藏右下角统计和思考计时。</small>
+                  </span>
+                  <input id="settings-show-document-stats" type="checkbox">
+                </label>
               </section>
             </section>
 
@@ -693,6 +718,10 @@
                   <div class="settings-shortcut-item">
                     <span class="settings-shortcut-label">打开大纲</span>
                     <kbd class="settings-shortcut-key" data-shortcut-action="toggleOutline">Cmd/Ctrl+Shift+O</kbd>
+                  </div>
+                  <div class="settings-shortcut-item">
+                    <span class="settings-shortcut-label">打开 AI 精灵</span>
+                    <kbd class="settings-shortcut-key" data-shortcut-action="openAiPalette">Cmd/Ctrl+J</kbd>
                   </div>
                 </div>
               </section>

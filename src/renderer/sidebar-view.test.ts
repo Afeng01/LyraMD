@@ -202,11 +202,13 @@ describe('pinned view helpers', () => {
     ])
   })
 
-  it('caps pinned rows at five before scrolling', () => {
+  it('caps pinned rows at three items before vertical scrolling', () => {
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
 
-    expect(css).toMatch(/#pinned-list\s*\{[\s\S]*max-height:\s*calc\(\(34px \+ 4px\) \* 5 - 4px\)/)
-    expect(css).toMatch(/#pinned-list\s*\{[\s\S]*overflow-y:\s*auto/)
+    const pinnedRule = css.match(/#pinned-list\s*\{[\s\S]*?\}/)?.[0] ?? ''
+    expect(pinnedRule).toContain('max-height: calc((34px + 4px) * 3 - 4px)')
+    expect(pinnedRule).toContain('overflow-y: auto')
+    expect(pinnedRule).toContain('overscroll-behavior: contain')
   })
 })
 
@@ -428,5 +430,103 @@ describe('library create action regression', () => {
 
     expect(menuEventBody).toContain('beginLibraryDocumentFromSidebar()')
     expect(menuEventBody).not.toContain('beginBlankDocumentFromSidebar()')
+  })
+})
+
+describe('sidebar polish regression', () => {
+  it('sets title attributes on draft items for hover tooltip', () => {
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+
+    // Draft items should set item.title = title
+    expect(renderer).toContain('item.title = title')
+  })
+
+  it('keeps active sidebar row titles on one line', () => {
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+    const activeTitleRule = css.match(/\.sidebar-list-item\.active \.sidebar-title\s*\{[\s\S]*?\}/)?.[0] ?? ''
+
+    expect(activeTitleRule).toContain('white-space: nowrap')
+    expect(activeTitleRule).toContain('text-overflow: ellipsis')
+    expect(activeTitleRule).not.toContain('-webkit-line-clamp')
+    expect(activeTitleRule).not.toContain('white-space: normal')
+  })
+
+  it('matches workspace surface color to the library area', () => {
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+    const workspaceRule = css.match(/#workspaces-section\s*\{[\s\S]*?\}/)?.[0] ?? ''
+    const libraryRule = css.match(/#library-section\s*\{[\s\S]*?\}/)?.[0] ?? ''
+
+    expect(workspaceRule).toContain('background: color-mix(in srgb, var(--bg-color) 96%, var(--border-color) 4%)')
+    expect(workspaceRule).toContain('border: 1px solid color-mix(in srgb, var(--border-color) 58%, transparent 42%)')
+    expect(libraryRule).toContain('background: color-mix(in srgb, var(--bg-color) 96%, var(--border-color) 4%)')
+  })
+
+  it('keeps pinned rows in a compact three-item scroll area', () => {
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+    const pinnedRule = css.match(/#pinned-list\s*\{[\s\S]*?\}/)?.[0] ?? ''
+
+    expect(pinnedRule).toContain('max-height: calc((34px + 4px) * 3 - 4px)')
+    expect(pinnedRule).toContain('overflow-y: auto')
+  })
+
+  it('hides sidebar scroll thumbs until the scroll region is active', () => {
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+
+    expect(css).toContain('#sidebar :is(#workspaces-list, #pinned-list, #library-scroll-region)::-webkit-scrollbar-thumb')
+    expect(css).toContain('background: transparent')
+    expect(css).toContain('#sidebar :is(#workspaces-list, #pinned-list, #library-scroll-region):hover::-webkit-scrollbar-thumb')
+    expect(css).toContain('#sidebar :is(#workspaces-list, #pinned-list, #library-scroll-region):focus-within::-webkit-scrollbar-thumb')
+  })
+
+  it('adds left breathing room inside the sidebar without shifting the drawer shell', () => {
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+    const sidebarRule = css.match(/#sidebar\s*\{[\s\S]*?\}/)?.[0] ?? ''
+    const drawerShellRule = css.match(/#sidebar-drawer-shell\s*\{[\s\S]*?\}/)?.[0] ?? ''
+    const workspaceRule = css.match(/#workspace\s*\{[\s\S]*?\}/)?.[0] ?? ''
+
+    expect(sidebarRule).toContain('padding: 14px 12px 16px 18px')
+    expect(css).toMatch(/#app-shell:not\(\.sidebar-open\) #sidebar\s*\{[\s\S]*padding-left:\s*0/)
+    expect(drawerShellRule).not.toContain('margin-left')
+    expect(workspaceRule).not.toContain('padding-left')
+  })
+
+  it('prevents text selection while resizing the sidebar', () => {
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+
+    expect(renderer).toContain('document.body.classList.add(\'sidebar-resizing\')')
+    expect(renderer).toContain('document.body.classList.remove(\'sidebar-resizing\')')
+    expect(renderer).toContain('event.preventDefault()')
+    expect(css).toContain('body.sidebar-resizing')
+    expect(css).toContain('user-select: none !important')
+  })
+
+  it('uses distinct icons for folder and document rows in the sidebar', () => {
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+
+    expect(renderer).toContain('sidebar-file-icon')
+    expect(renderer).toContain('sidebar-draft-icon')
+    expect(renderer).toContain('workdir-folder-icon')
+    expect(renderer).toContain('workdir-folder-chevron')
+    expect(css).toContain('.sidebar-item-content')
+    expect(css).toContain('.workdir-folder-icon')
+    expect(css).toContain('.workdir-folder-item .sidebar-title')
+  })
+
+  it('uses a stronger tab active state with existing color variables', () => {
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+
+    // Active tab should have higher selection-bg mix and a subtle box-shadow
+    expect(css).toMatch(/\.sidebar-tabs button\.active\s*\{[\s\S]*selection-bg\) 52%/)
+    expect(css).toMatch(/\.sidebar-tabs button\.active\s*\{[\s\S]*box-shadow/)
+  })
+
+  it('adds a subtle separator below the tab row', () => {
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+
+    expect(css).toMatch(/\.sidebar-library-header\s*\{[\s\S]*border-bottom:\s*1px solid/)
+    expect(css).toMatch(/\.sidebar-library-header\s*\{[\s\S]*margin-bottom:\s*10px/)
+    expect(css).toMatch(/\.sidebar-library-header\s*\{[\s\S]*padding-bottom:\s*8px/)
   })
 })

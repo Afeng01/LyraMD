@@ -33,7 +33,7 @@ export type SidebarTab = 'drafts' | 'recent' | 'workdir'
 export type PinnedItem =
   | { kind: 'draft'; draftId: string }
   | { kind: 'file'; filePath: string }
-export type ShortcutAction = 'save' | 'saveAs' | 'settings' | 'search' | 'toggleSidebar' | 'toggleOutline' | 'cleanCjkTypography'
+export type ShortcutAction = 'save' | 'saveAs' | 'settings' | 'search' | 'toggleSidebar' | 'toggleOutline' | 'cleanCjkTypography' | 'openAiPalette'
 export type ShortcutMap = Record<ShortcutAction, string>
 
 export interface BackgroundSettings {
@@ -67,6 +67,7 @@ export interface AiHelperProviderSettings {
 
 export interface AiHelperSettings {
   provider: AiHelperProviderSettings
+  customProvider: AiHelperProviderSettings
   templates: AiPromptTemplate[]
 }
 
@@ -76,12 +77,21 @@ export interface AiHelperCompletionResult {
   error?: string
 }
 
+export interface CurrentDocumentSnapshot {
+  content: string
+  draftId: string | null
+  kind: Exclude<DocumentKind, 'blank'>
+  path: string
+  title: string
+}
+
 export interface AppSettings {
   titleSyncMode: TitleSyncMode
   saveAsMode: SaveAsMode
   themeName: string
   shortcuts: ShortcutMap
   agentPanelPosition: AgentPanelPosition
+  showDocumentStats: boolean
   background: BackgroundSettings
   font: FontSettings
   aiHelper: AiHelperSettings
@@ -182,6 +192,8 @@ export interface ElectronAPI {
   getSettings: () => Promise<AppSettings | null>
   updateSettings: (patch: Partial<AppSettings>) => Promise<AppSettings | null>
   completeAiPrompt: (prompt: string) => Promise<AiHelperCompletionResult>
+  testAiHelperConnection: () => Promise<AiHelperCompletionResult>
+  getCurrentDocument: () => Promise<CurrentDocumentSnapshot | null>
   getCodexIntegrationStatus: () => Promise<CodexIntegrationStatus | null>
   installCodexIntegration: () => Promise<CodexIntegrationStatus | null>
   removeCodexIntegration: () => Promise<CodexIntegrationStatus | null>
@@ -231,6 +243,7 @@ export interface ElectronAPI {
   onMenuSaveAs: (callback: () => void) => void
   onMenuSearch: (callback: () => void) => void
   onMenuCleanCjkTypography: (callback: () => void) => void
+  onMenuOpenAiPalette: (callback: () => void) => void
   onMenuSettings: (callback: () => void) => void
   onMenuToggleOutline: (callback: () => void) => void
   onMenuExportPDF: (callback: () => void) => void
@@ -261,6 +274,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getSettings: () => ipcRenderer.invoke('get-settings'),
   updateSettings: (patch: Partial<AppSettings>) => ipcRenderer.invoke('update-settings', patch),
   completeAiPrompt: (prompt: string) => ipcRenderer.invoke('complete-ai-prompt', prompt),
+  testAiHelperConnection: () => ipcRenderer.invoke('test-ai-helper-connection'),
+  getCurrentDocument: () => ipcRenderer.invoke('get-current-document'),
   getCodexIntegrationStatus: () => ipcRenderer.invoke('codex-integration-status'),
   installCodexIntegration: () => ipcRenderer.invoke('codex-integration-install'),
   removeCodexIntegration: () => ipcRenderer.invoke('codex-integration-remove'),
@@ -327,6 +342,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onMenuCleanCjkTypography: (callback: () => void) => {
     ipcRenderer.on('menu-clean-cjk-typography', () => callback())
+  },
+  onMenuOpenAiPalette: (callback: () => void) => {
+    ipcRenderer.on('menu-open-ai-palette', () => callback())
   },
   onMenuSettings: (callback: () => void) => {
     ipcRenderer.on('menu-settings', () => callback())

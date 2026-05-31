@@ -15,6 +15,7 @@ export type ShortcutAction =
   | 'toggleSidebar'
   | 'toggleOutline'
   | 'cleanCjkTypography'
+  | 'openAiPalette'
 
 export type ShortcutMap = Record<ShortcutAction, string>
 
@@ -49,6 +50,7 @@ export interface AiHelperProviderSettings {
 
 export interface AiHelperSettings {
   provider: AiHelperProviderSettings
+  customProvider: AiHelperProviderSettings
   templates: AiPromptTemplate[]
 }
 
@@ -58,6 +60,7 @@ export interface AppSettings {
   themeName: string
   shortcuts: ShortcutMap
   agentPanelPosition: AgentPanelPosition
+  showDocumentStats: boolean
   background: BackgroundSettings
   font: FontSettings
   aiHelper: AiHelperSettings
@@ -71,23 +74,59 @@ export const DEFAULT_SHORTCUTS: ShortcutMap = {
   toggleSidebar: 'CmdOrCtrl+\\',
   toggleOutline: 'CmdOrCtrl+Shift+O',
   cleanCjkTypography: 'CmdOrCtrl+Shift+F',
+  openAiPalette: 'CmdOrCtrl+J',
 }
 
 export const DEFAULT_AI_PROMPT_TEMPLATES: AiPromptTemplate[] = [
   {
     id: 'polish',
     title: '润色',
-    prompt: '请润色下面这段文字，保持原意，不要额外解释：\n\n{{selection}}',
+    prompt: '你是专业文字编辑。请提升下面文字的清晰度、行文流畅度和简洁度，同时保留作者的声音与意图。只返回润色后的文字，不要解释：\n\n{{selection}}',
+  },
+  {
+    id: 'condense',
+    title: '精简',
+    prompt: '请缩短下面文字，保留所有关键信息，去掉重复、松散句子和不必要的词。只返回精简后的文字，不要解释：\n\n{{selection}}',
+  },
+  {
+    id: 'fix-grammar',
+    title: '语法',
+    prompt: '请修正下面文字中的语法、拼写、错别字和标点问题，不改变含义、风格或语气。只返回修正后的文字，不要解释：\n\n{{selection}}',
+  },
+  {
+    id: 'rephrase',
+    title: '转述',
+    prompt: '请用不同的措辞和句式转述下面文字，严格保留原意和语气。只返回转述后的文字，不要解释：\n\n{{selection}}',
+  },
+  {
+    id: 'simplify',
+    title: 'Simplify',
+    prompt: '请用更简单的词和更短的句子改写下面文字，让更多读者容易理解，同时保留原意。只返回简化后的文字，不要解释：\n\n{{selection}}',
   },
   {
     id: 'expand',
-    title: '扩写',
-    prompt: '请基于下面这段文字继续扩写，保持语气自然：\n\n{{selection}}',
+    title: 'Expand',
+    prompt: '请把下面这段简短文字扩展成更充分、完整的表达，补充必要的细节、例子或解释，同时保留作者的语气和风格。只返回扩写后的文字，不要解释：\n\n{{selection}}',
+  },
+  {
+    id: 'vivid',
+    title: 'Vivid',
+    prompt: '请为下面文字加入更鲜明的感官细节、具体画面和更有力的措辞，让表达更生动，同时保留原意和基本结构。只返回增强后的文字，不要解释：\n\n{{selection}}',
+  },
+  {
+    id: 'rewrite-english',
+    title: 'Rewrite In English',
+    prompt: '请把下面文字改写成清晰、自然的英文。如果原文已经是英文，请提升它的流畅度和可读性；如果原文是其他语言，请保留原意、语气和结构并改写为英文。只返回英文结果，不要解释：\n\n{{selection}}',
+  },
+  {
+    id: 'translate',
+    title: 'Translate',
+    prompt: '请把下面文字翻译成英文，保留原意、语气和格式。只返回译文，不要解释：\n\n{{selection}}',
   },
   {
     id: 'summarize',
     title: '总结',
-    prompt: '请把下面这段文字总结成简洁要点：\n\n{{selection}}',
+    prompt: '请把下面文字总结成简洁的一段话，保留主要观点、关键论证和结论。只返回总结，不要解释：\n\n{{selection}}',
   },
 ]
 
@@ -97,6 +136,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   themeName: 'elegant',
   shortcuts: DEFAULT_SHORTCUTS,
   agentPanelPosition: 'auto',
+  showDocumentStats: true,
   background: {
     mode: 'default',
     scope: 'editor',
@@ -112,6 +152,13 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   },
   aiHelper: {
     provider: {
+      type: 'openai-compatible',
+      baseUrl: 'https://api.openai.com/v1',
+      apiKey: '',
+      model: 'gpt-4.1-mini',
+      temperature: 0.7,
+    },
+    customProvider: {
       type: 'openai-compatible',
       baseUrl: 'https://api.openai.com/v1',
       apiKey: '',
@@ -230,6 +277,17 @@ function normalizePromptTemplate(input: unknown): AiPromptTemplate | null {
   return { id, title, prompt }
 }
 
+function mergeAiPromptTemplates(templates: AiPromptTemplate[]): AiPromptTemplate[] {
+  const defaultIds = new Set(DEFAULT_AI_PROMPT_TEMPLATES.map((template) => template.id))
+  const persistedById = new Map(templates.map((template) => [template.id, template]))
+  const mergedDefaults = DEFAULT_AI_PROMPT_TEMPLATES.map((template) => ({
+    ...template,
+    ...persistedById.get(template.id),
+  }))
+  const customTemplates = templates.filter((template) => !defaultIds.has(template.id))
+  return [...mergedDefaults, ...customTemplates].slice(0, 12)
+}
+
 function normalizeAiBaseUrl(input: unknown): string {
   if (typeof input !== 'string') return DEFAULT_APP_SETTINGS.aiHelper.provider.baseUrl
   const trimmed = input.trim().replace(/\/+$/u, '')
@@ -263,6 +321,12 @@ function normalizeAiHelperProviderSettings(input: unknown): AiHelperProviderSett
   }
 }
 
+function isCustomAiHelperProvider(provider: AiHelperProviderSettings): boolean {
+  const baseUrl = provider.baseUrl.toLowerCase()
+  const model = provider.model.toLowerCase()
+  return !baseUrl.includes('api.openai.com') && !model.includes('claude')
+}
+
 function normalizeAiHelperSettings(input: unknown): AiHelperSettings {
   const candidate = input && typeof input === 'object'
     ? input as Partial<Record<keyof AiHelperSettings, unknown>>
@@ -274,17 +338,16 @@ function normalizeAiHelperSettings(input: unknown): AiHelperSettings {
     : []
 
   const provider = normalizeAiHelperProviderSettings(candidate.provider)
-
-  if (templates.length === 0) {
-    return {
-      provider,
-      templates: DEFAULT_APP_SETTINGS.aiHelper.templates,
-    }
-  }
+  const customProvider = candidate.customProvider === undefined && isCustomAiHelperProvider(provider)
+    ? provider
+    : normalizeAiHelperProviderSettings(candidate.customProvider)
 
   return {
     provider,
-    templates: templates.slice(0, 12),
+    customProvider,
+    templates: templates.length === 0
+      ? DEFAULT_APP_SETTINGS.aiHelper.templates
+      : mergeAiPromptTemplates(templates),
   }
 }
 
@@ -346,6 +409,9 @@ export function normalizeAppSettings(input: PersistedAppSettings | null | undefi
     agentPanelPosition: isAgentPanelPosition(input?.agentPanelPosition)
       ? input.agentPanelPosition
       : DEFAULT_APP_SETTINGS.agentPanelPosition,
+    showDocumentStats: typeof input?.showDocumentStats === 'boolean'
+      ? input.showDocumentStats
+      : DEFAULT_APP_SETTINGS.showDocumentStats,
     background: normalizeBackgroundSettings(input?.background),
     font: normalizeFontSettings(input?.font),
     aiHelper: normalizeAiHelperSettings(input?.aiHelper),
@@ -390,6 +456,9 @@ export async function updateAppSettings(
     agentPanelPosition: isAgentPanelPosition(patch.agentPanelPosition)
       ? patch.agentPanelPosition
       : currentSettings.agentPanelPosition,
+    showDocumentStats: typeof patch.showDocumentStats === 'boolean'
+      ? patch.showDocumentStats
+      : currentSettings.showDocumentStats,
     background: patch.background === undefined
       ? normalizeBackgroundSettings(currentSettings.background)
       : normalizeBackgroundSettings(patch.background),

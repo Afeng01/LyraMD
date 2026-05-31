@@ -28,6 +28,7 @@ describe('settings dialog regression', () => {
     const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
 
     expect(html).toContain('data-shortcut-action="cleanCjkTypography"')
+    expect(html).toContain('data-shortcut-action="openAiPalette"')
     expect(file).toContain('api.updateSettings({ shortcuts:')
   })
 
@@ -40,6 +41,7 @@ describe('settings dialog regression', () => {
       toggleSidebar: 'CmdOrCtrl+\\',
       toggleOutline: 'CmdOrCtrl+Shift+O',
       cleanCjkTypography: 'CmdOrCtrl+Shift+F',
+      openAiPalette: 'CmdOrCtrl+J',
     }
 
     expect(resolveShortcutConflict(shortcuts, 'cleanCjkTypography', 'CmdOrCtrl+F')).toBe('search')
@@ -122,19 +124,18 @@ describe('settings dialog regression', () => {
     expect(css).toContain('settings-usage-guide')
   })
 
-  it('renders compact background appearance controls', () => {
+  it('removes background controls and renders bottom status visibility control', () => {
     const file = readFileSync(join(process.cwd(), 'src/renderer/settings-dialog.ts'), 'utf8')
     const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
 
-    expect(html).toContain('name="settings-background-scope"')
-    expect(html).toContain('value="editor"')
-    expect(html).toContain('value="window"')
-    expect(html).toContain('name="settings-background-mode"')
-    expect(html).toContain('id="settings-background-opacity"')
-    expect(html).toContain('id="settings-background-blur"')
-    expect(html).toContain('id="settings-background-dim"')
-    expect(html).toContain('id="settings-background-reset"')
-    expect(file).toContain('api.updateSettings({ background })')
+    expect(html).not.toContain('name="settings-background-scope"')
+    expect(html).not.toContain('name="settings-background-mode"')
+    expect(html).not.toContain('id="settings-background-opacity"')
+    expect(html).not.toContain('id="settings-background-reset"')
+    expect(html).toContain('id="settings-show-document-stats"')
+    expect(html).toContain('显示字数与 AI 状态')
+    expect(file).toContain('updateShowDocumentStats')
+    expect(file).toContain('api.updateSettings({ showDocumentStats')
   })
 
   it('opens settings from buttons and shortcuts instead of toggling an already open dialog closed', () => {
@@ -164,11 +165,28 @@ describe('settings dialog regression', () => {
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
 
     expect(html).toContain('id="settings-ai-template-list"')
+    expect(html).toContain('id="settings-ai-template-add"')
+    expect(html).toContain('id="settings-ai-template-delete"')
+    expect(html).toContain('class="settings-ai-template-actions"')
+    expect(html).toContain('class="settings-ai-template-delete-zone"')
+    expect(html).toContain('settings-ai-template-action add')
+    expect(html).toContain('settings-ai-template-action delete')
+    expect(html).toContain('id="settings-ai-template-title"')
     expect(html).toContain('id="settings-ai-template-prompt"')
-    expect(html).toContain('data-settings-ai-template="polish"')
+    expect(html).not.toContain('data-settings-ai-template="polish">润色</button>')
+    expect(file).toContain('renderAiTemplateButtons')
+    expect(file).toContain('getAiTemplateCategory')
+    expect(file).toContain('settings-ai-template-group')
+    expect(file).toContain('createCustomAiTemplate')
+    expect(file).toContain('deleteSelectedCustomAiPromptTemplate')
+    expect(file).toContain('isBuiltInAiTemplate')
     expect(file).toContain('updateAiHelperSettings')
     expect(file).toContain('api.updateSettings({ aiHelper')
+    expect(file).toContain("id: 'expand'")
+    expect(file).toContain("id: 'vivid'")
     expect(css).toContain('.settings-ai-template-list')
+    expect(css).toContain('.settings-ai-template-group')
+    expect(css).toContain('.settings-ai-template-delete-zone')
   })
 
   it('renders OpenAI-compatible AI helper provider controls', () => {
@@ -178,7 +196,35 @@ describe('settings dialog regression', () => {
     expect(html).toContain('id="settings-ai-base-url"')
     expect(html).toContain('id="settings-ai-api-key"')
     expect(html).toContain('id="settings-ai-model"')
+    expect(html).toContain('id="settings-ai-test"')
+    expect(html).toContain('id="settings-ai-test-status"')
+    expect(html).toContain('id="settings-ai-provider-panel"')
+    expect(html).toContain('data-ai-provider-preset="openai"')
+    expect(html).toContain('data-ai-provider-preset="claude-gateway"')
+    expect(html).toContain('data-ai-provider-preset="custom-gateway"')
+    expect(html).toContain('id="settings-ai-test-toast"')
+    expect(html).toContain('id="settings-ai-test-toast-close"')
+    expect(file).toContain('testAiHelperConnection')
+    expect(file).toContain('aiTestToastOpen')
+    expect(file).toContain('applyAiProviderPreset')
+    expect(file).toContain('resolveAiProviderPreset')
+    expect(file).toContain('customProvider')
+    expect(file).toContain("resolveAiProviderPreset(provider) === 'custom-gateway'")
+    expect(file).toContain('const currentProvider = readAiProviderSettingsFromInputs()')
     expect(file).toContain('updateAiHelperProviderSettings')
+  })
+
+  it('shows AI connection progress and results in a top toast instead of blocking the settings pane', () => {
+    const file = readFileSync(join(process.cwd(), 'src/renderer/settings-dialog.ts'), 'utf8')
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+
+    expect(file).toContain('aiTestStatus.hidden = true')
+    expect(file).toContain('showAiTestToast')
+    expect(css).toContain('#settings-dialog {\n  position: relative;')
+    expect(css).toContain('.settings-ai-test-toast {\n  position: absolute;')
+    expect(css).toContain('top: 48px')
+    expect(css).toContain('transform: translateX(-50%)')
+    expect(css).toContain('.settings-ai-test-toast.error')
   })
 
   it('keeps the settings window draggable without the heavy pane title chrome', () => {
@@ -199,7 +245,8 @@ describe('settings dialog regression', () => {
     expect(html).toContain('AI 精灵怎么用')
     expect(html).toContain('OpenAI 官方账号')
     expect(html).toContain('cpa/new-api')
-    expect(html).toContain('选中文本后按 Cmd/Ctrl+Y')
+    expect(html).toContain('选中文本后按 Cmd/Ctrl+J')
+    expect(html).not.toContain('按 Cmd/Ctrl+Y')
   })
 
   it('applies background settings through renderer CSS variables', () => {

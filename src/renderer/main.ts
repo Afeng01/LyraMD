@@ -1,5 +1,6 @@
 import {
   activateSearchMatch,
+  createAiSuggestionFromSnapshot,
   createEditor,
   focusEditorAtLastSelection,
   focusEditorPreservingSelection,
@@ -7,6 +8,7 @@ import {
   getHTML,
   getMarkdown,
   getSelectedPlainText,
+  getSelectedTextSnapshot,
   insertTextBelowSelection,
   isEditorTextFocused,
   replaceSelectedText,
@@ -208,8 +210,10 @@ function createDefaultSettings(): AppSettings {
       toggleSidebar: 'CmdOrCtrl+\\',
       toggleOutline: 'CmdOrCtrl+Shift+O',
       cleanCjkTypography: 'CmdOrCtrl+Shift+F',
+      openAiPalette: 'CmdOrCtrl+J',
     },
     agentPanelPosition: 'auto',
+    showDocumentStats: true,
     background: {
       mode: 'default',
       scope: 'editor',
@@ -231,21 +235,63 @@ function createDefaultSettings(): AppSettings {
         model: 'gpt-4.1-mini',
         temperature: 0.7,
       },
+      customProvider: {
+        type: 'openai-compatible',
+        baseUrl: 'https://api.openai.com/v1',
+        apiKey: '',
+        model: 'gpt-4.1-mini',
+        temperature: 0.7,
+      },
       templates: [
         {
           id: 'polish',
           title: '润色',
-          prompt: '请润色下面这段文字，保持原意，不要额外解释：\n\n{{selection}}',
+          prompt: '你是专业文字编辑。请提升下面文字的清晰度、行文流畅度和简洁度，同时保留作者的声音与意图。只返回润色后的文字，不要解释：\n\n{{selection}}',
+        },
+        {
+          id: 'condense',
+          title: '精简',
+          prompt: '请缩短下面文字，保留所有关键信息，去掉重复、松散句子和不必要的词。只返回精简后的文字，不要解释：\n\n{{selection}}',
+        },
+        {
+          id: 'fix-grammar',
+          title: '语法',
+          prompt: '请修正下面文字中的语法、拼写、错别字和标点问题，不改变含义、风格或语气。只返回修正后的文字，不要解释：\n\n{{selection}}',
+        },
+        {
+          id: 'rephrase',
+          title: '转述',
+          prompt: '请用不同的措辞和句式转述下面文字，严格保留原意和语气。只返回转述后的文字，不要解释：\n\n{{selection}}',
+        },
+        {
+          id: 'simplify',
+          title: 'Simplify',
+          prompt: '请用更简单的词和更短的句子改写下面文字，让更多读者容易理解，同时保留原意。只返回简化后的文字，不要解释：\n\n{{selection}}',
         },
         {
           id: 'expand',
-          title: '扩写',
-          prompt: '请基于下面这段文字继续扩写，保持语气自然：\n\n{{selection}}',
+          title: 'Expand',
+          prompt: '请把下面这段简短文字扩展成更充分、完整的表达，补充必要的细节、例子或解释，同时保留作者的语气和风格。只返回扩写后的文字，不要解释：\n\n{{selection}}',
+        },
+        {
+          id: 'vivid',
+          title: 'Vivid',
+          prompt: '请为下面文字加入更鲜明的感官细节、具体画面和更有力的措辞，让表达更生动，同时保留原意和基本结构。只返回增强后的文字，不要解释：\n\n{{selection}}',
+        },
+        {
+          id: 'rewrite-english',
+          title: 'Rewrite In English',
+          prompt: '请把下面文字改写成清晰、自然的英文。如果原文已经是英文，请提升它的流畅度和可读性；如果原文是其他语言，请保留原意、语气和结构并改写为英文。只返回英文结果，不要解释：\n\n{{selection}}',
+        },
+        {
+          id: 'translate',
+          title: 'Translate',
+          prompt: '请把下面文字翻译成英文，保留原意、语气和格式。只返回译文，不要解释：\n\n{{selection}}',
         },
         {
           id: 'summarize',
           title: '总结',
-          prompt: '请把下面这段文字总结成简洁要点：\n\n{{selection}}',
+          prompt: '请把下面文字总结成简洁的一段话，保留主要观点、关键论证和结论。只返回总结，不要解释：\n\n{{selection}}',
         },
       ],
     },
@@ -325,6 +371,26 @@ function shortcutFor(settings: AppSettings, action: ShortcutAction): string {
   return settings.shortcuts[action] ?? createDefaultSettings().shortcuts[action]
 }
 
+function createSidebarIconSvg(paths: string[], className: string): SVGSVGElement {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+  svg.setAttribute('viewBox', '0 0 18 18')
+  svg.setAttribute('width', '15')
+  svg.setAttribute('height', '15')
+  svg.setAttribute('aria-hidden', 'true')
+  svg.setAttribute('fill', 'none')
+  svg.setAttribute('stroke', 'currentColor')
+  svg.setAttribute('stroke-width', '1.45')
+  svg.setAttribute('stroke-linecap', 'round')
+  svg.setAttribute('stroke-linejoin', 'round')
+  svg.setAttribute('class', className)
+  for (const data of paths) {
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+    path.setAttribute('d', data)
+    svg.appendChild(path)
+  }
+  return svg
+}
+
 function createFileItem(
   filePath: string,
   title: string,
@@ -341,8 +407,17 @@ function createFileItem(
   item.title = filePath
   item.classList.toggle('active', isSamePath(filePath, currentFilePath))
 
-  item.appendChild(createTextBlock('sidebar-title', title))
-  if (meta) item.appendChild(createTextBlock('sidebar-meta', meta))
+  const icon = createSidebarIconSvg([
+    'M5.2 3.5h5.1l2.5 2.5v8.5H5.2Z',
+    'M10.3 3.5V6h2.5',
+    'M7.2 8.8h3.6',
+    'M7.2 11.1h3.1',
+  ], 'sidebar-item-icon sidebar-file-icon')
+  const content = document.createElement('div')
+  content.className = 'sidebar-item-content'
+  content.appendChild(createTextBlock('sidebar-title', title))
+  if (meta) content.appendChild(createTextBlock('sidebar-meta', meta))
+  item.append(icon, content)
   return item
 }
 
@@ -355,8 +430,18 @@ function createDraftItem(
   item.type = 'button'
   item.className = 'sidebar-list-item draft-item'
   item.dataset.draftId = draftId
+  item.title = title
   item.classList.toggle('active', draftId === currentDraftId)
-  item.appendChild(createTextBlock('sidebar-title', title))
+  const icon = createSidebarIconSvg([
+    'M5.2 3.5h5.1l2.5 2.5v8.5H5.2Z',
+    'M10.3 3.5V6h2.5',
+    'M7.2 8.8h3.6',
+    'M7.2 11.1h3.1',
+  ], 'sidebar-item-icon sidebar-draft-icon')
+  const content = document.createElement('div')
+  content.className = 'sidebar-item-content'
+  content.appendChild(createTextBlock('sidebar-title', title))
+  item.append(icon, content)
   return item
 }
 
@@ -599,6 +684,14 @@ async function init(): Promise<void> {
   const agentChangeList = document.getElementById('agent-change-list') as HTMLDivElement | null
   const agentChangeRestore = document.getElementById('agent-change-restore') as HTMLButtonElement | null
   const agentChangeDismiss = document.getElementById('agent-change-dismiss') as HTMLButtonElement | null
+  const aiPaletteOverlay = document.getElementById('ai-command-overlay') as HTMLDivElement | null
+  const aiPaletteSearch = document.getElementById('ai-palette-search') as HTMLTextAreaElement | null
+  const aiPaletteChips = document.getElementById('ai-palette-chips') as HTMLDivElement | null
+  const aiPaletteList = document.getElementById('ai-palette-list') as HTMLDivElement | null
+  const aiPaletteStatus = document.getElementById('ai-palette-status') as HTMLDivElement | null
+  const aiPaletteScope = document.getElementById('ai-palette-scope') as HTMLSpanElement | null
+  const aiPaletteProviderLink = document.getElementById('ai-palette-provider-link') as HTMLButtonElement | null
+  const aiPaletteClose = document.getElementById('ai-palette-close') as HTMLButtonElement | null
 
   if (contextPanel) {
     contextPanel.hidden = false
@@ -619,9 +712,35 @@ async function init(): Promise<void> {
     editorPlaceholder.hidden = !shouldShowEmptyEditorPlaceholder(content)
   }
 
-  const updateDocumentStats = (content: string): void => {
+  let latestDocumentStatsText = formatDocumentStats(resolveDocumentStats(''))
+  let documentStatsAiStatus = ''
+
+  const renderDocumentStats = (): void => {
     if (!documentStats) return
-    documentStats.textContent = formatDocumentStats(resolveDocumentStats(content))
+    const shouldShow = appSettings.showDocumentStats !== false
+    documentStats.hidden = !shouldShow
+    if (!shouldShow) return
+    const count = document.createElement('span')
+    count.className = 'document-stats-count'
+    count.textContent = latestDocumentStatsText
+    if (!documentStatsAiStatus) {
+      documentStats.replaceChildren(count)
+      return
+    }
+    const aiStatus = document.createElement('span')
+    aiStatus.className = 'document-stats-ai-status'
+    aiStatus.textContent = documentStatsAiStatus
+    documentStats.replaceChildren(aiStatus, count)
+  }
+
+  const updateDocumentStats = (content: string): void => {
+    latestDocumentStatsText = formatDocumentStats(resolveDocumentStats(content))
+    renderDocumentStats()
+  }
+
+  const updateDocumentStatsAiStatus = (status: string): void => {
+    documentStatsAiStatus = status
+    renderDocumentStats()
   }
 
   const getCurrentDocumentPathForAssets = (): string | null => {
@@ -667,6 +786,14 @@ async function init(): Promise<void> {
     })
   }
 
+  const applyOpenedDocument = (data: { content: string; path: string }): void => {
+    resetLocalEchoState()
+    clearAgentChangePanel()
+    titleEditActive = false
+    closeTitleSyncPrompt()
+    applyProgrammaticDocumentContent(data.content)
+  }
+
   if (typeof ResizeObserver !== 'undefined') {
     const placeholderLayoutObserver = new ResizeObserver(() => {
       schedulePlaceholderLayoutSync()
@@ -693,6 +820,7 @@ async function init(): Promise<void> {
       appSettings = settings
       applyBackgroundSettings(appSettings.background)
       applyFontSettings(appSettings.font)
+      renderDocumentStats()
       refreshAgentPanelPlacement()
     },
     onSidebarStateChange: (state) => {
@@ -1221,6 +1349,15 @@ async function init(): Promise<void> {
   let aiHelperBusy = false
   let aiHelperResultText = ''
   let aiHelperStatusText = ''
+  let aiPaletteOpen = false
+  let aiPaletteBusy = false
+  let aiPaletteStartedAt: number | null = null
+  let aiPaletteStatusText = ''
+  let aiPaletteActiveTemplateId: string | null = null
+  let aiPaletteCustomInstruction = ''
+  let aiPaletteSelectedIndex = 0
+  let aiPaletteRunId = 0
+  let aiPaletteTimerInterval: ReturnType<typeof setInterval> | null = null
   let searchInputComposing = false
   let searchQueryMemory: SearchMemoryState = {}
   let agentChangeSession: AgentChangeSession | null = null
@@ -1549,8 +1686,6 @@ async function init(): Promise<void> {
     appShell?.classList.toggle('agent-open', agentPanelOpen)
     appShell?.classList.toggle('context-panel-agent', showAgentInRightPanel)
     appShell?.classList.toggle('context-panel-outline', showOutlineInRightPanel)
-    agentToggle?.classList.toggle('active', agentPanelOpen)
-    agentToggle?.setAttribute('aria-pressed', agentPanelOpen ? 'true' : 'false')
     outlineToggle?.classList.toggle('active', outlinePanelOpen)
     outlineToggle?.setAttribute('aria-pressed', outlinePanelOpen ? 'true' : 'false')
     contextPanel?.setAttribute('aria-hidden', showContextPanel ? 'false' : 'true')
@@ -1582,15 +1717,368 @@ async function init(): Promise<void> {
   }
 
   const toggleAgentPanel = (): void => {
-    refreshAgentPanelPlacement()
-    if (agentPanelOpen && activeContextPanel === 'agent') {
-      agentPanelOpen = false
-    } else {
-      activeContextPanel = 'agent'
-      agentPanelOpen = true
-      if (agentPanelPlacement === 'right') outlinePanelOpen = false
+    openAiPalette()
+  }
+
+  const openAiPalette = (): void => {
+    if (!aiPaletteOverlay) return
+    aiPaletteOpen = true
+    aiPaletteBusy = false
+    aiPaletteStatusText = ''
+    aiPaletteCustomInstruction = ''
+    aiPaletteSelectedIndex = 0
+    aiPaletteActiveTemplateId = getAiHelperTemplates()[0]?.id ?? null
+    agentToggle?.classList.add('active')
+    agentToggle?.setAttribute('aria-pressed', 'true')
+    clearAiPaletteTimer()
+    if (aiPaletteSearch) aiPaletteSearch.value = ''
+    aiPaletteOverlay.hidden = false
+    aiPaletteOverlay.setAttribute('aria-hidden', 'false')
+    renderAiPalette()
+    queueMicrotask(() => {
+      aiPaletteSearch?.focus()
+    })
+  }
+
+  const closeAiPalette = (options: { restoreFocus?: boolean } = {}): void => {
+    if (!aiPaletteOverlay) return
+    if (aiPaletteBusy) {
+      aiPaletteRunId += 1
+      aiPaletteBusy = false
+      aiPaletteStatusText = ''
     }
-    renderContextPanel()
+    aiPaletteOpen = false
+    aiPaletteOverlay.hidden = true
+    aiPaletteOverlay.setAttribute('aria-hidden', 'true')
+    agentToggle?.classList.remove('active')
+    agentToggle?.setAttribute('aria-pressed', 'false')
+    clearAiPaletteTimer()
+    if (options.restoreFocus !== false) {
+      focusEditorAtLastSelection()
+    }
+  }
+
+  const hideAiPaletteForBackgroundRun = (): void => {
+    if (!aiPaletteOverlay) return
+    aiPaletteOpen = false
+    aiPaletteOverlay.hidden = true
+    aiPaletteOverlay.setAttribute('aria-hidden', 'true')
+    agentToggle?.classList.remove('active')
+    agentToggle?.setAttribute('aria-pressed', 'false')
+    focusEditorAtLastSelection()
+  }
+
+  const clearAiPaletteTimer = (): void => {
+    if (aiPaletteTimerInterval) {
+      clearInterval(aiPaletteTimerInterval)
+      aiPaletteTimerInterval = null
+    }
+    aiPaletteStartedAt = null
+    updateDocumentStatsAiStatus('')
+  }
+
+  const showAiPaletteStatusNotice = (status: string): void => {
+    aiPaletteStatusText = status
+    updateDocumentStatsAiStatus(status)
+    window.setTimeout(() => {
+      if (!aiPaletteBusy && documentStatsAiStatus === status) {
+        updateDocumentStatsAiStatus('')
+      }
+    }, 4500)
+  }
+
+  const startAiPaletteTimer = (): void => {
+    clearAiPaletteTimer()
+    aiPaletteStartedAt = Date.now()
+    aiPaletteStatusText = '思考中… 0s'
+    updateDocumentStatsAiStatus(aiPaletteStatusText)
+    aiPaletteTimerInterval = setInterval(() => {
+      if (!aiPaletteStartedAt) return
+      const elapsed = Math.floor((Date.now() - aiPaletteStartedAt) / 1000)
+      aiPaletteStatusText = `思考中… ${elapsed}s`
+      updateDocumentStatsAiStatus(aiPaletteStatusText)
+      renderAiPalette()
+    }, 250)
+  }
+
+  const getAiPaletteTemplateDescription = (templateId: string): string => {
+    if (templateId === 'polish') return '改善清晰度和流畅度'
+    if (templateId === 'condense') return 'Make text more concise'
+    if (templateId === 'fix-grammar') return 'Fix grammar and spelling'
+    if (templateId === 'rephrase') return 'Say the same thing differently'
+    if (templateId === 'simplify') return 'Use simpler language'
+    if (templateId === 'expand') return 'Develop idea into fuller prose'
+    if (templateId === 'vivid') return 'Add sensory details and imagery'
+    if (templateId === 'rewrite-english') return 'Rewrite text in English'
+    if (templateId === 'translate') return 'Translate to English'
+    if (templateId === 'summarize') return '提炼为简洁要点'
+    return '基于当前选区生成建议'
+  }
+
+  const getAiPaletteTemplateCategory = (templateId: string): string => {
+    if (['polish', 'condense', 'fix-grammar', 'simplify'].includes(templateId)) return 'EDITING'
+    if (['rewrite-english', 'translate'].includes(templateId)) return 'TOOLS'
+    if (['rephrase', 'expand', 'vivid'].includes(templateId)) return 'CREATIVE'
+    if (['summarize'].includes(templateId)) return 'STRUCTURE'
+    return 'CUSTOM'
+  }
+
+  const getAiPaletteCategoryLabel = (category: string): string => {
+    if (category === 'EDITING') return 'EDITING'
+    if (category === 'TOOLS') return 'TOOLS'
+    if (category === 'CREATIVE') return 'CREATIVE'
+    if (category === 'STRUCTURE') return 'STRUCTURE'
+    return 'CUSTOM'
+  }
+
+  const getAiProviderLabel = (): string => {
+    const provider = appSettings.aiHelper?.provider ?? createDefaultSettings().aiHelper.provider
+    const baseUrl = provider.baseUrl.toLowerCase()
+    if (baseUrl.includes('api.openai.com')) return 'OpenAI'
+    if (baseUrl.includes('anthropic') || provider.model.toLowerCase().includes('claude')) return 'Claude 网关'
+    try {
+      return new URL(provider.baseUrl).hostname.replace(/^api\./, '')
+    } catch {
+      return 'OpenAI 兼容'
+    }
+  }
+
+  const getAiPaletteFilteredTemplates = (): ReturnType<typeof getAiHelperTemplates> => {
+    const templates = getAiHelperTemplates()
+    const query = aiPaletteSearch?.value.trim().toLowerCase() ?? ''
+    if (!query) return templates
+    return templates.filter((template) => {
+      return template.title.toLowerCase().includes(query)
+        || template.id.toLowerCase().includes(query)
+        || template.prompt.toLowerCase().includes(query)
+    })
+  }
+
+  const hasAiPaletteCustomItem = (): boolean => {
+    const query = aiPaletteSearch?.value.trim() ?? ''
+    return Boolean(query) && getAiPaletteFilteredTemplates().length === 0
+  }
+
+  const getAiPaletteVisibleTemplates = (): ReturnType<typeof getAiHelperTemplates> => {
+    const query = aiPaletteSearch?.value.trim() ?? ''
+    const templates = getAiHelperTemplates()
+    if (query) return getAiPaletteFilteredTemplates()
+    return templates.slice(0, 2).concat(templates)
+  }
+
+  const clampAiPaletteSelectedIndex = (): void => {
+    const itemCount = getAiPaletteVisibleTemplates().length + (hasAiPaletteCustomItem() ? 1 : 0)
+    aiPaletteSelectedIndex = Math.max(0, Math.min(aiPaletteSelectedIndex, Math.max(0, itemCount - 1)))
+  }
+
+  const runSelectedAiPaletteItem = (): void => {
+    const templates = getAiPaletteVisibleTemplates()
+    const selectedTemplate = templates[aiPaletteSelectedIndex]
+    if (selectedTemplate) {
+      selectAiPaletteTemplate(selectedTemplate.id)
+      void runAiPalettePrompt()
+      return
+    }
+
+    const customInstruction = aiPaletteSearch?.value.trim() ?? ''
+    if (!customInstruction) return
+    aiPaletteActiveTemplateId = null
+    aiPaletteCustomInstruction = customInstruction
+    void runAiPalettePrompt()
+  }
+
+  const renderAiPalette = (): void => {
+    if (!aiPaletteOverlay) return
+
+    const selection = getSelectedPlainText().trim()
+    const templates = getAiHelperTemplates()
+    const filteredTemplates = getAiPaletteFilteredTemplates()
+    const customInstruction = aiPaletteSearch?.value.trim() ?? ''
+    const quickTemplates = templates.slice(0, 4)
+    const hasCustomItem = hasAiPaletteCustomItem()
+    clampAiPaletteSelectedIndex()
+
+    if (aiPaletteChips) {
+      clearElement(aiPaletteChips)
+      for (const template of quickTemplates) {
+        const chip = document.createElement('button')
+        chip.type = 'button'
+        chip.className = 'ai-palette-chip'
+        chip.dataset.templateId = template.id
+        chip.textContent = template.title
+        chip.classList.toggle('active', aiPaletteActiveTemplateId === template.id)
+        chip.disabled = aiPaletteBusy
+        aiPaletteChips.appendChild(chip)
+      }
+    }
+
+    if (aiPaletteStatus) {
+      const paletteStatusText = aiPaletteBusy ? '' : (aiPaletteStatusText || (!selection ? '先选中文本，再使用 AI 精灵。' : ''))
+      aiPaletteStatus.textContent = paletteStatusText
+      aiPaletteStatus.hidden = !aiPaletteStatus.textContent
+      aiPaletteStatus.classList.remove('success', 'error', 'busy')
+      if (aiPaletteBusy) {
+        aiPaletteStatus.classList.add('busy')
+      } else if (aiPaletteStatusText === '完成') {
+        aiPaletteStatus.classList.add('success')
+      } else if (aiPaletteStatusText && !aiPaletteBusy) {
+        aiPaletteStatus.classList.add('error')
+      }
+    }
+
+    if (aiPaletteList) {
+      clearElement(aiPaletteList)
+
+      let itemIndex = 0
+      const appendSection = (label: string): void => {
+        const section = document.createElement('div')
+        section.className = 'ai-palette-section-label'
+        section.textContent = label
+        aiPaletteList.appendChild(section)
+      }
+
+      const appendTemplateItem = (template: ReturnType<typeof getAiHelperTemplates>[number]): void => {
+        const item = document.createElement('button')
+        item.type = 'button'
+        item.className = 'ai-palette-item'
+        item.dataset.templateId = template.id
+        item.setAttribute('role', 'option')
+        item.setAttribute('aria-selected', String(itemIndex === aiPaletteSelectedIndex))
+        item.classList.toggle('selected', itemIndex === aiPaletteSelectedIndex)
+        item.disabled = aiPaletteBusy || !selection
+
+        const copy = document.createElement('span')
+        copy.className = 'ai-palette-item-copy'
+
+        const title = document.createElement('span')
+        title.className = 'ai-palette-item-title'
+        title.textContent = template.title
+
+        const description = document.createElement('span')
+        description.className = 'ai-palette-item-description'
+        description.textContent = getAiPaletteTemplateDescription(template.id)
+
+        copy.append(title, description)
+
+        const scope = document.createElement('span')
+        scope.className = 'ai-palette-item-scope'
+        scope.textContent = 'selection'
+
+        item.append(copy, scope)
+        aiPaletteList.appendChild(item)
+        itemIndex += 1
+      }
+
+      const appendCustomItem = (): void => {
+        const item = document.createElement('button')
+        item.type = 'button'
+        item.className = 'ai-palette-item'
+        item.dataset.customInstruction = customInstruction
+        item.setAttribute('role', 'option')
+        item.setAttribute('aria-selected', String(itemIndex === aiPaletteSelectedIndex))
+        item.classList.toggle('selected', itemIndex === aiPaletteSelectedIndex)
+        item.disabled = aiPaletteBusy || !selection
+
+        const copy = document.createElement('span')
+        copy.className = 'ai-palette-item-copy'
+
+        const title = document.createElement('span')
+        title.className = 'ai-palette-item-title'
+        title.textContent = '按描述执行'
+
+        const description = document.createElement('span')
+        description.className = 'ai-palette-item-description'
+        description.textContent = customInstruction
+
+        copy.append(title, description)
+
+        const scope = document.createElement('span')
+        scope.className = 'ai-palette-item-scope'
+        scope.textContent = 'selection'
+
+        item.append(copy, scope)
+        aiPaletteList.appendChild(item)
+        itemIndex += 1
+      }
+
+      if (customInstruction) {
+        appendSection('匹配结果')
+        for (const template of filteredTemplates) appendTemplateItem(template)
+        if (hasCustomItem) appendCustomItem()
+      } else {
+        const recentTemplates = templates.slice(0, 2)
+        appendSection('最近使用')
+        for (const template of recentTemplates) appendTemplateItem(template)
+
+        const categories = ['EDITING', 'TOOLS', 'CREATIVE', 'STRUCTURE', 'CUSTOM']
+        for (const category of categories) {
+          const categoryTemplates = templates.filter((template) => getAiPaletteTemplateCategory(template.id) === category)
+          if (categoryTemplates.length === 0) continue
+          appendSection(getAiPaletteCategoryLabel(category))
+          for (const template of categoryTemplates) appendTemplateItem(template)
+        }
+      }
+    }
+
+    if (aiPaletteScope) {
+      aiPaletteScope.textContent = '范围：selection'
+    }
+    if (aiPaletteProviderLink) {
+      aiPaletteProviderLink.textContent = `通过 ${getAiProviderLabel()}`
+    }
+  }
+
+  const selectAiPaletteTemplate = (templateId: string): void => {
+    const template = getAiHelperTemplates().find((t) => t.id === templateId)
+    if (!template) return
+    aiPaletteActiveTemplateId = templateId
+    aiPaletteCustomInstruction = template.prompt
+    renderAiPalette()
+  }
+
+  const buildAiPalettePrompt = (selection: string): string => {
+    const instruction = aiPaletteCustomInstruction.trim()
+    if (!instruction) return selection
+    if (instruction.includes('{{selection}}')) {
+      return instruction.replaceAll('{{selection}}', selection)
+    }
+    return `${instruction}\n\n${selection}`
+  }
+
+  const runAiPalettePrompt = async (): Promise<void> => {
+    const selectionSnapshot = getSelectedTextSnapshot()
+    const selection = selectionSnapshot?.text.trim() ?? ''
+    if (!selectionSnapshot || !selection || aiPaletteBusy) return
+
+    const prompt = buildAiPalettePrompt(selection)
+    aiPaletteBusy = true
+    aiPaletteStatusText = ''
+    const runId = aiPaletteRunId + 1
+    aiPaletteRunId = runId
+    renderAiPalette()
+    startAiPaletteTimer()
+    hideAiPaletteForBackgroundRun()
+
+    const result = await api.completeAiPrompt(prompt).catch((error) => ({
+      ok: false,
+      error: error instanceof Error ? error.message : 'AI 请求失败。',
+    }))
+
+    aiPaletteBusy = false
+    clearAiPaletteTimer()
+    if (runId !== aiPaletteRunId) return
+
+    if (result.ok && 'text' in result && result.text) {
+      const created = createAiSuggestionFromSnapshot(result.text, selectionSnapshot)
+      aiPaletteStatusText = created ? '完成' : '无法创建建议预览。'
+      if (created) {
+        return
+      }
+      showAiPaletteStatusNotice(aiPaletteStatusText)
+    } else {
+      showAiPaletteStatusNotice(result.error ?? 'AI 请求失败。')
+    }
+    renderAiPalette()
   }
 
   const setOutlinePanelOpen = (open: boolean): void => {
@@ -1723,7 +2211,7 @@ async function init(): Promise<void> {
 
   const createIconSvg = (
     paths: string[],
-    options: { filled?: boolean } = {},
+    options: { className?: string; filled?: boolean } = {},
   ): SVGSVGElement => {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
     svg.setAttribute('viewBox', '0 0 18 18')
@@ -1735,6 +2223,7 @@ async function init(): Promise<void> {
     svg.setAttribute('stroke-width', '1.45')
     svg.setAttribute('stroke-linecap', 'round')
     svg.setAttribute('stroke-linejoin', 'round')
+    if (options.className) svg.setAttribute('class', options.className)
 
     for (const data of paths) {
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
@@ -1914,7 +2403,13 @@ async function init(): Promise<void> {
     button.title = row.relativePath
     button.appendChild(createIconSvg(row.expanded
       ? ['M5 7.2 9 11.2 13 7.2']
-      : ['M7.2 5 11.2 9 7.2 13']))
+      : ['M7.2 5 11.2 9 7.2 13'],
+      { className: 'workdir-folder-chevron' },
+    ))
+    button.appendChild(createIconSvg([
+      'M3.5 5.4h4.2l1.2 1.4h5.6v6.8h-11Z',
+      'M3.5 6.8h11',
+    ], { className: 'sidebar-item-icon workdir-folder-icon' }))
     button.appendChild(createTextBlock('sidebar-title', row.name))
 
     wrapper.appendChild(button)
@@ -2266,6 +2761,9 @@ img{max-width:100%}
         zoomLevel = 0
         applyZoom()
         break
+      case 'open-ai-palette':
+        openAiPalette()
+        break
       case 'settings':
         closeTitleSyncPrompt()
         settingsDialog.open()
@@ -2302,6 +2800,9 @@ img{max-width:100%}
   api.onMenuCleanCjkTypography(() => {
     cleanCurrentCjkTypography()
   })
+  api.onMenuOpenAiPalette(() => {
+    openAiPalette()
+  })
   api.onMenuSettings?.(() => {
     closeTitleSyncPrompt()
     settingsDialog.open()
@@ -2319,12 +2820,14 @@ img{max-width:100%}
     beginLibraryDocumentFromSidebar()
   })
   api.onFileOpened((data) => {
-    resetLocalEchoState()
-    clearAgentChangePanel()
-    titleEditActive = false
-    closeTitleSyncPrompt()
-    applyProgrammaticDocumentContent(data.content)
+    applyOpenedDocument(data)
   })
+  const startupDocument = typeof api.getCurrentDocument === 'function'
+    ? await api.getCurrentDocument().catch(() => null)
+    : null
+  if (startupDocument) {
+    applyOpenedDocument(startupDocument)
+  }
   api.onFileChanged((content) => {
     const currentScrollTop = editorShell?.scrollTop ?? 0
     const agentChangePayload = queuedAgentChangePayload
@@ -2343,10 +2846,6 @@ img{max-width:100%}
     void importCustomThemeSelection()
   })
 
-  const agentDot = document.getElementById('agent-dot')
-  api.onAgentActivity((state) => {
-    if (agentDot) agentDot.className = state === 'idle' ? '' : state
-  })
   api.onAgentChangeSummary((payload) => {
     queuedAgentChangePayload = payload
   })
@@ -2368,7 +2867,12 @@ img{max-width:100%}
   })
 
   agentToggle?.addEventListener('click', () => {
-    toggleAgentPanel()
+    openAiPalette()
+  })
+
+  aiPaletteProviderLink?.addEventListener('click', () => {
+    closeAiPalette({ restoreFocus: false })
+    settingsDialog.openPane('integrations')
   })
 
   const handleAiHelperTemplateChange = (templateSelect: HTMLSelectElement): void => {
@@ -2400,28 +2904,6 @@ img{max-width:100%}
     if (result.ok && result.text) {
       aiHelperResultText = result.text
       aiHelperStatusText = 'AI 结果已生成，可替换或插入。'
-    } else {
-      aiHelperStatusText = result.error ?? 'AI 请求失败。'
-    }
-    renderAiHelperPanel()
-  }
-
-  const runAiHelperShortcutRewrite = async (): Promise<void> => {
-    const selection = getSelectedPlainText().trim()
-    if (!selection || aiHelperBusy) return
-    const prompt = buildAiHelperPrompt(selection)
-    aiHelperBusy = true
-    aiHelperStatusText = '正在快捷改写选区...'
-    renderAiHelperPanel()
-    const result = await api.completeAiPrompt(prompt).catch((error) => ({
-      ok: false,
-      error: error instanceof Error ? error.message : 'AI 请求失败。',
-    }))
-    aiHelperBusy = false
-    if (result.ok && result.text) {
-      replaceSelectedText(result.text)
-      aiHelperResultText = ''
-      aiHelperStatusText = '已快捷改写选区。'
     } else {
       aiHelperStatusText = result.error ?? 'AI 请求失败。'
     }
@@ -2480,6 +2962,69 @@ img{max-width:100%}
   document.addEventListener('selectionchange', () => {
     if (!agentPanelOpen) return
     renderAiHelperPanel()
+  })
+
+  aiPaletteClose?.addEventListener('click', () => {
+    closeAiPalette()
+  })
+
+  aiPaletteOverlay?.addEventListener('click', (event) => {
+    if (event.target === aiPaletteOverlay) {
+      closeAiPalette()
+    }
+  })
+
+  aiPaletteChips?.addEventListener('click', (event) => {
+    const chip = (event.target as HTMLElement)?.closest('[data-template-id]') as HTMLElement | null
+    const templateId = chip?.dataset.templateId
+    if (!templateId || aiPaletteBusy) return
+    selectAiPaletteTemplate(templateId)
+    void runAiPalettePrompt()
+  })
+
+  aiPaletteList?.addEventListener('click', (event) => {
+    const item = (event.target as HTMLElement)?.closest('.ai-palette-item') as HTMLElement | null
+    if (!item || aiPaletteBusy) return
+    const items = Array.from(aiPaletteList.querySelectorAll('.ai-palette-item'))
+    aiPaletteSelectedIndex = Math.max(0, items.indexOf(item))
+    const templateId = item.dataset.templateId
+    if (templateId) {
+      selectAiPaletteTemplate(templateId)
+      void runAiPalettePrompt()
+      return
+    }
+    aiPaletteActiveTemplateId = null
+    aiPaletteCustomInstruction = item.dataset.customInstruction ?? aiPaletteSearch?.value.trim() ?? ''
+    void runAiPalettePrompt()
+  })
+
+  aiPaletteSearch?.addEventListener('input', () => {
+    aiPaletteCustomInstruction = aiPaletteSearch.value
+    aiPaletteActiveTemplateId = null
+    aiPaletteSelectedIndex = 0
+    renderAiPalette()
+  })
+
+  aiPaletteSearch?.addEventListener('keydown', (event) => {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault()
+      const itemCount = getAiPaletteVisibleTemplates().length + (hasAiPaletteCustomItem() ? 1 : 0)
+      if (itemCount === 0) return
+      aiPaletteSelectedIndex = event.key === 'ArrowDown'
+        ? (aiPaletteSelectedIndex + 1) % itemCount
+        : (aiPaletteSelectedIndex - 1 + itemCount) % itemCount
+      renderAiPalette()
+      return
+    }
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault()
+      runSelectedAiPaletteItem()
+    }
+  })
+
+  document.addEventListener('selectionchange', () => {
+    if (!aiPaletteOpen) return
+    renderAiPalette()
   })
 
   outlineToggle?.addEventListener('click', () => {
@@ -2783,9 +3328,9 @@ img{max-width:100%}
   })
 
   document.addEventListener('keydown', (event) => {
-    if (!isFormInputTarget(event.target) && eventMatchesShortcut(event, 'CmdOrCtrl+Y')) {
+    if (eventMatchesShortcut(event, shortcutFor(appSettings, 'openAiPalette'))) {
       event.preventDefault()
-      void runAiHelperShortcutRewrite()
+      openAiPalette()
       return
     }
 
@@ -2824,6 +3369,12 @@ img{max-width:100%}
     if (event.key === 'Escape' && titleSyncPromptState) {
       event.preventDefault()
       closeTitleSyncPrompt()
+      return
+    }
+
+    if (event.key === 'Escape' && aiPaletteOpen) {
+      event.preventDefault()
+      closeAiPalette()
     }
   })
 
@@ -3045,13 +3596,21 @@ img{max-width:100%}
 
   const handlePointerMove = (event: PointerEvent): void => {
     if (!sidebarState) return
+    event.preventDefault()
     const nextWidth = clampSidebarWidth(dragOriginWidth + (event.clientX - dragOriginX))
     appShell?.style.setProperty('--sidebar-width', `${nextWidth}px`)
   }
 
-  const handlePointerUp = async (event: PointerEvent): Promise<void> => {
+  const stopSidebarResize = (): void => {
     window.removeEventListener('pointermove', handlePointerMove)
     window.removeEventListener('pointerup', handlePointerUp)
+    window.removeEventListener('pointercancel', stopSidebarResize)
+    window.removeEventListener('blur', stopSidebarResize)
+    document.body.classList.remove('sidebar-resizing')
+  }
+
+  const handlePointerUp = async (event: PointerEvent): Promise<void> => {
+    stopSidebarResize()
     if (!sidebarState) return
     const nextWidth = clampSidebarWidth(dragOriginWidth + (event.clientX - dragOriginX))
     await api.setSidebarWidth(nextWidth).catch(() => {})
@@ -3059,10 +3618,14 @@ img{max-width:100%}
 
   sidebarResizer?.addEventListener('pointerdown', (event) => {
     if (!sidebarState?.sidebarOpen || sidebarState.isDrawerMode) return
+    event.preventDefault()
     dragOriginX = event.clientX
     dragOriginWidth = sidebarState.sidebarWidth
+    document.body.classList.add('sidebar-resizing')
     window.addEventListener('pointermove', handlePointerMove)
     window.addEventListener('pointerup', handlePointerUp)
+    window.addEventListener('pointercancel', stopSidebarResize)
+    window.addEventListener('blur', stopSidebarResize)
   })
 
   let contextDragOriginX = 0

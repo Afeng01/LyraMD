@@ -6,6 +6,5 @@ release/
 .claude/
 .codex/
 .superpowers/
-AGENTS.md
 *.env
 log.md

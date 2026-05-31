@@ -62,7 +62,7 @@ import {
   type CodexIntegrationStatus,
 } from './codex-integration'
 import { createMcpBridgeController, type McpBridgeRequest } from './mcp-bridge'
-import { completeAiHelperPrompt } from './ai-provider'
+import { completeAiHelperPrompt, testAiHelperConnection } from './ai-provider'
 
 // Custom themes directory
 const appDataDir = join(app.getPath('home'), '.lyramd')
@@ -1448,6 +1448,20 @@ ipcMain.handle('get-settings', async (event) => {
   return appSettings
 })
 
+ipcMain.handle('get-current-document', async (event) => {
+  const win = getWinFromEvent(event)
+  if (!win) return null
+  const state = getState(win)
+  if (!state.filePath || state.documentKind === 'blank' || state.lastSyncedContent === null) return null
+  return {
+    content: state.lastSyncedContent,
+    draftId: state.draftId,
+    kind: state.documentKind,
+    path: state.filePath,
+    title: state.displayTitle,
+  }
+})
+
 ipcMain.handle('update-settings', async (event, patch: Partial<AppSettings>) => {
   const win = getWinFromEvent(event)
   if (!win) return null
@@ -1460,6 +1474,12 @@ ipcMain.handle('complete-ai-prompt', async (event, prompt: string) => {
   const win = getWinFromEvent(event)
   if (!win) return { ok: false, error: '当前窗口不可用。' }
   return completeAiHelperPrompt(appSettings.aiHelper.provider, typeof prompt === 'string' ? prompt : '')
+})
+
+ipcMain.handle('test-ai-helper-connection', async (event) => {
+  const win = getWinFromEvent(event)
+  if (!win) return { ok: false, error: '当前窗口不可用。' }
+  return testAiHelperConnection(appSettings.aiHelper.provider)
 })
 
 ipcMain.handle('codex-integration-status', async () => {
@@ -2076,41 +2096,41 @@ function buildMenu(): void {
       ]
     }] : []),
     {
-      label: 'File',
+      label: '文件',
       submenu: [
         {
-          label: 'New',
+          label: '新建',
           accelerator: 'CmdOrCtrl+N',
           click: () => sendToFocused('menu-new-file-in-window')
         },
         {
-          label: 'New Window',
+          label: '新建窗口',
           accelerator: 'CmdOrCtrl+Shift+N',
           click: () => { createWindowMatchingSize(getFocusedWindow()) }
         },
         {
-          label: 'Open...',
+          label: '打开…',
           accelerator: 'CmdOrCtrl+O',
           click: () => sendToFocused('menu-open')
         },
         { type: 'separator' },
         {
-          label: 'Save',
+          label: '保存',
           accelerator: shortcutFor('save'),
           click: () => sendToFocused('menu-save')
         },
         {
-          label: 'Save As...',
+          label: '另存为…',
           accelerator: shortcutFor('saveAs'),
           click: () => sendToFocused('menu-save-as')
         },
         { type: 'separator' },
         {
-          label: 'Export PDF...',
+          label: '导出 PDF…',
           click: () => sendToFocused('menu-export-pdf')
         },
         {
-          label: 'Export HTML...',
+          label: '导出 HTML…',
           click: () => sendToFocused('menu-export-html')
         },
         { type: 'separator' },
@@ -2118,7 +2138,7 @@ function buildMenu(): void {
       ]
     },
     {
-      label: 'Edit',
+      label: '编辑',
       submenu: [
         { role: 'undo' },
         { role: 'redo' },
@@ -2129,43 +2149,38 @@ function buildMenu(): void {
         { role: 'selectAll' },
         { type: 'separator' },
         {
-          label: 'Find',
+          label: '查找',
           accelerator: shortcutFor('search'),
           click: () => sendToFocused('menu-search')
-        },
-        {
-          label: 'Clean CJK Typography',
-          accelerator: shortcutFor('cleanCjkTypography'),
-          click: () => sendToFocused('menu-clean-cjk-typography')
         }
       ]
     },
     {
-      label: 'View',
+      label: '查看',
       submenu: [
         {
-          label: 'Toggle Sidebar',
+          label: '切换侧边栏',
           accelerator: shortcutFor('toggleSidebar'),
           click: () => { toggleSidebarForWindow(getFocusedWindow()) }
         },
         {
-          label: 'Toggle Outline',
+          label: '切换大纲',
           accelerator: shortcutFor('toggleOutline'),
           click: () => sendToFocused('menu-toggle-outline')
         },
         { type: 'separator' },
         {
-          label: 'Zoom In',
+          label: '放大',
           accelerator: 'CmdOrCtrl+=',
           click: () => sendToFocused('menu-zoom', { delta: 1 })
         },
         {
-          label: 'Zoom Out',
+          label: '缩小',
           accelerator: 'CmdOrCtrl+-',
           click: () => sendToFocused('menu-zoom', { delta: -1 })
         },
         {
-          label: 'Reset Zoom',
+          label: '重置缩放',
           accelerator: 'CmdOrCtrl+0',
           click: () => sendToFocused('menu-zoom', { level: 0 })
         },
@@ -2174,24 +2189,44 @@ function buildMenu(): void {
       ]
     },
     {
-      label: 'Theme',
+      label: '格式',
+      submenu: [
+        {
+          label: '清理中英排版',
+          accelerator: shortcutFor('cleanCjkTypography'),
+          click: () => sendToFocused('menu-clean-cjk-typography')
+        }
+      ]
+    },
+    {
+      label: '主题',
       submenu: themeSubmenu
     },
     {
-      label: 'Settings',
+      label: '工具',
       submenu: [
         {
-          label: 'Open Settings',
+          label: 'AI 精灵',
+          accelerator: shortcutFor('openAiPalette'),
+          click: () => sendToFocused('menu-open-ai-palette')
+        }
+      ]
+    },
+    {
+      label: '设置',
+      submenu: [
+        {
+          label: '打开设置',
           accelerator: shortcutFor('settings'),
           click: () => sendToFocused('menu-settings')
         }
       ]
     },
     {
-      label: 'Help',
+      label: '帮助',
       submenu: [
         {
-          label: 'About LyraMD',
+          label: '关于 LyraMD',
           click: () => shell.openExternal('https://github.com/Afeng01/LyraMD')
         }
       ]

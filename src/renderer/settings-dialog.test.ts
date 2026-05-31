@@ -135,10 +135,14 @@ describe('settings dialog regression', () => {
     expect(html).toContain('id="settings-ai-template-list"')
     expect(html).toContain('id="settings-ai-template-add"')
     expect(html).toContain('id="settings-ai-template-delete"')
+    expect(html).toContain('class="settings-ai-template-actions"')
+    expect(html).toContain('class="settings-ai-template-delete-zone"')
     expect(html).toContain('id="settings-ai-template-title"')
     expect(html).toContain('id="settings-ai-template-prompt"')
     expect(html).not.toContain('data-settings-ai-template="polish">润色</button>')
     expect(file).toContain('renderAiTemplateButtons')
+    expect(file).toContain('getAiTemplateCategory')
+    expect(file).toContain('settings-ai-template-group')
     expect(file).toContain('createCustomAiTemplate')
     expect(file).toContain('deleteSelectedCustomAiPromptTemplate')
     expect(file).toContain('isBuiltInAiTemplate')
@@ -147,6 +151,8 @@ describe('settings dialog regression', () => {
     expect(file).toContain("id: 'expand'")
     expect(file).toContain("id: 'vivid'")
     expect(css).toContain('.settings-ai-template-list')
+    expect(css).toContain('.settings-ai-template-group')
+    expect(css).toContain('.settings-ai-template-delete-zone')
   })
 
   it('renders OpenAI-compatible AI helper provider controls', () => {
@@ -158,8 +164,23 @@ describe('settings dialog regression', () => {
     expect(html).toContain('id="settings-ai-model"')
     expect(html).toContain('id="settings-ai-test"')
     expect(html).toContain('id="settings-ai-test-status"')
+    expect(html).toContain('id="settings-ai-test-modal"')
+    expect(html).toContain('id="settings-ai-test-modal-close"')
     expect(file).toContain('testAiHelperConnection')
+    expect(file).toContain('aiTestDialogOpen')
     expect(file).toContain('updateAiHelperProviderSettings')
+  })
+
+  it('shows AI connection results in a modal instead of the inline status line', () => {
+    const file = readFileSync(join(process.cwd(), 'src/renderer/settings-dialog.ts'), 'utf8')
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+
+    expect(file).toContain('aiTestStatus.hidden = true')
+    expect(css).toContain('#settings-dialog {\n  position: relative;')
+    expect(css).toContain('.settings-ai-test-modal {\n  position: absolute;')
+    expect(css).toContain('place-items: center')
+    expect(css).toContain('.settings-ai-test-modal-card {\n  width: min(320px, calc(100% - 40px));')
+    expect(css).toContain('.settings-ai-test-modal.error .settings-ai-test-modal-card')
   })
 
   it('keeps the settings window draggable without the heavy pane title chrome', () => {

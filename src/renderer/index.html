@@ -496,11 +496,20 @@
                   </div>
                 </div>
                 <div id="settings-ai-test-status" class="settings-integration-copy" hidden></div>
+                <div id="settings-ai-test-modal" class="settings-ai-test-modal" role="status" aria-live="polite" hidden>
+                  <div class="settings-ai-test-modal-card">
+                    <strong id="settings-ai-test-modal-title">连接检测</strong>
+                    <p id="settings-ai-test-modal-message">正在检测 AI 连接...</p>
+                    <button id="settings-ai-test-modal-close" type="button" class="overlay-button">知道了</button>
+                  </div>
+                </div>
                 <div class="settings-ai-template-toolbar">
                   <div id="settings-ai-template-list" class="settings-ai-template-list" role="tablist" aria-label="AI prompt 模板"></div>
-                  <div class="settings-integration-actions">
-                    <button id="settings-ai-template-add" type="button" class="overlay-button">新增自定义</button>
-                    <button id="settings-ai-template-delete" type="button" class="overlay-button" hidden>删除自定义</button>
+                  <div class="settings-ai-template-actions">
+                    <button id="settings-ai-template-add" type="button" class="overlay-button">新增</button>
+                    <div class="settings-ai-template-delete-zone">
+                      <button id="settings-ai-template-delete" type="button" class="overlay-button">删除</button>
+                    </div>
                   </div>
                 </div>
                 <label class="settings-field">

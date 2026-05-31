@@ -312,6 +312,10 @@ export function createSettingsDialogController({
   const aiTemperatureInput = document.getElementById('settings-ai-temperature') as HTMLInputElement | null
   const aiTestButton = document.getElementById('settings-ai-test') as HTMLButtonElement | null
   const aiTestStatus = document.getElementById('settings-ai-test-status') as HTMLDivElement | null
+  const aiTestModal = document.getElementById('settings-ai-test-modal') as HTMLDivElement | null
+  const aiTestModalTitle = document.getElementById('settings-ai-test-modal-title') as HTMLElement | null
+  const aiTestModalMessage = document.getElementById('settings-ai-test-modal-message') as HTMLParagraphElement | null
+  const aiTestModalClose = document.getElementById('settings-ai-test-modal-close') as HTMLButtonElement | null
   const shortcutKeys = Array.from(
     document.querySelectorAll<HTMLElement>('[data-shortcut-action]'),
   )
@@ -333,6 +337,7 @@ export function createSettingsDialogController({
   let aiTestLoading = false
   let aiTestStatusText = ''
   let aiTestStatusTone: 'error' | 'success' | '' = ''
+  let aiTestDialogOpen = false
 
   initSettingsDialogDrag(overlay, dialog, topBar)
 
@@ -389,17 +394,42 @@ export function createSettingsDialogController({
     return parts.length > 1 ? parts.join('+') : null
   }
 
+  const getAiTemplateCategory = (templateId: string): { id: string; label: string } => {
+    if (['polish', 'condense', 'fix-grammar', 'simplify'].includes(templateId)) return { id: 'editing', label: '编辑' }
+    if (['rephrase', 'expand', 'vivid'].includes(templateId)) return { id: 'creative', label: '表达' }
+    if (['rewrite-english', 'translate'].includes(templateId)) return { id: 'language', label: '翻译' }
+    if (templateId === 'summarize') return { id: 'structure', label: '总结' }
+    return { id: 'custom', label: '自定义' }
+  }
+
   const renderAiTemplateButtons = (templates: AiPromptTemplate[]): void => {
     if (!aiTemplateList) return
     aiTemplateList.replaceChildren()
+    const groups = new Map<string, { label: string; templates: AiPromptTemplate[] }>()
     for (const template of templates) {
-      const button = document.createElement('button')
-      button.type = 'button'
-      button.className = 'settings-ai-template-button'
-      button.dataset.settingsAiTemplate = template.id
-      button.textContent = template.title
-      button.classList.toggle('active', template.id === activeAiTemplateId)
-      aiTemplateList.appendChild(button)
+      const category = getAiTemplateCategory(template.id)
+      if (!groups.has(category.id)) groups.set(category.id, { label: category.label, templates: [] })
+      groups.get(category.id)?.templates.push(template)
+    }
+    for (const group of groups.values()) {
+      const groupShell = document.createElement('div')
+      groupShell.className = 'settings-ai-template-group'
+      const label = document.createElement('div')
+      label.className = 'settings-ai-template-group-label'
+      label.textContent = group.label
+      const buttons = document.createElement('div')
+      buttons.className = 'settings-ai-template-group-buttons'
+      for (const template of group.templates) {
+        const button = document.createElement('button')
+        button.type = 'button'
+        button.className = 'settings-ai-template-button'
+        button.dataset.settingsAiTemplate = template.id
+        button.textContent = template.title
+        button.classList.toggle('active', template.id === activeAiTemplateId)
+        buttons.appendChild(button)
+      }
+      groupShell.append(label, buttons)
+      aiTemplateList.appendChild(groupShell)
     }
   }
 
@@ -478,7 +508,6 @@ export function createSettingsDialogController({
     }
     if (aiTemplateDeleteButton) {
       const canDeleteTemplate = Boolean(activeAiTemplate && !isBuiltInAiTemplate(activeAiTemplate.id))
-      aiTemplateDeleteButton.hidden = !canDeleteTemplate
       aiTemplateDeleteButton.disabled = !canDeleteTemplate
     }
     if (aiTestButton) {
@@ -486,10 +515,23 @@ export function createSettingsDialogController({
       aiTestButton.textContent = aiTestLoading ? '检测中...' : '检测'
     }
     if (aiTestStatus) {
-      aiTestStatus.hidden = !aiTestStatusText
+      aiTestStatus.hidden = true
       aiTestStatus.textContent = aiTestStatusText
       aiTestStatus.classList.toggle('settings-integration-error', aiTestStatusTone === 'error')
       aiTestStatus.classList.toggle('settings-status-success', aiTestStatusTone === 'success')
+    }
+    if (aiTestModal) {
+      aiTestModal.hidden = !aiTestDialogOpen
+      aiTestModal.classList.toggle('success', aiTestStatusTone === 'success')
+      aiTestModal.classList.toggle('error', aiTestStatusTone === 'error')
+    }
+    if (aiTestModalTitle) {
+      aiTestModalTitle.textContent = aiTestLoading
+        ? '正在检测'
+        : (aiTestStatusTone === 'success' ? '连接正常' : '连接失败')
+    }
+    if (aiTestModalMessage) {
+      aiTestModalMessage.textContent = aiTestStatusText || '正在检测 AI 连接...'
     }
     renderAiTemplateButtons(aiHelper.templates)
 
@@ -735,6 +777,7 @@ export function createSettingsDialogController({
     aiTestLoading = true
     aiTestStatusText = '正在检测 AI 连接...'
     aiTestStatusTone = ''
+    aiTestDialogOpen = true
     render()
     const current = getAppSettings()
     const currentAiHelper = current.aiHelper ?? DEFAULT_AI_HELPER_SETTINGS
@@ -759,6 +802,7 @@ export function createSettingsDialogController({
     aiTestLoading = false
     aiTestStatusText = result.ok ? (result.text ?? 'AI 连接正常。') : (result.error ?? 'AI 连接检测失败。')
     aiTestStatusTone = result.ok ? 'success' : 'error'
+    aiTestDialogOpen = true
     render()
   }
 
@@ -936,6 +980,11 @@ export function createSettingsDialogController({
 
   aiTemplateDeleteButton?.addEventListener('click', () => {
     void deleteSelectedCustomAiPromptTemplate()
+  })
+
+  aiTestModalClose?.addEventListener('click', () => {
+    aiTestDialogOpen = false
+    render()
   })
 
   aiTemplateTitleInput?.addEventListener('change', () => {

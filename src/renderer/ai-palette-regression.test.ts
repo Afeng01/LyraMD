@@ -131,11 +131,15 @@ describe('AI command palette regression', () => {
     const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
     const editor = readFileSync(join(process.cwd(), 'src/renderer/editor/editor.ts'), 'utf8')
 
-    expect(renderer).toContain('createAiSuggestionFromSelection(result.text)')
-    expect(renderer).toContain('closeAiPalette({ restoreFocus: false })')
+    expect(renderer).toContain('const selectionSnapshot = getSelectedTextSnapshot()')
+    expect(renderer).toContain('createAiSuggestionFromSnapshot(result.text, selectionSnapshot)')
+    expect(renderer).toContain('hideAiPaletteForBackgroundRun()')
     expect(renderer).not.toContain('aiPaletteResultText = result.text')
     expect(editor).toContain('function createAiSuggestionPlugin(): Plugin')
     expect(editor).toContain('export function createAiSuggestionFromSelection')
+    expect(editor).toContain('export function getSelectedTextSnapshot')
+    expect(editor).toContain('export function createAiSuggestionFromSnapshot')
+    expect(editor).toContain('currentText !== snapshot.text')
     expect(editor).toContain('export function acceptAiSuggestion')
     expect(editor).toContain('export function rejectAiSuggestion')
     expect(editor).toContain('class: \'ai-suggestion-original\'')
@@ -180,6 +184,24 @@ describe('AI command palette regression', () => {
 
     expect(renderer).toContain("const paletteStatusText = aiPaletteBusy ? ''")
     expect(renderer).toContain('aiPaletteStatus.textContent = paletteStatusText')
+  })
+
+  it('hides the centered palette immediately after launching a command', () => {
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+
+    expect(renderer).toContain('const hideAiPaletteForBackgroundRun = (): void => {')
+    const runIdx = renderer.indexOf('const runAiPalettePrompt = async (): Promise<void> => {')
+    const runBlock = renderer.slice(runIdx, runIdx + 700)
+    expect(runBlock).toContain('startAiPaletteTimer()')
+    expect(runBlock).toContain('hideAiPaletteForBackgroundRun()')
+  })
+
+  it('surfaces hidden palette failures in the bottom stats status', () => {
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+
+    expect(renderer).toContain('const showAiPaletteStatusNotice = (status: string): void => {')
+    expect(renderer).toContain('updateDocumentStatsAiStatus(status)')
+    expect(renderer).toContain("showAiPaletteStatusNotice(result.error ?? 'AI 请求失败。')")
   })
 
   it('connects the native menu to the palette via preload and renderer', () => {

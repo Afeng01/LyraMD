@@ -352,11 +352,11 @@ body.platform-win32 #outline-toggle {
 }
 
 #agent-toggle {
-  right: 80px;
+  right: 56px;
 }
 
 #outline-toggle {
-  right: 48px;
+  right: 24px;
 }
 
 #sidebar-toggle:hover,
@@ -1176,6 +1176,22 @@ body.platform-win32 #outline-toggle {
   height: auto;
   border-left: 1px solid var(--border-color);
   box-shadow: -12px 0 30px rgba(15, 23, 42, 0.08);
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
+}
+
+#app-shell.context-panel-open.context-panel-outline #context-panel {
+  position: relative;
+  right: auto;
+  top: auto;
+  bottom: auto;
+  z-index: auto;
+  width: var(--context-panel-width);
+  min-width: var(--context-panel-width);
+  max-width: var(--context-panel-width);
+  height: auto;
+  box-shadow: none;
   opacity: 1;
   pointer-events: auto;
   transform: translateX(0);
@@ -2271,6 +2287,7 @@ body.platform-win32 #outline-toggle {
 }
 
 #settings-dialog {
+  position: relative;
   width: 720px;
   height: 500px;
   display: grid;
@@ -2745,16 +2762,36 @@ body.theme-dark .settings-option input[type="radio"]:checked::after {
 }
 
 .settings-ai-template-toolbar {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
   gap: 10px;
 }
 
 .settings-ai-template-list {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.settings-ai-template-group {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+}
+
+.settings-ai-template-group-label {
+  padding-top: 7px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.settings-ai-template-group-buttons {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 7px;
   min-width: 0;
 }
 
@@ -2776,8 +2813,76 @@ body.theme-dark .settings-option input[type="radio"]:checked::after {
   color: var(--text-color);
 }
 
+.settings-ai-template-actions {
+  display: grid;
+  gap: 8px;
+  min-width: 62px;
+}
+
+.settings-ai-template-actions .overlay-button {
+  min-width: 58px;
+  white-space: nowrap;
+}
+
+.settings-ai-template-delete-zone {
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+}
+
 .settings-ai-template-editor {
   margin-top: 10px;
+}
+
+.settings-ai-test-modal {
+  position: absolute;
+  inset: 42px 0 0;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--bg-color) 72%, rgba(15, 23, 42, 0.22) 28%);
+  backdrop-filter: blur(6px);
+}
+
+.settings-ai-test-modal[hidden] {
+  display: none;
+}
+
+.settings-ai-test-modal.success .settings-ai-test-modal-card {
+  border-color: color-mix(in srgb, #16a34a 34%, var(--border-color) 66%);
+  background: color-mix(in srgb, var(--bg-color) 93%, #16a34a 7%);
+}
+
+.settings-ai-test-modal.error .settings-ai-test-modal-card {
+  border-color: color-mix(in srgb, #c42b1c 36%, var(--border-color) 64%);
+  background: color-mix(in srgb, var(--bg-color) 92%, #c42b1c 8%);
+}
+
+.settings-ai-test-modal-card {
+  width: min(320px, calc(100% - 40px));
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 12px;
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--link-color) 28%, var(--border-color) 72%);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--bg-color) 94%, var(--link-color) 6%);
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18);
+}
+
+.settings-ai-test-modal-card strong {
+  color: var(--text-color);
+  font-size: 12.5px;
+}
+
+.settings-ai-test-modal-card p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .settings-integration-card {

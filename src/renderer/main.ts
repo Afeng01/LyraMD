@@ -1,6 +1,6 @@
 import {
   activateSearchMatch,
-  createAiSuggestionFromSelection,
+  createAiSuggestionFromSnapshot,
   createEditor,
   focusEditorAtLastSelection,
   focusEditorPreservingSelection,
@@ -8,6 +8,7 @@ import {
   getHTML,
   getMarkdown,
   getSelectedPlainText,
+  getSelectedTextSnapshot,
   insertTextBelowSelection,
   isEditorTextFocused,
   replaceSelectedText,
@@ -1711,6 +1712,16 @@ async function init(): Promise<void> {
     }
   }
 
+  const hideAiPaletteForBackgroundRun = (): void => {
+    if (!aiPaletteOverlay) return
+    aiPaletteOpen = false
+    aiPaletteOverlay.hidden = true
+    aiPaletteOverlay.setAttribute('aria-hidden', 'true')
+    agentToggle?.classList.remove('active')
+    agentToggle?.setAttribute('aria-pressed', 'false')
+    focusEditorAtLastSelection()
+  }
+
   const clearAiPaletteTimer = (): void => {
     if (aiPaletteTimerInterval) {
       clearInterval(aiPaletteTimerInterval)
@@ -1718,6 +1729,16 @@ async function init(): Promise<void> {
     }
     aiPaletteStartedAt = null
     updateDocumentStatsAiStatus('')
+  }
+
+  const showAiPaletteStatusNotice = (status: string): void => {
+    aiPaletteStatusText = status
+    updateDocumentStatsAiStatus(status)
+    window.setTimeout(() => {
+      if (!aiPaletteBusy && documentStatsAiStatus === status) {
+        updateDocumentStatsAiStatus('')
+      }
+    }, 4500)
   }
 
   const startAiPaletteTimer = (): void => {
@@ -1964,8 +1985,9 @@ async function init(): Promise<void> {
   }
 
   const runAiPalettePrompt = async (): Promise<void> => {
-    const selection = getSelectedPlainText().trim()
-    if (!selection || aiPaletteBusy) return
+    const selectionSnapshot = getSelectedTextSnapshot()
+    const selection = selectionSnapshot?.text.trim() ?? ''
+    if (!selectionSnapshot || !selection || aiPaletteBusy) return
 
     const prompt = buildAiPalettePrompt(selection)
     aiPaletteBusy = true
@@ -1974,6 +1996,7 @@ async function init(): Promise<void> {
     aiPaletteRunId = runId
     renderAiPalette()
     startAiPaletteTimer()
+    hideAiPaletteForBackgroundRun()
 
     const result = await api.completeAiPrompt(prompt).catch((error) => ({
       ok: false,
@@ -1985,14 +2008,14 @@ async function init(): Promise<void> {
     if (runId !== aiPaletteRunId) return
 
     if (result.ok && 'text' in result && result.text) {
-      const created = createAiSuggestionFromSelection(result.text)
+      const created = createAiSuggestionFromSnapshot(result.text, selectionSnapshot)
       aiPaletteStatusText = created ? '完成' : '无法创建建议预览。'
       if (created) {
-        closeAiPalette({ restoreFocus: false })
         return
       }
+      showAiPaletteStatusNotice(aiPaletteStatusText)
     } else {
-      aiPaletteStatusText = result.error ?? 'AI 请求失败。'
+      showAiPaletteStatusNotice(result.error ?? 'AI 请求失败。')
     }
     renderAiPalette()
   }

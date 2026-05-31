@@ -65,6 +65,12 @@ type AiSuggestionPreview = {
   newText: string
 }
 
+export type AiTextSelectionSnapshot = {
+  from: number
+  to: number
+  text: string
+}
+
 const aiSuggestionPluginKey = new PluginKey<AiSuggestionPreview | null>('ai-suggestion-preview')
 
 const inlineStyles: Record<string, string> = {
@@ -400,6 +406,18 @@ export function getSelectedPlainText(): string {
   }) ?? ''
 }
 
+export function getSelectedTextSnapshot(): AiTextSelectionSnapshot | null {
+  return withEditorView((view) => {
+    const { from, to, empty } = view.state.selection
+    if (empty) return null
+    return {
+      from,
+      to,
+      text: view.state.doc.textBetween(from, to, '\n\n', '\n'),
+    }
+  }) ?? null
+}
+
 export function replaceSelectedText(text: string): boolean {
   return withEditorView((view) => {
     const { from, to, empty } = view.state.selection
@@ -437,6 +455,32 @@ export function createAiSuggestionFromSelection(text: string): boolean {
       newText,
     }
     const tr = view.state.tr.setMeta(aiSuggestionPluginKey, { type: 'set', preview })
+    view.dispatch(tr.scrollIntoView())
+    rememberCurrentSelection()
+    return true
+  }) ?? false
+}
+
+export function createAiSuggestionFromSnapshot(text: string, snapshot: AiTextSelectionSnapshot): boolean {
+  return withEditorView((view) => {
+    const newText = text.trim()
+    if (newText.length === 0) return false
+    if (snapshot.from >= snapshot.to || snapshot.to > view.state.doc.content.size) return false
+
+    const currentText = view.state.doc.textBetween(snapshot.from, snapshot.to, '\n\n', '\n')
+    if (currentText !== snapshot.text) return false
+
+    const preview: AiSuggestionPreview = {
+      from: snapshot.from,
+      to: snapshot.to,
+      originalText: snapshot.text,
+      newText,
+    }
+    const selection = createSafeTextSelection(view.state.doc, snapshot.from, snapshot.to)
+    if (!selection) return false
+    const tr = view.state.tr
+      .setSelection(selection)
+      .setMeta(aiSuggestionPluginKey, { type: 'set', preview })
     view.dispatch(tr.scrollIntoView())
     rememberCurrentSelection()
     return true

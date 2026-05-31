@@ -411,6 +411,12 @@
               </span>
               <span class="settings-nav-label">集成与终端</span>
             </button>
+            <button type="button" class="settings-nav-item" data-settings-pane="feedback">
+              <span class="settings-nav-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"></path><path d="M8 9h8"></path><path d="M8 13h5"></path></svg>
+              </span>
+              <span class="settings-nav-label">反馈与问题</span>
+            </button>
           </nav>
         </aside>
 
@@ -575,6 +581,43 @@
                   <li>需要正式落盘时，用保存或工作目录里的新建按钮，把文件放进对应文件夹。</li>
                   <li>终端里和 Alice 或 Codex 讨论内容时，让它通过已配置的本地连接读取当前文档，或直接把文件路径发给它。</li>
                 </ol>
+              </section>
+            </section>
+
+            <section class="settings-pane" data-settings-panel="feedback" hidden>
+              <section class="settings-group">
+                <div class="settings-group-heading">
+                  <h4 class="settings-group-title">反馈与问题</h4>
+                  <p class="settings-group-copy">在这里整理问题或建议，LyraMD 会打开预填好的 GitHub Issue 页面；提交前你仍然可以检查和修改内容。</p>
+                </div>
+                <div class="settings-feedback-card">
+                  <div class="settings-field-grid">
+                    <label class="settings-field">
+                      <span>类型</span>
+                      <select id="settings-feedback-type">
+                        <option value="bug">遇到 bug</option>
+                        <option value="suggestion">体验建议</option>
+                        <option value="feature">功能请求</option>
+                      </select>
+                    </label>
+                    <label class="settings-field span-2">
+                      <span>标题</span>
+                      <input id="settings-feedback-title" type="text" maxlength="120" placeholder="用一句话描述问题或建议">
+                    </label>
+                    <label class="settings-field span-2">
+                      <span>描述</span>
+                      <textarea id="settings-feedback-description" rows="8" placeholder="发生了什么？你原本期待什么？如果方便，也可以写一下复现步骤。"></textarea>
+                    </label>
+                  </div>
+                  <label class="settings-feedback-check">
+                    <input id="settings-feedback-diagnostics" type="checkbox" checked>
+                    <span>附带基础诊断信息（主题和系统 User Agent，不包含正文、文件路径或 API Key）</span>
+                  </label>
+                  <div class="settings-feedback-actions">
+                    <button id="settings-feedback-submit" type="button" class="overlay-button primary">提交到 GitHub Issue</button>
+                    <div id="settings-feedback-status" class="settings-feedback-status" hidden></div>
+                  </div>
+                </div>
               </section>
             </section>
             <section class="settings-pane" data-settings-panel="workspace" hidden>

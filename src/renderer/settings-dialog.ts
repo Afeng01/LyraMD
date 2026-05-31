@@ -235,7 +235,7 @@ interface CreateSettingsDialogControllerOptions {
   onSidebarStateChange: (state: SidebarState) => void
 }
 
-export type SettingsPaneId = 'general' | 'workspace' | 'shortcuts' | 'integrations'
+export type SettingsPaneId = 'general' | 'workspace' | 'shortcuts' | 'integrations' | 'feedback'
 
 const SETTINGS_PANE_META: Record<
   SettingsPaneId,
@@ -261,6 +261,57 @@ const SETTINGS_PANE_META: Record<
     kicker: '进阶',
     title: '集成与终端',
   },
+  feedback: {
+    description: '把问题和建议整理成 GitHub Issue，方便后续继续跟进。',
+    kicker: '反馈',
+    title: '反馈与问题',
+  },
+}
+
+type FeedbackIssueType = 'bug' | 'suggestion' | 'feature'
+
+interface FeedbackIssueDiagnostics {
+  themeName: string
+  userAgent: string
+}
+
+interface FeedbackIssueInput {
+  type: FeedbackIssueType
+  title: string
+  description: string
+  includeDiagnostics: boolean
+  diagnostics: FeedbackIssueDiagnostics
+}
+
+const FEEDBACK_TYPE_LABELS: Record<FeedbackIssueType, string> = {
+  bug: '遇到 bug',
+  suggestion: '体验建议',
+  feature: '功能请求',
+}
+
+const FEEDBACK_TYPE_LABELS_FOR_GITHUB: Record<FeedbackIssueType, string> = {
+  bug: 'bug',
+  suggestion: 'enhancement',
+  feature: 'enhancement',
+}
+
+function encodeIssueParam(value: string): string {
+  return encodeURIComponent(value)
+}
+
+export function buildFeedbackIssueUrl(input: FeedbackIssueInput): string {
+  const title = `[${FEEDBACK_TYPE_LABELS[input.type]}] ${input.title.trim()}`
+  const diagnostics = input.includeDiagnostics
+    ? `\n\n### 诊断信息\n- 主题：${input.diagnostics.themeName}\n- User Agent：${input.diagnostics.userAgent}`
+    : ''
+  const body = `### 类型\n${FEEDBACK_TYPE_LABELS[input.type]}\n\n### 描述\n${input.description.trim()}${diagnostics}`
+
+  return [
+    'https://github.com/Afeng01/LyraMD/issues/new',
+    `?title=${encodeIssueParam(title)}`,
+    `&body=${encodeIssueParam(body)}`,
+    `&labels=${encodeIssueParam(FEEDBACK_TYPE_LABELS_FOR_GITHUB[input.type])}`,
+  ].join('')
 }
 
 export function createSettingsDialogController({
@@ -341,6 +392,12 @@ export function createSettingsDialogController({
   const codexRefreshButton = document.getElementById('settings-codex-refresh') as HTMLButtonElement | null
   const codexInstallButton = document.getElementById('settings-codex-install') as HTMLButtonElement | null
   const codexRemoveButton = document.getElementById('settings-codex-remove') as HTMLButtonElement | null
+  const feedbackTypeSelect = document.getElementById('settings-feedback-type') as HTMLSelectElement | null
+  const feedbackTitleInput = document.getElementById('settings-feedback-title') as HTMLInputElement | null
+  const feedbackDescriptionInput = document.getElementById('settings-feedback-description') as HTMLTextAreaElement | null
+  const feedbackDiagnosticsInput = document.getElementById('settings-feedback-diagnostics') as HTMLInputElement | null
+  const feedbackSubmitButton = document.getElementById('settings-feedback-submit') as HTMLButtonElement | null
+  const feedbackStatus = document.getElementById('settings-feedback-status') as HTMLDivElement | null
 
   let dialogOpen = false
   let activePane: SettingsPaneId = 'general'
@@ -616,6 +673,44 @@ export function createSettingsDialogController({
     codexError.textContent = codexStatus.error ?? ''
     codexRemoveButton.hidden = !codexStatus.codexMcpConfigured
     codexInstallButton.hidden = codexStatus.codexMcpConfigured
+  }
+
+  const getFeedbackIssueType = (): FeedbackIssueType => {
+    const value = feedbackTypeSelect?.value
+    if (value === 'bug' || value === 'suggestion' || value === 'feature') return value
+    return 'bug'
+  }
+
+  const setFeedbackStatus = (message: string, kind: 'muted' | 'warning' = 'muted'): void => {
+    if (!feedbackStatus) return
+    feedbackStatus.hidden = false
+    feedbackStatus.textContent = message
+    feedbackStatus.dataset.kind = kind
+  }
+
+  const submitFeedbackIssue = (): void => {
+    const title = feedbackTitleInput?.value.trim() ?? ''
+    const description = feedbackDescriptionInput?.value.trim() ?? ''
+
+    if (!title || !description) {
+      setFeedbackStatus('请先填写标题和描述。', 'warning')
+      return
+    }
+
+    const appSettings = getAppSettings()
+    const url = buildFeedbackIssueUrl({
+      type: getFeedbackIssueType(),
+      title,
+      description,
+      includeDiagnostics: Boolean(feedbackDiagnosticsInput?.checked),
+      diagnostics: {
+        themeName: appSettings.themeName,
+        userAgent: navigator.userAgent,
+      },
+    })
+
+    api.openExternal(url)
+    setFeedbackStatus('已打开 GitHub Issue 页面，确认内容后提交即可。')
   }
 
   const loadCodexStatus = async (): Promise<void> => {
@@ -949,6 +1044,8 @@ export function createSettingsDialogController({
   codexRemoveButton?.addEventListener('click', () => {
     void removeCodexIntegration()
   })
+
+  feedbackSubmitButton?.addEventListener('click', submitFeedbackIssue)
 
   window.addEventListener('keydown', (event) => {
     if (!dialogOpen || !recordingShortcut) return

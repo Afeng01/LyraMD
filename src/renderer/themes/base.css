@@ -3223,6 +3223,47 @@ body.theme-dark .settings-option input[type="radio"]:checked::after {
   margin-top: 4px;
 }
 
+.settings-feedback-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 30%, transparent 70%);
+  border-radius: 8px;
+  padding: 14px;
+  background: color-mix(in srgb, var(--bg-color) 94%, var(--border-color) 6%);
+}
+
+.settings-feedback-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.settings-feedback-check input {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.settings-feedback-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.settings-feedback-status {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.settings-feedback-status[data-kind="warning"] {
+  color: #b45309;
+}
+
 #editor .ProseMirror .markdown-token {
   border-radius: 4px;
   padding: 1px 3px;

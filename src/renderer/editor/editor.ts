@@ -1,7 +1,7 @@
 import { Editor, rootCtx, defaultValueCtx, editorViewCtx, serializerCtx, remarkPluginsCtx } from '@milkdown/kit/core'
 import { editorViewOptionsCtx, prosePluginsCtx } from '@milkdown/core'
 import { DOMSerializer, type Node as ProseNode } from '@milkdown/kit/prose/model'
-import { Plugin, TextSelection } from '@milkdown/kit/prose/state'
+import { Plugin, PluginKey, TextSelection } from '@milkdown/kit/prose/state'
 import { Decoration, DecorationSet } from '@milkdown/kit/prose/view'
 import remarkBreaks from 'remark-breaks'
 import { commonmark } from '@milkdown/kit/preset/commonmark'
@@ -57,6 +57,15 @@ let searchState: SearchState = {
 }
 let lastEditorSelection: { anchor: number; head: number } | null = null
 let isManagedSelectionChange = false
+
+type AiSuggestionPreview = {
+  from: number
+  to: number
+  originalText: string
+  newText: string
+}
+
+const aiSuggestionPluginKey = new PluginKey<AiSuggestionPreview | null>('ai-suggestion-preview')
 
 const inlineStyles: Record<string, string> = {
   'h1': 'font-size:1.8em;font-weight:700;margin:1em 0 .5em;padding-bottom:.3em;border-bottom:1px solid #eee;',
@@ -151,6 +160,86 @@ function createMarkdownTokenPlugin(): Plugin {
   })
 }
 
+function createAiSuggestionWidget(preview: AiSuggestionPreview): HTMLSpanElement {
+  const shell = document.createElement('span')
+  shell.className = 'ai-suggestion-widget'
+  shell.setAttribute('contenteditable', 'false')
+  shell.dataset.originalText = preview.originalText
+
+  const ghost = document.createElement('span')
+  ghost.className = 'ai-suggestion-ghost'
+  ghost.textContent = preview.newText
+  shell.appendChild(ghost)
+
+  const actions = document.createElement('span')
+  actions.className = 'ai-suggestion-actions'
+
+  const accept = document.createElement('button')
+  accept.type = 'button'
+  accept.className = 'ai-suggestion-btn ai-suggestion-btn-accept'
+  accept.setAttribute('aria-label', '接受 AI 建议')
+  accept.textContent = '✓'
+  accept.addEventListener('mousedown', (event) => event.preventDefault())
+  accept.addEventListener('click', (event) => {
+    event.preventDefault()
+    acceptAiSuggestion()
+  })
+
+  const reject = document.createElement('button')
+  reject.type = 'button'
+  reject.className = 'ai-suggestion-btn ai-suggestion-btn-reject'
+  reject.setAttribute('aria-label', '拒绝 AI 建议')
+  reject.textContent = '×'
+  reject.addEventListener('mousedown', (event) => event.preventDefault())
+  reject.addEventListener('click', (event) => {
+    event.preventDefault()
+    rejectAiSuggestion()
+  })
+
+  actions.append(accept, reject)
+  shell.appendChild(actions)
+  return shell
+}
+
+function createAiSuggestionPlugin(): Plugin {
+  return new Plugin<AiSuggestionPreview | null>({
+    key: aiSuggestionPluginKey,
+    state: {
+      init: (): AiSuggestionPreview | null => null,
+      apply(tr, value: AiSuggestionPreview | null): AiSuggestionPreview | null {
+        const action = tr.getMeta(aiSuggestionPluginKey) as
+          | { type: 'set'; preview: AiSuggestionPreview }
+          | { type: 'clear' }
+          | undefined
+
+        if (action?.type === 'set') return action.preview
+        if (action?.type === 'clear') return null
+        if (!value || !tr.docChanged) return value
+
+        const preview = value
+        const from = tr.mapping.map(preview.from)
+        const to = tr.mapping.map(preview.to)
+        if (from >= to) return null
+        return {
+          ...preview,
+          from,
+          to,
+        }
+      },
+    },
+    props: {
+      decorations(state) {
+        const preview = aiSuggestionPluginKey.getState(state)
+        if (!preview) return null
+        return DecorationSet.create(state.doc, [
+          Decoration.inline(preview.from, preview.to, { class: 'ai-suggestion-original' }),
+          Decoration.widget(preview.to, () => createAiSuggestionWidget(preview), { side: 1 }),
+        ])
+      },
+    },
+  })
+}
+
 function createAutoPairInputPlugin(): Plugin {
   return new Plugin({
     props: {
@@ -227,6 +316,7 @@ export async function createEditor(
         createAutoPairInputPlugin(),
         createProsemirrorSearchPlugin(),
         createMarkdownTokenPlugin(),
+        createAiSuggestionPlugin(),
       ))
       ctx.set(editorViewOptionsCtx, {
         clipboardTextSerializer: (content) => serializeClipboardPlainText(content),
@@ -328,6 +418,51 @@ export function insertTextBelowSelection(text: string): boolean {
     const prefix = to > 0 ? '\n\n' : ''
     const tr = view.state.tr.insertText(`${prefix}${text}`, to, to)
     view.dispatch(tr.scrollIntoView())
+    rememberCurrentSelection()
+    return true
+  }) ?? false
+}
+
+export function createAiSuggestionFromSelection(text: string): boolean {
+  return withEditorView((view) => {
+    const { from, to, empty } = view.state.selection
+    const newText = text.trim()
+    if (empty || newText.length === 0) return false
+
+    const originalText = view.state.doc.textBetween(from, to, '\n\n', '\n')
+    const preview: AiSuggestionPreview = {
+      from,
+      to,
+      originalText,
+      newText,
+    }
+    const tr = view.state.tr.setMeta(aiSuggestionPluginKey, { type: 'set', preview })
+    view.dispatch(tr.scrollIntoView())
+    rememberCurrentSelection()
+    return true
+  }) ?? false
+}
+
+export function acceptAiSuggestion(): boolean {
+  return withEditorView((view) => {
+    const preview = aiSuggestionPluginKey.getState(view.state)
+    if (!preview) return false
+
+    const tr = view.state.tr
+      .insertText(preview.newText, preview.from, preview.to)
+      .setMeta(aiSuggestionPluginKey, { type: 'clear' })
+    view.dispatch(tr.scrollIntoView())
+    rememberCurrentSelection()
+    return true
+  }) ?? false
+}
+
+export function rejectAiSuggestion(): boolean {
+  return withEditorView((view) => {
+    const preview = aiSuggestionPluginKey.getState(view.state)
+    if (!preview) return false
+
+    view.dispatch(view.state.tr.setMeta(aiSuggestionPluginKey, { type: 'clear' }))
     rememberCurrentSelection()
     return true
   }) ?? false

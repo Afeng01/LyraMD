@@ -13,15 +13,16 @@ describe('AI command palette regression', () => {
     expect(html).toContain('aria-labelledby="ai-palette-title"')
     expect(html).toContain('id="ai-palette-title"')
     expect(html).toContain('id="ai-palette-close"')
-    expect(html).toContain('id="ai-palette-selection"')
-    expect(html).toContain('id="ai-palette-templates"')
-    expect(html).toContain('id="ai-palette-instruction"')
+    expect(html).toContain('id="ai-palette-search"')
+    expect(html).toContain('id="ai-palette-chips"')
+    expect(html).toContain('id="ai-palette-list"')
     expect(html).toContain('id="ai-palette-status"')
-    expect(html).toContain('id="ai-palette-result"')
-    expect(html).toContain('id="ai-palette-run"')
-    expect(html).toContain('id="ai-palette-replace"')
-    expect(html).toContain('id="ai-palette-insert"')
-    expect(html).toContain('id="ai-palette-copy"')
+    expect(html).toContain('class="ai-palette-footer"')
+    expect(html).toContain('范围：')
+    expect(html).not.toContain('id="ai-palette-result"')
+    expect(html).not.toContain('id="ai-palette-replace"')
+    expect(html).not.toContain('id="ai-palette-insert"')
+    expect(html).not.toContain('id="ai-palette-copy"')
   })
 
   it('has dedicated palette CSS in base.css', () => {
@@ -30,28 +31,30 @@ describe('AI command palette regression', () => {
     expect(css).toContain('#ai-command-overlay')
     expect(css).toContain('#ai-command-palette')
     expect(css).toContain('.ai-palette-header')
-    expect(css).toContain('.ai-palette-selection-preview')
-    expect(css).toContain('.ai-palette-templates')
-    expect(css).toContain('.ai-palette-template-chip')
-    expect(css).toContain('.ai-palette-field')
+    expect(css).toContain('.ai-palette-search')
+    expect(css).toContain('.ai-palette-chips')
+    expect(css).toContain('.ai-palette-chip')
+    expect(css).toContain('.ai-palette-list')
+    expect(css).toContain('.ai-palette-item')
+    expect(css).toContain('.ai-palette-footer')
     expect(css).toContain('.ai-palette-status')
-    expect(css).toContain('.ai-palette-actions')
-    expect(css).toContain('.palette-button')
-    expect(css).toContain('.palette-button.primary')
+    expect(css).toContain('.ai-suggestion-ghost')
+    expect(css).toContain('.ai-suggestion-original')
+    expect(css).toContain('.ai-suggestion-actions')
   })
 
   it('implements openAiPalette and closeAiPalette functions', () => {
     const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
 
     expect(renderer).toContain('const openAiPalette = (): void => {')
-    expect(renderer).toContain('const closeAiPalette = (): void => {')
+    expect(renderer).toContain('const closeAiPalette = (options: { restoreFocus?: boolean } = {}): void => {')
     expect(renderer).toContain('const renderAiPalette = (): void => {')
     expect(renderer).toContain('const selectAiPaletteTemplate = (templateId: string): void => {')
     expect(renderer).toContain('const buildAiPalettePrompt = (selection: string): string => {')
     expect(renderer).toContain('const runAiPalettePrompt = async (): Promise<void> => {')
-    expect(renderer).toContain('const replaceAiPaletteResult = (): void => {')
-    expect(renderer).toContain('const insertAiPaletteResultBelow = (): void => {')
-    expect(renderer).toContain('const copyAiPaletteResult = async (): Promise<void> => {')
+    expect(renderer).not.toContain('const replaceAiPaletteResult = (): void => {')
+    expect(renderer).not.toContain('const insertAiPaletteResultBelow = (): void => {')
+    expect(renderer).not.toContain('const copyAiPaletteResult = async (): Promise<void> => {')
   })
 
   it('tracks aiPaletteOpen state instead of agentPanelOpen for palette lifecycle', () => {
@@ -59,8 +62,23 @@ describe('AI command palette regression', () => {
 
     expect(renderer).toContain('let aiPaletteOpen = false')
     expect(renderer).toContain('let aiPaletteBusy = false')
-    expect(renderer).toContain('let aiPaletteResultText = \'\'')
     expect(renderer).toContain('let aiPaletteActiveTemplateId: string | null = null')
+    expect(renderer).toContain('let aiPaletteSelectedIndex = 0')
+  })
+
+  it('creates editor inline suggestion preview after AI completes', () => {
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+    const editor = readFileSync(join(process.cwd(), 'src/renderer/editor/editor.ts'), 'utf8')
+
+    expect(renderer).toContain('createAiSuggestionFromSelection(result.text)')
+    expect(renderer).toContain('closeAiPalette({ restoreFocus: false })')
+    expect(renderer).not.toContain('aiPaletteResultText = result.text')
+    expect(editor).toContain('function createAiSuggestionPlugin(): Plugin')
+    expect(editor).toContain('export function createAiSuggestionFromSelection')
+    expect(editor).toContain('export function acceptAiSuggestion')
+    expect(editor).toContain('export function rejectAiSuggestion')
+    expect(editor).toContain('class: \'ai-suggestion-original\'')
+    expect(editor).toContain('ai-suggestion-ghost')
   })
 
   it('routes toggleAgentPanel through openAiPalette (not old bottom/right panel toggle)', () => {
@@ -145,19 +163,9 @@ describe('AI command palette regression', () => {
   it('does not inject new CJK template strings inside palette functions', () => {
     const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
 
-    // Locate the block from openAiPalette to the end of copyAiPaletteResult
+    // Locate the block from openAiPalette to the next major renderer panel function.
     const paletteStart = renderer.indexOf('const openAiPalette = (): void => {')
-    const copyEnd = renderer.indexOf('const copyAiPaletteResult = async (): Promise<void> => {')
-    // Find the closing brace of copyAiPaletteResult
-    const copyBlockStart = renderer.indexOf('{', copyEnd)
-    let depth = 1
-    let pos = copyBlockStart + 1
-    while (depth > 0 && pos < renderer.length) {
-      if (renderer[pos] === '{') depth++
-      if (renderer[pos] === '}') depth--
-      pos++
-    }
-    const paletteBlockEnd = pos
+    const paletteBlockEnd = renderer.indexOf('const setOutlinePanelOpen', paletteStart)
 
     const paletteBlock = renderer.slice(paletteStart, paletteBlockEnd)
 

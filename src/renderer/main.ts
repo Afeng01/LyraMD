@@ -1,5 +1,6 @@
 import {
   activateSearchMatch,
+  createAiSuggestionFromSelection,
   createEditor,
   focusEditorAtLastSelection,
   focusEditorPreservingSelection,
@@ -602,15 +603,11 @@ async function init(): Promise<void> {
   const agentChangeRestore = document.getElementById('agent-change-restore') as HTMLButtonElement | null
   const agentChangeDismiss = document.getElementById('agent-change-dismiss') as HTMLButtonElement | null
   const aiPaletteOverlay = document.getElementById('ai-command-overlay') as HTMLDivElement | null
-  const aiPaletteSelection = document.getElementById('ai-palette-selection') as HTMLDivElement | null
-  const aiPaletteTemplates = document.getElementById('ai-palette-templates') as HTMLDivElement | null
-  const aiPaletteInstruction = document.getElementById('ai-palette-instruction') as HTMLTextAreaElement | null
+  const aiPaletteSearch = document.getElementById('ai-palette-search') as HTMLTextAreaElement | null
+  const aiPaletteChips = document.getElementById('ai-palette-chips') as HTMLDivElement | null
+  const aiPaletteList = document.getElementById('ai-palette-list') as HTMLDivElement | null
   const aiPaletteStatus = document.getElementById('ai-palette-status') as HTMLDivElement | null
-  const aiPaletteResult = document.getElementById('ai-palette-result') as HTMLTextAreaElement | null
-  const aiPaletteRun = document.getElementById('ai-palette-run') as HTMLButtonElement | null
-  const aiPaletteReplace = document.getElementById('ai-palette-replace') as HTMLButtonElement | null
-  const aiPaletteInsert = document.getElementById('ai-palette-insert') as HTMLButtonElement | null
-  const aiPaletteCopy = document.getElementById('ai-palette-copy') as HTMLButtonElement | null
+  const aiPaletteScope = document.getElementById('ai-palette-scope') as HTMLSpanElement | null
   const aiPaletteClose = document.getElementById('ai-palette-close') as HTMLButtonElement | null
 
   if (contextPanel) {
@@ -1238,9 +1235,10 @@ async function init(): Promise<void> {
   let aiPaletteBusy = false
   let aiPaletteStartedAt: number | null = null
   let aiPaletteStatusText = ''
-  let aiPaletteResultText = ''
   let aiPaletteActiveTemplateId: string | null = null
   let aiPaletteCustomInstruction = ''
+  let aiPaletteSelectedIndex = 0
+  let aiPaletteRunId = 0
   let aiPaletteTimerInterval: ReturnType<typeof setInterval> | null = null
   let searchInputComposing = false
   let searchQueryMemory: SearchMemoryState = {}
@@ -1609,37 +1607,35 @@ async function init(): Promise<void> {
   const openAiPalette = (): void => {
     if (!aiPaletteOverlay) return
     aiPaletteOpen = true
+    aiPaletteBusy = false
+    aiPaletteStatusText = ''
+    aiPaletteCustomInstruction = ''
+    aiPaletteSelectedIndex = 0
+    aiPaletteActiveTemplateId = getAiHelperTemplates()[0]?.id ?? null
+    clearAiPaletteTimer()
+    if (aiPaletteSearch) aiPaletteSearch.value = ''
     aiPaletteOverlay.hidden = false
     aiPaletteOverlay.setAttribute('aria-hidden', 'false')
-
-    const selection = getSelectedPlainText().trim()
-    if (!selection) {
-      aiPaletteResultText = ''
-      aiPaletteStatusText = ''
-      aiPaletteBusy = false
-      clearAiPaletteTimer()
-      aiPaletteActiveTemplateId = null
-      aiPaletteCustomInstruction = ''
-    } else {
-      aiPaletteActiveTemplateId = aiPaletteActiveTemplateId ?? getAiHelperTemplates()[0]?.id ?? null
-      const activeTemplate = getAiHelperTemplates().find((t) => t.id === aiPaletteActiveTemplateId)
-      if (activeTemplate) {
-        aiPaletteCustomInstruction = activeTemplate.prompt
-      }
-    }
     renderAiPalette()
     queueMicrotask(() => {
-      aiPaletteInstruction?.focus()
+      aiPaletteSearch?.focus()
     })
   }
 
-  const closeAiPalette = (): void => {
-    if (!aiPaletteOverlay || aiPaletteBusy) return
+  const closeAiPalette = (options: { restoreFocus?: boolean } = {}): void => {
+    if (!aiPaletteOverlay) return
+    if (aiPaletteBusy) {
+      aiPaletteRunId += 1
+      aiPaletteBusy = false
+      aiPaletteStatusText = ''
+    }
     aiPaletteOpen = false
     aiPaletteOverlay.hidden = true
     aiPaletteOverlay.setAttribute('aria-hidden', 'true')
     clearAiPaletteTimer()
-    focusEditorAtLastSelection()
+    if (options.restoreFocus !== false) {
+      focusEditorAtLastSelection()
+    }
   }
 
   const clearAiPaletteTimer = (): void => {
@@ -1661,61 +1657,163 @@ async function init(): Promise<void> {
     }, 250)
   }
 
+  const getAiPaletteTemplateDescription = (templateId: string): string => {
+    if (templateId === 'polish') return '改善清晰度和流畅度'
+    if (templateId === 'expand') return '展开成更完整的表达'
+    if (templateId === 'summarize') return '提炼为简洁要点'
+    return '基于当前选区生成建议'
+  }
+
+  const getAiPaletteFilteredTemplates = (): ReturnType<typeof getAiHelperTemplates> => {
+    const templates = getAiHelperTemplates()
+    const query = aiPaletteSearch?.value.trim().toLowerCase() ?? ''
+    if (!query) return templates
+    return templates.filter((template) => {
+      return template.title.toLowerCase().includes(query)
+        || template.id.toLowerCase().includes(query)
+        || template.prompt.toLowerCase().includes(query)
+    })
+  }
+
+  const hasAiPaletteCustomItem = (): boolean => {
+    const query = aiPaletteSearch?.value.trim() ?? ''
+    return Boolean(query) && getAiPaletteFilteredTemplates().length === 0
+  }
+
+  const clampAiPaletteSelectedIndex = (): void => {
+    const itemCount = getAiPaletteFilteredTemplates().length + (hasAiPaletteCustomItem() ? 1 : 0)
+    aiPaletteSelectedIndex = Math.max(0, Math.min(aiPaletteSelectedIndex, Math.max(0, itemCount - 1)))
+  }
+
+  const runSelectedAiPaletteItem = (): void => {
+    const templates = getAiPaletteFilteredTemplates()
+    const selectedTemplate = templates[aiPaletteSelectedIndex]
+    if (selectedTemplate) {
+      selectAiPaletteTemplate(selectedTemplate.id)
+      void runAiPalettePrompt()
+      return
+    }
+
+    const customInstruction = aiPaletteSearch?.value.trim() ?? ''
+    if (!customInstruction) return
+    aiPaletteActiveTemplateId = null
+    aiPaletteCustomInstruction = customInstruction
+    void runAiPalettePrompt()
+  }
+
   const renderAiPalette = (): void => {
     if (!aiPaletteOverlay) return
 
     const selection = getSelectedPlainText().trim()
     const templates = getAiHelperTemplates()
+    const filteredTemplates = getAiPaletteFilteredTemplates()
+    const customInstruction = aiPaletteSearch?.value.trim() ?? ''
+    const quickTemplates = templates.slice(0, 4)
+    const hasCustomItem = hasAiPaletteCustomItem()
+    clampAiPaletteSelectedIndex()
 
-    if (aiPaletteSelection) {
-      aiPaletteSelection.textContent = selection || '先选中文本，再使用 AI 精灵。'
-      aiPaletteSelection.classList.toggle('empty', !selection)
-    }
-
-    if (aiPaletteTemplates) {
-      clearElement(aiPaletteTemplates)
-      for (const template of templates) {
+    if (aiPaletteChips) {
+      clearElement(aiPaletteChips)
+      for (const template of quickTemplates) {
         const chip = document.createElement('button')
         chip.type = 'button'
-        chip.className = 'ai-palette-template-chip'
+        chip.className = 'ai-palette-chip'
         chip.dataset.templateId = template.id
         chip.textContent = template.title
         chip.classList.toggle('active', aiPaletteActiveTemplateId === template.id)
-        aiPaletteTemplates.appendChild(chip)
+        chip.disabled = aiPaletteBusy
+        aiPaletteChips.appendChild(chip)
       }
     }
 
-    if (aiPaletteInstruction && document.activeElement !== aiPaletteInstruction) {
-      aiPaletteInstruction.value = aiPaletteCustomInstruction
-    }
-
     if (aiPaletteStatus) {
-      aiPaletteStatus.textContent = aiPaletteStatusText
-      aiPaletteStatus.hidden = !aiPaletteStatusText
+      aiPaletteStatus.textContent = aiPaletteStatusText || (!selection ? '先选中文本，再使用 AI 精灵。' : '')
+      aiPaletteStatus.hidden = !aiPaletteStatus.textContent
       aiPaletteStatus.classList.remove('success', 'error', 'busy')
       if (aiPaletteBusy) {
         aiPaletteStatus.classList.add('busy')
-      } else if (aiPaletteResultText.trim()) {
+      } else if (aiPaletteStatusText === '完成') {
         aiPaletteStatus.classList.add('success')
       } else if (aiPaletteStatusText && !aiPaletteBusy) {
         aiPaletteStatus.classList.add('error')
       }
     }
 
-    if (aiPaletteResult && document.activeElement !== aiPaletteResult) {
-      aiPaletteResult.value = aiPaletteResultText
+    if (aiPaletteList) {
+      clearElement(aiPaletteList)
+
+      const section = document.createElement('div')
+      section.className = 'ai-palette-section-label'
+      section.textContent = customInstruction ? '匹配结果' : '最近使用'
+      aiPaletteList.appendChild(section)
+
+      for (const [index, template] of filteredTemplates.entries()) {
+        const item = document.createElement('button')
+        item.type = 'button'
+        item.className = 'ai-palette-item'
+        item.dataset.templateId = template.id
+        item.setAttribute('role', 'option')
+        item.setAttribute('aria-selected', String(index === aiPaletteSelectedIndex))
+        item.classList.toggle('selected', index === aiPaletteSelectedIndex)
+        item.disabled = aiPaletteBusy || !selection
+
+        const copy = document.createElement('span')
+        copy.className = 'ai-palette-item-copy'
+
+        const title = document.createElement('span')
+        title.className = 'ai-palette-item-title'
+        title.textContent = template.title
+
+        const description = document.createElement('span')
+        description.className = 'ai-palette-item-description'
+        description.textContent = getAiPaletteTemplateDescription(template.id)
+
+        copy.append(title, description)
+
+        const scope = document.createElement('span')
+        scope.className = 'ai-palette-item-scope'
+        scope.textContent = 'selection'
+
+        item.append(copy, scope)
+        aiPaletteList.appendChild(item)
+      }
+
+      if (hasCustomItem) {
+        const customIndex = filteredTemplates.length
+        const item = document.createElement('button')
+        item.type = 'button'
+        item.className = 'ai-palette-item'
+        item.dataset.customInstruction = customInstruction
+        item.setAttribute('role', 'option')
+        item.setAttribute('aria-selected', String(customIndex === aiPaletteSelectedIndex))
+        item.classList.toggle('selected', customIndex === aiPaletteSelectedIndex)
+        item.disabled = aiPaletteBusy || !selection
+
+        const copy = document.createElement('span')
+        copy.className = 'ai-palette-item-copy'
+
+        const title = document.createElement('span')
+        title.className = 'ai-palette-item-title'
+        title.textContent = '按描述执行'
+
+        const description = document.createElement('span')
+        description.className = 'ai-palette-item-description'
+        description.textContent = customInstruction
+
+        copy.append(title, description)
+
+        const scope = document.createElement('span')
+        scope.className = 'ai-palette-item-scope'
+        scope.textContent = 'selection'
+
+        item.append(copy, scope)
+        aiPaletteList.appendChild(item)
+      }
     }
 
-    const canRun = Boolean(selection) && !aiPaletteBusy
-    if (aiPaletteRun) {
-      aiPaletteRun.disabled = !canRun
-      aiPaletteRun.textContent = aiPaletteBusy ? '正在生成…' : '运行'
+    if (aiPaletteScope) {
+      aiPaletteScope.textContent = '范围：selection'
     }
-
-    const hasResult = Boolean(aiPaletteResultText.trim())
-    if (aiPaletteReplace) aiPaletteReplace.disabled = !selection || !hasResult
-    if (aiPaletteInsert) aiPaletteInsert.disabled = !hasResult
-    if (aiPaletteCopy) aiPaletteCopy.disabled = !hasResult
   }
 
   const selectAiPaletteTemplate = (templateId: string): void => {
@@ -1723,7 +1821,6 @@ async function init(): Promise<void> {
     if (!template) return
     aiPaletteActiveTemplateId = templateId
     aiPaletteCustomInstruction = template.prompt
-    if (aiPaletteInstruction) aiPaletteInstruction.value = template.prompt
     renderAiPalette()
   }
 
@@ -1742,8 +1839,9 @@ async function init(): Promise<void> {
 
     const prompt = buildAiPalettePrompt(selection)
     aiPaletteBusy = true
-    aiPaletteResultText = ''
     aiPaletteStatusText = ''
+    const runId = aiPaletteRunId + 1
+    aiPaletteRunId = runId
     renderAiPalette()
     startAiPaletteTimer()
 
@@ -1754,41 +1852,18 @@ async function init(): Promise<void> {
 
     aiPaletteBusy = false
     clearAiPaletteTimer()
+    if (runId !== aiPaletteRunId) return
 
-    if (result.ok && result.text) {
-      aiPaletteResultText = result.text
-      aiPaletteStatusText = '完成'
+    if (result.ok && 'text' in result && result.text) {
+      const created = createAiSuggestionFromSelection(result.text)
+      aiPaletteStatusText = created ? '完成' : '无法创建建议预览。'
+      if (created) {
+        closeAiPalette({ restoreFocus: false })
+        return
+      }
     } else {
       aiPaletteStatusText = result.error ?? 'AI 请求失败。'
     }
-    renderAiPalette()
-  }
-
-  const replaceAiPaletteResult = (): void => {
-    const result = aiPaletteResultText.trim()
-    if (!result) return
-    if (replaceSelectedText(result)) {
-      aiPaletteResultText = ''
-      aiPaletteStatusText = '已替换原文。'
-      renderAiPalette()
-    }
-  }
-
-  const insertAiPaletteResultBelow = (): void => {
-    const result = aiPaletteResultText.trim()
-    if (!result) return
-    if (insertTextBelowSelection(result)) {
-      aiPaletteResultText = ''
-      aiPaletteStatusText = '已插入下方。'
-      renderAiPalette()
-    }
-  }
-
-  const copyAiPaletteResult = async (): Promise<void> => {
-    const result = aiPaletteResultText.trim()
-    if (!result) return
-    await navigator.clipboard.writeText(result)
-    aiPaletteStatusText = '已复制到剪贴板。'
     renderAiPalette()
   }
 
@@ -2675,28 +2750,52 @@ img{max-width:100%}
     }
   })
 
-  aiPaletteTemplates?.addEventListener('click', (event) => {
+  aiPaletteChips?.addEventListener('click', (event) => {
     const chip = (event.target as HTMLElement)?.closest('[data-template-id]') as HTMLElement | null
     const templateId = chip?.dataset.templateId
-    if (templateId) selectAiPaletteTemplate(templateId)
-  })
-
-  aiPaletteInstruction?.addEventListener('input', () => {
-    aiPaletteCustomInstruction = aiPaletteInstruction.value
-    aiPaletteActiveTemplateId = null
-    renderAiPalette()
-  })
-
-  aiPaletteRun?.addEventListener('click', () => {
+    if (!templateId || aiPaletteBusy) return
+    selectAiPaletteTemplate(templateId)
     void runAiPalettePrompt()
   })
 
-  aiPaletteReplace?.addEventListener('click', replaceAiPaletteResult)
+  aiPaletteList?.addEventListener('click', (event) => {
+    const item = (event.target as HTMLElement)?.closest('.ai-palette-item') as HTMLElement | null
+    if (!item || aiPaletteBusy) return
+    const items = Array.from(aiPaletteList.querySelectorAll('.ai-palette-item'))
+    aiPaletteSelectedIndex = Math.max(0, items.indexOf(item))
+    const templateId = item.dataset.templateId
+    if (templateId) {
+      selectAiPaletteTemplate(templateId)
+      void runAiPalettePrompt()
+      return
+    }
+    aiPaletteActiveTemplateId = null
+    aiPaletteCustomInstruction = item.dataset.customInstruction ?? aiPaletteSearch?.value.trim() ?? ''
+    void runAiPalettePrompt()
+  })
 
-  aiPaletteInsert?.addEventListener('click', insertAiPaletteResultBelow)
+  aiPaletteSearch?.addEventListener('input', () => {
+    aiPaletteCustomInstruction = aiPaletteSearch.value
+    aiPaletteActiveTemplateId = null
+    aiPaletteSelectedIndex = 0
+    renderAiPalette()
+  })
 
-  aiPaletteCopy?.addEventListener('click', () => {
-    void copyAiPaletteResult()
+  aiPaletteSearch?.addEventListener('keydown', (event) => {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault()
+      const itemCount = getAiPaletteFilteredTemplates().length + (hasAiPaletteCustomItem() ? 1 : 0)
+      if (itemCount === 0) return
+      aiPaletteSelectedIndex = event.key === 'ArrowDown'
+        ? (aiPaletteSelectedIndex + 1) % itemCount
+        : (aiPaletteSelectedIndex - 1 + itemCount) % itemCount
+      renderAiPalette()
+      return
+    }
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault()
+      runSelectedAiPaletteItem()
+    }
   })
 
   document.addEventListener('selectionchange', () => {

@@ -149,16 +149,19 @@ describe('AI command palette regression', () => {
     expect(renderer).toMatch(/const toggleAgentPanel = \(\): void => \{\s*openAiPalette\(\)\s*\}/)
   })
 
-  it('does not keep a top-right agent-toggle button for the built-in palette', () => {
+  it('keeps a refined top-right AI palette button without the old sparkle cluster icon', () => {
     const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
     const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
 
-    expect(html).not.toContain('id="agent-toggle"')
+    expect(html).toContain('id="agent-toggle"')
+    expect(html).toContain('aria-label="AI 精灵"')
+    expect(html).toContain('title="AI 精灵 (Cmd/Ctrl+J)"')
+    expect(html).not.toContain('M9 2.8l.78 2.1 2.1.78')
     expect(html).not.toContain('id="agent-dot"')
-    expect(renderer).not.toContain('agentToggle?.addEventListener')
+    expect(renderer).toContain("agentToggle?.addEventListener('click'")
   })
 
-  it('mirrors AI thinking state into the bottom document stats area', () => {
+  it('renders AI thinking only in the left side of the bottom document stats area', () => {
     const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
 
@@ -166,7 +169,17 @@ describe('AI command palette regression', () => {
     expect(renderer).toContain('const updateDocumentStatsAiStatus')
     expect(renderer).toContain('updateDocumentStatsAiStatus(aiPaletteStatusText)')
     expect(renderer).toContain("updateDocumentStatsAiStatus('')")
-    expect(css).toContain('#document-stats.ai-thinking')
+    expect(renderer).toContain('document-stats-ai-status')
+    expect(renderer).toContain('document-stats-count')
+    expect(css).toContain('.document-stats-ai-status')
+    expect(css).not.toContain('#document-stats.ai-thinking')
+  })
+
+  it('does not show busy thinking text inside the centered palette chrome', () => {
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+
+    expect(renderer).toContain("const paletteStatusText = aiPaletteBusy ? ''")
+    expect(renderer).toContain('aiPaletteStatus.textContent = paletteStatusText')
   })
 
   it('connects the native menu to the palette via preload and renderer', () => {

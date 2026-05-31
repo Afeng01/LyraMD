@@ -556,6 +556,7 @@ async function init(): Promise<void> {
   const appShell = document.getElementById('app-shell')
   const sidebarToggle = document.getElementById('sidebar-toggle') as HTMLButtonElement | null
   const settingsToggle = document.getElementById('settings-toggle') as HTMLButtonElement | null
+  const agentToggle = document.getElementById('agent-toggle') as HTMLButtonElement | null
   const outlineToggle = document.getElementById('outline-toggle') as HTMLButtonElement | null
   const windowsMenu = document.getElementById('windows-menu') as HTMLElement | null
   const windowMinimize = document.getElementById('window-minimize') as HTMLButtonElement | null
@@ -671,11 +672,18 @@ async function init(): Promise<void> {
     if (!documentStats) return
     const shouldShow = appSettings.showDocumentStats !== false
     documentStats.hidden = !shouldShow
-    documentStats.classList.toggle('ai-thinking', Boolean(documentStatsAiStatus))
     if (!shouldShow) return
-    documentStats.textContent = documentStatsAiStatus
-      ? `${latestDocumentStatsText} · ${documentStatsAiStatus}`
-      : latestDocumentStatsText
+    const count = document.createElement('span')
+    count.className = 'document-stats-count'
+    count.textContent = latestDocumentStatsText
+    if (!documentStatsAiStatus) {
+      documentStats.replaceChildren(count)
+      return
+    }
+    const aiStatus = document.createElement('span')
+    aiStatus.className = 'document-stats-ai-status'
+    aiStatus.textContent = documentStatsAiStatus
+    documentStats.replaceChildren(aiStatus, count)
   }
 
   const updateDocumentStats = (content: string): void => {
@@ -1673,6 +1681,8 @@ async function init(): Promise<void> {
     aiPaletteCustomInstruction = ''
     aiPaletteSelectedIndex = 0
     aiPaletteActiveTemplateId = getAiHelperTemplates()[0]?.id ?? null
+    agentToggle?.classList.add('active')
+    agentToggle?.setAttribute('aria-pressed', 'true')
     clearAiPaletteTimer()
     if (aiPaletteSearch) aiPaletteSearch.value = ''
     aiPaletteOverlay.hidden = false
@@ -1693,6 +1703,8 @@ async function init(): Promise<void> {
     aiPaletteOpen = false
     aiPaletteOverlay.hidden = true
     aiPaletteOverlay.setAttribute('aria-hidden', 'true')
+    agentToggle?.classList.remove('active')
+    agentToggle?.setAttribute('aria-pressed', 'false')
     clearAiPaletteTimer()
     if (options.restoreFocus !== false) {
       focusEditorAtLastSelection()
@@ -1822,7 +1834,8 @@ async function init(): Promise<void> {
     }
 
     if (aiPaletteStatus) {
-      aiPaletteStatus.textContent = aiPaletteStatusText || (!selection ? '先选中文本，再使用 AI 精灵。' : '')
+      const paletteStatusText = aiPaletteBusy ? '' : (aiPaletteStatusText || (!selection ? '先选中文本，再使用 AI 精灵。' : ''))
+      aiPaletteStatus.textContent = paletteStatusText
       aiPaletteStatus.hidden = !aiPaletteStatus.textContent
       aiPaletteStatus.classList.remove('success', 'error', 'busy')
       if (aiPaletteBusy) {
@@ -2760,6 +2773,10 @@ img{max-width:100%}
   settingsToggle?.addEventListener('click', () => {
     closeTitleSyncPrompt()
     settingsDialog.open()
+  })
+
+  agentToggle?.addEventListener('click', () => {
+    openAiPalette()
   })
 
   const handleAiHelperTemplateChange = (templateSelect: HTMLSelectElement): void => {

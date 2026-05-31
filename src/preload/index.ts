@@ -33,7 +33,7 @@ export type SidebarTab = 'drafts' | 'recent' | 'workdir'
 export type PinnedItem =
   | { kind: 'draft'; draftId: string }
   | { kind: 'file'; filePath: string }
-export type ShortcutAction = 'save' | 'saveAs' | 'settings' | 'search' | 'toggleSidebar' | 'toggleOutline' | 'cleanCjkTypography'
+export type ShortcutAction = 'save' | 'saveAs' | 'settings' | 'search' | 'toggleSidebar' | 'toggleOutline' | 'cleanCjkTypography' | 'openAiPalette'
 export type ShortcutMap = Record<ShortcutAction, string>
 
 export interface BackgroundSettings {
@@ -231,6 +231,7 @@ export interface ElectronAPI {
   onMenuSaveAs: (callback: () => void) => void
   onMenuSearch: (callback: () => void) => void
   onMenuCleanCjkTypography: (callback: () => void) => void
+  onMenuOpenAiPalette: (callback: () => void) => void
   onMenuSettings: (callback: () => void) => void
   onMenuToggleOutline: (callback: () => void) => void
   onMenuExportPDF: (callback: () => void) => void
@@ -327,6 +328,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onMenuCleanCjkTypography: (callback: () => void) => {
     ipcRenderer.on('menu-clean-cjk-typography', () => callback())
+  },
+  onMenuOpenAiPalette: (callback: () => void) => {
+    ipcRenderer.on('menu-open-ai-palette', () => callback())
   },
   onMenuSettings: (callback: () => void) => {
     ipcRenderer.on('menu-settings', () => callback())

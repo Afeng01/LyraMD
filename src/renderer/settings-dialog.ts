@@ -111,6 +111,7 @@ const SHORTCUT_ACTION_LABELS: Record<ShortcutAction, string> = {
   toggleSidebar: '切换侧边栏',
   toggleOutline: '打开大纲',
   cleanCjkTypography: '清理中英排版',
+  openAiPalette: '打开 AI 精灵',
 }
 
 export function resolveShortcutConflict(

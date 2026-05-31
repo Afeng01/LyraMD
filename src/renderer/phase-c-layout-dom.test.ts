@@ -41,7 +41,7 @@ describe('Phase C layout DOM skeleton', () => {
     expect(css).not.toContain('--file-tabbar-height')
     expect(css).not.toContain('#file-tabbar')
 
-    expect(renderer).toContain('let agentPanelOpen = false')
+    expect(renderer).toContain('let aiPaletteOpen = false')
     expect(renderer).toContain("let activeContextPanel: ContextPanelMode = 'agent'")
     expect(renderer).toContain('resolveContextPanelState')
     expect(renderer).toContain('resolveAgentPanelPlacement')

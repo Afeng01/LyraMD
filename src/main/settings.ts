@@ -15,6 +15,7 @@ export type ShortcutAction =
   | 'toggleSidebar'
   | 'toggleOutline'
   | 'cleanCjkTypography'
+  | 'openAiPalette'
 
 export type ShortcutMap = Record<ShortcutAction, string>
 
@@ -71,6 +72,7 @@ export const DEFAULT_SHORTCUTS: ShortcutMap = {
   toggleSidebar: 'CmdOrCtrl+\\',
   toggleOutline: 'CmdOrCtrl+Shift+O',
   cleanCjkTypography: 'CmdOrCtrl+Shift+F',
+  openAiPalette: 'CmdOrCtrl+J',
 }
 
 export const DEFAULT_AI_PROMPT_TEMPLATES: AiPromptTemplate[] = [

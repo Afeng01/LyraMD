@@ -20,6 +20,27 @@ describe('Windows custom titlebar regression', () => {
     expect(renderer).toContain('handleWindowsMenuAction(action)')
   })
 
+  it('has 格式 (Format) menu with clean-cjk action under Windows menu', () => {
+    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+
+    expect(html).toContain('data-windows-menu="format"')
+    expect(html).toContain('data-windows-panel="format"')
+    expect(html).toContain('data-windows-action="clean-cjk"')
+    expect(renderer).toContain("case 'clean-cjk':")
+  })
+
+  it('has 工具 (Tools) menu with open-ai-palette action under Windows menu', () => {
+    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+
+    expect(html).toContain('data-windows-menu="tools"')
+    expect(html).toContain('data-windows-panel="tools"')
+    expect(html).toContain('data-windows-action="open-ai-palette"')
+    expect(html).toContain('AI 精灵')
+    expect(renderer).toContain("case 'open-ai-palette':")
+  })
+
   it('exposes focused-window controls through preload and main IPC', () => {
     const preload = readFileSync(join(process.cwd(), 'src/preload/index.ts'), 'utf8')
     const main = readFileSync(join(process.cwd(), 'src/main/index.ts'), 'utf8')

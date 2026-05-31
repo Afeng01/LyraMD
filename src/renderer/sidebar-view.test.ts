@@ -430,3 +430,35 @@ describe('library create action regression', () => {
     expect(menuEventBody).not.toContain('beginBlankDocumentFromSidebar()')
   })
 })
+
+describe('sidebar polish regression', () => {
+  it('sets title attributes on draft items for hover tooltip', () => {
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+
+    // Draft items should set item.title = title
+    expect(renderer).toContain('item.title = title')
+  })
+
+  it('allows active sidebar row title to wrap to two lines', () => {
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+
+    expect(css).toMatch(/\.sidebar-list-item\.active \.sidebar-title\s*\{[\s\S]*white-space:\s*normal/)
+    expect(css).toMatch(/\.sidebar-list-item\.active \.sidebar-title\s*\{[\s\S]*-webkit-line-clamp:\s*2/)
+  })
+
+  it('uses a stronger tab active state with existing color variables', () => {
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+
+    // Active tab should have higher selection-bg mix and a subtle box-shadow
+    expect(css).toMatch(/\.sidebar-tabs button\.active\s*\{[\s\S]*selection-bg\) 52%/)
+    expect(css).toMatch(/\.sidebar-tabs button\.active\s*\{[\s\S]*box-shadow/)
+  })
+
+  it('adds a subtle separator below the tab row', () => {
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+
+    expect(css).toMatch(/\.sidebar-library-header\s*\{[\s\S]*border-bottom:\s*1px solid/)
+    expect(css).toMatch(/\.sidebar-library-header\s*\{[\s\S]*margin-bottom:\s*10px/)
+    expect(css).toMatch(/\.sidebar-library-header\s*\{[\s\S]*padding-bottom:\s*8px/)
+  })
+})

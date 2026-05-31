@@ -17,58 +17,69 @@
           </div>
           <nav id="windows-menu" class="windows-menu" aria-label="应用菜单">
             <div class="windows-menu-group">
-              <button type="button" class="windows-menu-button" data-windows-menu="file">File</button>
+              <button type="button" class="windows-menu-button" data-windows-menu="file">文件</button>
               <div class="windows-menu-panel" data-windows-panel="file">
-                <button type="button" data-windows-action="new">New</button>
-                <button type="button" data-windows-action="new-window">New Window</button>
-                <button type="button" data-windows-action="open">Open...</button>
+                <button type="button" data-windows-action="new">新建</button>
+                <button type="button" data-windows-action="new-window">新建窗口</button>
+                <button type="button" data-windows-action="open">打开…</button>
                 <hr>
-                <button type="button" data-windows-action="save">Save</button>
-                <button type="button" data-windows-action="save-as">Save As...</button>
+                <button type="button" data-windows-action="save">保存</button>
+                <button type="button" data-windows-action="save-as">另存为…</button>
                 <hr>
-                <button type="button" data-windows-action="export-pdf">Export PDF...</button>
-                <button type="button" data-windows-action="export-html">Export HTML...</button>
+                <button type="button" data-windows-action="export-pdf">导出 PDF…</button>
+                <button type="button" data-windows-action="export-html">导出 HTML…</button>
               </div>
             </div>
             <div class="windows-menu-group">
-              <button type="button" class="windows-menu-button" data-windows-menu="edit">Edit</button>
+              <button type="button" class="windows-menu-button" data-windows-menu="edit">编辑</button>
               <div class="windows-menu-panel" data-windows-panel="edit">
-                <button type="button" data-windows-action="undo">Undo</button>
-                <button type="button" data-windows-action="redo">Redo</button>
+                <button type="button" data-windows-action="undo">撤销</button>
+                <button type="button" data-windows-action="redo">重做</button>
                 <hr>
-                <button type="button" data-windows-action="cut">Cut</button>
-                <button type="button" data-windows-action="copy">Copy</button>
-                <button type="button" data-windows-action="paste">Paste</button>
-                <button type="button" data-windows-action="select-all">Select All</button>
+                <button type="button" data-windows-action="cut">剪切</button>
+                <button type="button" data-windows-action="copy">复制</button>
+                <button type="button" data-windows-action="paste">粘贴</button>
+                <button type="button" data-windows-action="select-all">全选</button>
                 <hr>
-                <button type="button" data-windows-action="find">Find</button>
-                <button type="button" data-windows-action="clean-cjk">Clean CJK Typography</button>
+                <button type="button" data-windows-action="find">查找</button>
               </div>
             </div>
             <div class="windows-menu-group">
-              <button type="button" class="windows-menu-button" data-windows-menu="view">View</button>
+              <button type="button" class="windows-menu-button" data-windows-menu="format">格式</button>
+              <div class="windows-menu-panel" data-windows-panel="format">
+                <button type="button" data-windows-action="clean-cjk">清理中英排版</button>
+              </div>
+            </div>
+            <div class="windows-menu-group">
+              <button type="button" class="windows-menu-button" data-windows-menu="view">查看</button>
               <div class="windows-menu-panel" data-windows-panel="view">
-                <button type="button" data-windows-action="toggle-sidebar">Toggle Sidebar</button>
-                <button type="button" data-windows-action="toggle-outline">Toggle Outline</button>
+                <button type="button" data-windows-action="toggle-sidebar">切换侧边栏</button>
+                <button type="button" data-windows-action="toggle-outline">切换大纲</button>
                 <hr>
-                <button type="button" data-windows-action="zoom-in">Zoom In</button>
-                <button type="button" data-windows-action="zoom-out">Zoom Out</button>
-                <button type="button" data-windows-action="zoom-reset">Reset Zoom</button>
+                <button type="button" data-windows-action="zoom-in">放大</button>
+                <button type="button" data-windows-action="zoom-out">缩小</button>
+                <button type="button" data-windows-action="zoom-reset">重置缩放</button>
               </div>
             </div>
             <div class="windows-menu-group">
-              <button type="button" class="windows-menu-button" data-windows-menu="theme">Theme</button>
+              <button type="button" class="windows-menu-button" data-windows-menu="theme">主题</button>
               <div class="windows-menu-panel" data-windows-panel="theme">
-                <button type="button" data-windows-action="theme-light">Light</button>
-                <button type="button" data-windows-action="theme-dark">Dark</button>
-                <button type="button" data-windows-action="theme-elegant">Elegant</button>
-                <button type="button" data-windows-action="theme-newsprint">Newsprint</button>
+                <button type="button" data-windows-action="theme-light">浅色</button>
+                <button type="button" data-windows-action="theme-dark">深色</button>
+                <button type="button" data-windows-action="theme-elegant">雅致</button>
+                <button type="button" data-windows-action="theme-newsprint">报纸</button>
                 <hr>
-                <button type="button" data-windows-action="import-theme">Import Theme...</button>
+                <button type="button" data-windows-action="import-theme">导入主题…</button>
               </div>
             </div>
-            <button type="button" class="windows-menu-button" data-windows-action="settings">Settings</button>
-            <button type="button" class="windows-menu-button" data-windows-action="help">Help</button>
+            <div class="windows-menu-group">
+              <button type="button" class="windows-menu-button" data-windows-menu="tools">工具</button>
+              <div class="windows-menu-panel" data-windows-panel="tools">
+                <button type="button" data-windows-action="open-ai-palette">AI 精灵</button>
+              </div>
+            </div>
+            <button type="button" class="windows-menu-button" data-windows-action="settings">设置</button>
+            <button type="button" class="windows-menu-button" data-windows-action="help">帮助</button>
           </nav>
         </div>
         <div id="windows-window-controls" class="windows-window-controls">
@@ -96,7 +107,7 @@
           <line x1="17" y1="16" x2="23" y2="16"></line>
         </svg>
       </button>
-      <button id="agent-toggle" class="context-toggle" type="button" aria-label="AI 精灵" title="AI 精灵 (Cmd/Ctrl+Y)">
+      <button id="agent-toggle" class="context-toggle" type="button" aria-label="AI 精灵" title="AI 精灵 (Cmd/Ctrl+J)">
         <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M9 2.8l.78 2.1 2.1.78-2.1.78L9 8.56l-.78-2.1-2.1-.78 2.1-.78L9 2.8z" />
           <path d="M13.1 9.6l.52 1.42 1.42.52-1.42.52-.52 1.42-.52-1.42-1.42-.52 1.42-.52.52-1.42z" />
@@ -294,6 +305,34 @@
           </div>
         </div>
       </section>
+    </div>
+
+    <div id="ai-command-overlay" hidden aria-hidden="true">
+      <div id="ai-command-palette" role="dialog" aria-modal="true" aria-labelledby="ai-palette-title">
+        <div class="ai-palette-header">
+          <span id="ai-palette-title">AI 精灵</span>
+          <button id="ai-palette-close" type="button" class="ai-palette-close-button" aria-label="关闭 AI 精灵">
+            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/></svg>
+          </button>
+        </div>
+        <div id="ai-palette-selection" class="ai-palette-selection-preview">未选中文本</div>
+        <div id="ai-palette-templates" class="ai-palette-templates"></div>
+        <label class="ai-palette-field">
+          <span>指令</span>
+          <textarea id="ai-palette-instruction" placeholder="输入指令或选择模板…" rows="3"></textarea>
+        </label>
+        <div id="ai-palette-status" class="ai-palette-status" hidden></div>
+        <label class="ai-palette-field">
+          <span>结果</span>
+          <textarea id="ai-palette-result" rows="6" placeholder="AI 返回结果将显示在这里" readonly></textarea>
+        </label>
+        <div class="ai-palette-actions">
+          <button id="ai-palette-run" type="button" class="palette-button primary" disabled>运行</button>
+          <button id="ai-palette-replace" type="button" class="palette-button" disabled>替换原文</button>
+          <button id="ai-palette-insert" type="button" class="palette-button" disabled>插入下方</button>
+          <button id="ai-palette-copy" type="button" class="palette-button" disabled>复制结果</button>
+        </div>
+      </div>
     </div>
 
     <div id="onboarding-overlay" hidden aria-hidden="true">
@@ -650,6 +689,10 @@
                   <div class="settings-shortcut-item">
                     <span class="settings-shortcut-label">打开大纲</span>
                     <kbd class="settings-shortcut-key" data-shortcut-action="toggleOutline">Cmd/Ctrl+Shift+O</kbd>
+                  </div>
+                  <div class="settings-shortcut-item">
+                    <span class="settings-shortcut-label">打开 AI 精灵</span>
+                    <kbd class="settings-shortcut-key" data-shortcut-action="openAiPalette">Cmd/Ctrl+J</kbd>
                   </div>
                 </div>
               </section>

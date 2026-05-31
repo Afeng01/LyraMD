@@ -28,6 +28,7 @@ describe('settings dialog regression', () => {
     const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
 
     expect(html).toContain('data-shortcut-action="cleanCjkTypography"')
+    expect(html).toContain('data-shortcut-action="openAiPalette"')
     expect(file).toContain('api.updateSettings({ shortcuts:')
   })
 
@@ -40,6 +41,7 @@ describe('settings dialog regression', () => {
       toggleSidebar: 'CmdOrCtrl+\\',
       toggleOutline: 'CmdOrCtrl+Shift+O',
       cleanCjkTypography: 'CmdOrCtrl+Shift+F',
+      openAiPalette: 'CmdOrCtrl+J',
     }
 
     expect(resolveShortcutConflict(shortcuts, 'cleanCjkTypography', 'CmdOrCtrl+F')).toBe('search')

@@ -21,7 +21,7 @@
     "dist:linux": "electron-vite build && electron-builder --linux"
   },
   "dependencies": {
-    "@milkdown/core": "^7.21.1",
+    "@milkdown/core": "7.19.2",
     "@milkdown/kit": "^7.19.2",
     "prosemirror-search": "^1.1.0",
     "remark-breaks": "^4.0.0"

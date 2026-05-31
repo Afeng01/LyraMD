@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { resolveShortcutConflict } from './settings-dialog'
+import { buildFeedbackIssueUrl, resolveShortcutConflict } from './settings-dialog'
 
 describe('settings dialog regression', () => {
   it('keeps renderer-side default app settings aligned with persisted theme support', () => {
@@ -63,6 +63,38 @@ describe('settings dialog regression', () => {
     expect(html).toContain('集成与终端')
     expect(html).toContain('Codex MCP')
     expect(file).toContain("activePane === 'integrations'")
+  })
+
+  it('renders feedback as a standalone settings pane below integrations', () => {
+    const file = readFileSync(join(process.cwd(), 'src/renderer/settings-dialog.ts'), 'utf8')
+    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
+
+    expect(html).toContain('data-settings-pane="integrations"')
+    expect(html).toContain('data-settings-pane="feedback"')
+    expect(html.indexOf('data-settings-pane="feedback"')).toBeGreaterThan(html.indexOf('data-settings-pane="integrations"'))
+    expect(html).toContain('data-settings-panel="feedback"')
+    expect(html).toContain('id="settings-feedback-submit"')
+    expect(file).toContain("feedback: {")
+  })
+
+  it('builds a prefilled GitHub issue URL without requiring a local GitHub token', () => {
+    const url = buildFeedbackIssueUrl({
+      type: 'bug',
+      title: '侧栏拖拽异常',
+      description: '拖动侧栏时会选中文本。',
+      includeDiagnostics: true,
+      diagnostics: {
+        themeName: 'elegant',
+        userAgent: 'Vitest',
+      },
+    })
+
+    expect(url.startsWith('https://github.com/Afeng01/LyraMD/issues/new?')).toBe(true)
+    expect(decodeURIComponent(url)).toContain('侧栏拖拽异常')
+    expect(decodeURIComponent(url)).toContain('拖动侧栏时会选中文本。')
+    expect(decodeURIComponent(url)).toContain('主题：elegant')
+    expect(decodeURIComponent(url)).toContain('User Agent：Vitest')
+    expect(url).not.toContain('token')
   })
 
   it('separates basic and advanced settings in the navigation', () => {

@@ -49,8 +49,8 @@ npm run dev
 
 | 平台 | 格式 | 状态 |
 | --- | --- | --- |
-| macOS Apple Silicon | `LyraMD-1.3.0-arm64.dmg` / `.zip` | 稳定发布目标 |
-| Windows x64 | `LyraMD-Setup-1.3.0-x64.exe` | Preview / 需要真实设备 smoke test |
+| macOS Apple Silicon | `LyraMD-1.3.5-arm64.dmg` / `.zip` | 稳定发布目标 |
+| Windows x64 | `LyraMD-Setup-1.3.5-x64.exe` | Preview / 需要真实设备 smoke test |
 
 ## macOS 安装与打开
 
@@ -69,7 +69,7 @@ LyraMD 目前没有做 Apple 公证，因为公证需要付费 Apple Developer �
 
 ## Windows 安装与打开
 
-Windows 支持目前是预览路径。v1.3.0 release 附带 Windows x64 安装器，但公开稳定发布前仍需要真实 Windows 设备 smoke test。
+Windows 支持目前是预览路径。v1.3.5 release 附带 Windows x64 安装器，但公开稳定发布前仍需要真实 Windows 设备 smoke test。
 
 从 [Releases](https://github.com/Afeng01/LyraMD/releases) 下载 `LyraMD-Setup-*-x64.exe`，运行安装器，并按 NSIS 安装流程完成安装。正式依赖前请先在 Windows 上验证启动、打开 `.md`、保存 / 另存为、外部文件刷新这几条主链路。
 
@@ -84,6 +84,8 @@ npm run dist:mac
 npm run dist:win
 npm run dist:linux
 ```
+
+发布 tag 前先执行 [docs/release-checklist.md](docs/release-checklist.md) 中的发版门禁，尤其是合并工作树后的冷启动 app smoke check。
 
 ## 技术栈
 

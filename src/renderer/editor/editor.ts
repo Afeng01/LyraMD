@@ -1,5 +1,4 @@
-import { Editor, rootCtx, defaultValueCtx, editorViewCtx, serializerCtx, remarkPluginsCtx } from '@milkdown/kit/core'
-import { editorViewOptionsCtx, prosePluginsCtx } from '@milkdown/core'
+import { Editor, rootCtx, defaultValueCtx, editorViewCtx, serializerCtx, remarkPluginsCtx, editorViewOptionsCtx, prosePluginsCtx } from '@milkdown/kit/core'
 import { DOMSerializer, type Node as ProseNode } from '@milkdown/kit/prose/model'
 import { Plugin, PluginKey, TextSelection } from '@milkdown/kit/prose/state'
 import { Decoration, DecorationSet } from '@milkdown/kit/prose/view'

@@ -37,6 +37,8 @@ Use this checklist before publishing a LyraMD release tag.
    - Create a release commit for version/docs/checklist changes.
    - Create an annotated tag, for example `git tag -a v1.3.5 -m "LyraMD v1.3.5"`.
    - Push commit and tag to `origin`.
+   - When using `gh`, pass `--repo Afeng01/LyraMD`; this checkout also has an
+     upstream remote, and `gh` may otherwise inspect the wrong repository.
 
 ## Why this gate exists
 

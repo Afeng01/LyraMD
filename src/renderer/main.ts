@@ -718,7 +718,7 @@ async function init(): Promise<void> {
   let agentActivityLightState = 'idle'
 
   const updateAgentActivityLight = (state: string): void => {
-    agentActivityLightState = state === 'active' || state === 'cooldown' || state === 'thinking'
+    agentActivityLightState = state === 'active' || state === 'cooldown'
       ? state
       : 'idle'
     if (!agentActivityDot) return
@@ -1857,9 +1857,6 @@ async function init(): Promise<void> {
     }
     aiPaletteStartedAt = null
     updateDocumentStatsAiStatus('')
-    if (agentActivityLightState === 'thinking') {
-      updateAgentActivityLight('idle')
-    }
   }
 
   const showAiPaletteStatusNotice = (status: string): void => {
@@ -1877,7 +1874,6 @@ async function init(): Promise<void> {
     aiPaletteStartedAt = Date.now()
     aiPaletteStatusText = '思考中… 0s'
     updateDocumentStatsAiStatus(aiPaletteStatusText)
-    updateAgentActivityLight('thinking')
     aiPaletteTimerInterval = setInterval(() => {
       if (!aiPaletteStartedAt) return
       const elapsed = Math.floor((Date.now() - aiPaletteStartedAt) / 1000)
@@ -2666,12 +2662,16 @@ async function init(): Promise<void> {
   let zoomLevel = 0
 
   const applyZoom = (): void => {
+    const root = document.documentElement
+    const zoom = String(Math.pow(1.1, zoomLevel))
+    root.style.setProperty('--app-zoom', zoom)
     const shell = document.getElementById('editor-shell')
     if (shell) {
-      shell.style.setProperty('--editor-zoom', String(Math.pow(1.1, zoomLevel)))
+      shell.style.setProperty('--editor-zoom', zoom)
     }
     schedulePlaceholderLayoutSync()
   }
+  applyZoom()
 
   const saveCurrentDocument = (): void => {
     void flushAutoSave().then(() => {

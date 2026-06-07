@@ -229,14 +229,17 @@ describe('settings dialog regression', () => {
 
   it('keeps the settings window centered and responsive instead of draggable', () => {
     const file = readFileSync(join(process.cwd(), 'src/renderer/settings-dialog.ts'), 'utf8')
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
     const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
 
     expect(html).not.toContain('class="settings-window-controls"')
     expect(html).not.toContain('settings-window-dot')
     expect(file).not.toContain('initSettingsDialogDrag')
+    expect(renderer).toContain("root.style.setProperty('--app-zoom'")
     expect(css).toMatch(/#settings-dialog\s*\{[\s\S]*width:\s*min\(760px,\s*calc\(100vw - 52px\)\)/)
     expect(css).toMatch(/#settings-dialog\s*\{[\s\S]*height:\s*min\(620px,\s*calc\(100vh - 52px\)\)/)
+    expect(css).toMatch(/#settings-dialog\s*\{[\s\S]*transform:\s*scale\(var\(--app-zoom,\s*1\)\)/)
     expect(css).not.toContain('.settings-window-controls')
     expect(css).not.toContain('settings-pane-kicker')
     expect(css).not.toContain('cursor: move')

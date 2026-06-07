@@ -287,11 +287,11 @@ body.platform-win32 #settings-toggle {
 }
 
 body.platform-win32 #agent-toggle {
-  right: 206px;
+  right: 238px;
 }
 
 body.platform-win32 #outline-toggle {
-  right: 174px;
+  right: 206px;
 }
 
 #sidebar-toggle {
@@ -352,11 +352,11 @@ body.platform-win32 #outline-toggle {
 }
 
 #agent-toggle {
-  right: 56px;
+  right: 88px;
 }
 
 #outline-toggle {
-  right: 24px;
+  right: 56px;
 }
 
 #sidebar-toggle:hover,
@@ -1936,11 +1936,11 @@ body.sidebar-resizing * {
 
 #agent-activity-dot {
   position: fixed;
-  top: 26px;
-  right: 26px;
+  top: 22px;
+  right: 16px;
   z-index: 52;
-  width: 9px;
-  height: 9px;
+  width: 8px;
+  height: 8px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--text-muted) 42%, transparent 58%);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--bg-color) 72%, transparent 28%);
@@ -1948,7 +1948,6 @@ body.sidebar-resizing * {
   opacity: 0.62;
 }
 
-#agent-activity-dot[data-agent-activity="thinking"],
 #agent-activity-dot[data-agent-activity="active"] {
   background: var(--link-color);
   opacity: 1;
@@ -2412,6 +2411,8 @@ body.sidebar-resizing * {
   box-shadow:
     0 30px 70px rgba(0, 0, 0, 0.22),
     0 8px 24px rgba(0, 0, 0, 0.12);
+  transform: scale(var(--app-zoom, 1));
+  transform-origin: center;
   animation: settings-dialog-enter 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
@@ -2420,8 +2421,8 @@ body.theme-dark #settings-dialog {
 }
 
 @keyframes settings-dialog-enter {
-  from { opacity: 0; transform: scale(0.98) translateY(15px); }
-  to { opacity: 1; transform: none; }
+  from { opacity: 0; transform: scale(calc(var(--app-zoom, 1) * 0.98)) translateY(15px); }
+  to { opacity: 1; transform: scale(var(--app-zoom, 1)); }
 }
 
 .settings-top-bar {

@@ -28,8 +28,9 @@ describe('outline shortcut affordance', () => {
     expect(renderer).toContain('outlinePanel.hidden = !showOutlineInRightPanel')
   })
 
-  it('places top-right AI and outline controls close to the window edge', () => {
-    expect(css).toMatch(/#agent-toggle\s*\{[\s\S]*right:\s*56px/)
-    expect(css).toMatch(/#outline-toggle\s*\{[\s\S]*right:\s*24px/)
+  it('places top-right AI and outline controls to the left of the activity light', () => {
+    expect(css).toMatch(/#agent-toggle\s*\{[\s\S]*right:\s*88px/)
+    expect(css).toMatch(/#outline-toggle\s*\{[\s\S]*right:\s*56px/)
+    expect(css).toMatch(/#agent-activity-dot\s*\{[\s\S]*right:\s*16px/)
   })
 })

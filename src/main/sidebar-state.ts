@@ -39,6 +39,11 @@ export interface DraftEntryRecord {
   manualTitle?: string | null
 }
 
+export interface WindowSidebarViewState {
+  activeSidebarTab: SidebarTab
+  workdirPath: string | null
+}
+
 export const DEFAULT_SIDEBAR_STATE: PersistedSidebarState = {
   sidebarOpen: false,
   sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
@@ -145,6 +150,13 @@ export function removeWorkspacePath(
   return {
     workspacePaths: nextWorkspacePaths,
     workdirPath: nextWorkdirPath,
+  }
+}
+
+export function createWindowSidebarViewState(state: PersistedSidebarState): WindowSidebarViewState {
+  return {
+    activeSidebarTab: normalizeSidebarTab(state.activeSidebarTab),
+    workdirPath: typeof state.workdirPath === 'string' ? state.workdirPath : null,
   }
 }
 

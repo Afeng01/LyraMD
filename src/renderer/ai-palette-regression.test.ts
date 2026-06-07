@@ -166,18 +166,26 @@ describe('AI command palette regression', () => {
     expect(renderer).toContain("agentToggle?.addEventListener('click'")
   })
 
-  it('renders AI thinking only in the left side of the bottom document stats area', () => {
+  it('restores a standalone breathing activity light in the upper-right corner', () => {
     const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
 
+    expect(html).toContain('id="agent-activity-dot"')
     expect(renderer).toContain('let documentStatsAiStatus')
+    expect(renderer).toContain('agentActivityDot')
+    expect(renderer).toContain('updateAgentActivityLight')
     expect(renderer).toContain('const updateDocumentStatsAiStatus')
     expect(renderer).toContain('updateDocumentStatsAiStatus(aiPaletteStatusText)')
     expect(renderer).toContain("updateDocumentStatsAiStatus('')")
     expect(renderer).toContain('document-stats-ai-status')
     expect(renderer).toContain('document-stats-count')
+    expect(css).toContain('#agent-activity-dot')
+    expect(css).toMatch(/#agent-activity-dot\s*\{[\s\S]*position:\s*fixed/)
+    expect(css).toMatch(/#agent-activity-dot\s*\{[\s\S]*top:\s*26px/)
+    expect(css).toMatch(/#agent-activity-dot\s*\{[\s\S]*right:\s*26px/)
+    expect(css).toContain('@keyframes agent-activity-breathe')
     expect(css).toContain('.document-stats-ai-status')
-    expect(css).not.toContain('#document-stats.ai-thinking')
   })
 
   it('links the palette provider footer to the integrations settings pane', () => {

@@ -227,16 +227,19 @@ describe('settings dialog regression', () => {
     expect(css).toContain('.settings-ai-test-toast.error')
   })
 
-  it('keeps the settings window draggable without the heavy pane title chrome', () => {
+  it('keeps the settings window centered and responsive instead of draggable', () => {
     const file = readFileSync(join(process.cwd(), 'src/renderer/settings-dialog.ts'), 'utf8')
     const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
 
     expect(html).not.toContain('class="settings-window-controls"')
     expect(html).not.toContain('settings-window-dot')
-    expect(file).toContain('initSettingsDialogDrag')
+    expect(file).not.toContain('initSettingsDialogDrag')
+    expect(css).toMatch(/#settings-dialog\s*\{[\s\S]*width:\s*min\(760px,\s*calc\(100vw - 52px\)\)/)
+    expect(css).toMatch(/#settings-dialog\s*\{[\s\S]*height:\s*min\(620px,\s*calc\(100vh - 52px\)\)/)
     expect(css).not.toContain('.settings-window-controls')
     expect(css).not.toContain('settings-pane-kicker')
+    expect(css).not.toContain('cursor: move')
   })
 
   it('explains how to use OpenAI-compatible AI helper settings', () => {

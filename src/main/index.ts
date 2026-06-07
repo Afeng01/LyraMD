@@ -4,6 +4,7 @@ import { readFile, writeFile, readdir, copyFile, mkdir, rename, unlink } from 'f
 import { FSWatcher, existsSync, readdirSync, watch } from 'fs'
 import {
   clampSidebarWidth,
+  createWindowSidebarViewState,
   filterMissingRecentFiles,
   getSidebarOpenForWindow,
   normalizeDrawerSidebarOpen,
@@ -95,8 +96,6 @@ interface SidebarSnapshot extends PersistedSidebarState {
 }
 
 let sidebarState: PersistedSidebarState = normalizeSidebarState(null)
-let workdirEntries: WorkdirEntry[] = []
-let workdirTree: WorkdirTreeNode[] = []
 let workdirWatchers: FSWatcher[] = []
 let watchedWorkdirPaths: string[] = []
 let workdirRefreshTimer: NodeJS.Timeout | null = null
@@ -182,28 +181,41 @@ function watchWorkdirPaths(workdirPaths: string[]): void {
 
 async function refreshWorkdirEntries(): Promise<void> {
   const existingWorkspacePaths = sidebarState.workspacePaths.filter((workspacePath) => existsSync(workspacePath))
-  const activeWorkdirPath = sidebarState.workdirPath && existsSync(sidebarState.workdirPath)
+  const defaultWorkdirPath = sidebarState.workdirPath && existsSync(sidebarState.workdirPath)
     ? sidebarState.workdirPath
     : existingWorkspacePaths[0] ?? null
 
   sidebarState.workspacePaths = existingWorkspacePaths
-  sidebarState.workdirPath = activeWorkdirPath
+  sidebarState.workdirPath = defaultWorkdirPath
+  watchWorkdirPaths(existingWorkspacePaths)
+
+  const windows = BrowserWindow.getAllWindows()
+  await Promise.all(windows.map((win) => refreshWorkdirEntriesForWindow(win)))
+}
+
+async function refreshWorkdirEntriesForWindow(win: BrowserWindow): Promise<void> {
+  const state = getState(win)
+  const existingWorkspacePaths = sidebarState.workspacePaths.filter((workspacePath) => existsSync(workspacePath))
+  const activeWorkdirPath = state.workdirPath && existingWorkspacePaths.includes(state.workdirPath)
+    ? state.workdirPath
+    : sidebarState.workdirPath && existingWorkspacePaths.includes(sidebarState.workdirPath)
+      ? sidebarState.workdirPath
+      : existingWorkspacePaths[0] ?? null
+
+  state.workdirPath = activeWorkdirPath
 
   if (!activeWorkdirPath || existingWorkspacePaths.length === 0) {
-    workdirEntries = []
-    workdirTree = []
-    watchWorkdirPaths([])
+    state.workdirEntries = []
+    state.workdirTree = []
     return
   }
 
   try {
-    workdirEntries = await scanWorkdir(activeWorkdirPath)
-    workdirTree = await scanWorkdirTree(activeWorkdirPath)
-    watchWorkdirPaths([activeWorkdirPath])
+    state.workdirEntries = await scanWorkdir(activeWorkdirPath)
+    state.workdirTree = await scanWorkdirTree(activeWorkdirPath)
   } catch {
-    workdirEntries = []
-    workdirTree = []
-    watchWorkdirPaths([])
+    state.workdirEntries = []
+    state.workdirTree = []
   }
 }
 
@@ -272,6 +284,7 @@ async function loadSettingsState(): Promise<void> {
 
 // Per-window state
 interface WindowState {
+  activeSidebarTab: PersistedSidebarState['activeSidebarTab']
   drawerSidebarOpen: boolean
   desktopSidebarOpen: boolean
   isDrawerMode: boolean
@@ -287,6 +300,9 @@ interface WindowState {
   agentState: 'idle' | 'active' | 'cooldown'
   lastExternalChange: number
   agentCooldownTimer: ReturnType<typeof setTimeout> | null
+  workdirPath: string | null
+  workdirEntries: WorkdirEntry[]
+  workdirTree: WorkdirTreeNode[]
 }
 
 const windowStates = new Map<number, WindowState>()
@@ -332,7 +348,9 @@ if (!hasSingleInstanceLock) {
 function getState(win: BrowserWindow): WindowState {
   let state = windowStates.get(win.id)
   if (!state) {
+    const sidebarViewState = createWindowSidebarViewState(sidebarState)
     state = {
+      activeSidebarTab: sidebarViewState.activeSidebarTab,
       drawerSidebarOpen: false,
       desktopSidebarOpen: sidebarState.sidebarOpen,
       isDrawerMode: false,
@@ -348,6 +366,9 @@ function getState(win: BrowserWindow): WindowState {
       agentState: 'idle',
       lastExternalChange: 0,
       agentCooldownTimer: null,
+      workdirPath: sidebarViewState.workdirPath,
+      workdirEntries: [],
+      workdirTree: [],
     }
     windowStates.set(win.id, state)
   }
@@ -476,14 +497,16 @@ function createSidebarSnapshot(win: BrowserWindow): SidebarSnapshot {
   )
   return {
     ...sidebarState,
+    activeSidebarTab: state.activeSidebarTab,
     sidebarOpen,
+    workdirPath: state.workdirPath,
     currentDocumentKind: state.documentKind,
     currentFilePath: state.filePath,
     currentDraftId: state.draftId,
     currentDisplayTitle: state.displayTitle,
     isDrawerMode: drawerMode,
-    workdirEntries,
-    workdirTree,
+    workdirEntries: state.workdirEntries,
+    workdirTree: state.workdirTree,
   }
 }
 
@@ -712,6 +735,7 @@ function resolveWorkdirCreationRoot(win: BrowserWindow): string | null {
   const state = getState(win)
   const currentRoot = getWorkspaceRootForPath(state.filePath)
   if (currentRoot && existsSync(currentRoot)) return currentRoot
+  if (state.workdirPath && existsSync(state.workdirPath)) return state.workdirPath
   if (sidebarState.workdirPath && existsSync(sidebarState.workdirPath)) return sidebarState.workdirPath
   return sidebarState.workspacePaths.find((workspacePath) => existsSync(workspacePath)) ?? null
 }
@@ -752,7 +776,9 @@ function createWindow(initialDocument?: { filePath: string; documentKind?: Exclu
 
   win.webContents.on('did-finish-load', () => {
     win.webContents.setZoomLevel(0)
-    sendSidebarState(win)
+    refreshWorkdirEntriesForWindow(win)
+      .then(() => sendSidebarState(win))
+      .catch(() => sendSidebarState(win))
     if (initialDocument) {
       loadFileInWindow(win, initialDocument.filePath, {
         documentKind: initialDocument.documentKind,
@@ -1248,15 +1274,14 @@ async function clearDraftsForAllWindows(triggerWin: BrowserWindow): Promise<Side
     }
   }
 
-  if (sidebarState.workdirPath) {
-    await refreshWorkdirEntries()
-  }
+  await refreshWorkdirEntries()
 
   broadcastSidebarState()
   return createSidebarSnapshot(triggerWin)
 }
 
 async function createWorkdirFileInWindow(win: BrowserWindow): Promise<SidebarSnapshot> {
+  const state = getState(win)
   const creationRoot = resolveWorkdirCreationRoot(win)
   if (!creationRoot) {
     return createSidebarSnapshot(win)
@@ -1264,9 +1289,10 @@ async function createWorkdirFileInWindow(win: BrowserWindow): Promise<SidebarSna
 
   const nextPath = resolveNewWorkdirMarkdownPath(creationRoot, (candidatePath) => existsSync(candidatePath))
   await writeFile(nextPath, '', 'utf-8')
+  state.workdirPath = creationRoot
+  state.activeSidebarTab = 'workdir'
   sidebarState.workdirPath = creationRoot
-  sidebarState.activeSidebarTab = 'workdir'
-  await refreshWorkdirEntries()
+  await refreshWorkdirEntriesForWindow(win)
   await persistSidebarState()
   await loadFileInWindow(win, nextPath, { documentKind: 'file' })
   broadcastSidebarState()
@@ -1274,6 +1300,7 @@ async function createWorkdirFileInWindow(win: BrowserWindow): Promise<SidebarSna
 }
 
 async function createWorkdirFolderInWindow(win: BrowserWindow): Promise<SidebarSnapshot> {
+  const state = getState(win)
   const creationRoot = resolveWorkdirCreationRoot(win)
   if (!creationRoot) {
     return createSidebarSnapshot(win)
@@ -1281,9 +1308,10 @@ async function createWorkdirFolderInWindow(win: BrowserWindow): Promise<SidebarS
 
   const nextPath = resolveNewWorkdirFolderPath(creationRoot, (candidatePath) => existsSync(candidatePath))
   await mkdir(nextPath)
+  state.workdirPath = creationRoot
+  state.activeSidebarTab = 'workdir'
   sidebarState.workdirPath = creationRoot
-  sidebarState.activeSidebarTab = 'workdir'
-  await refreshWorkdirEntries()
+  await refreshWorkdirEntriesForWindow(win)
   await persistSidebarState()
   broadcastSidebarState()
   return createSidebarSnapshot(win)
@@ -1318,9 +1346,7 @@ async function removeDraftForAllWindows(triggerWin: BrowserWindow, draftId: stri
     }
   }
 
-  if (sidebarState.workdirPath) {
-    await refreshWorkdirEntries()
-  }
+  await refreshWorkdirEntries()
 
   broadcastSidebarState()
   return createSidebarSnapshot(triggerWin)
@@ -1681,6 +1707,7 @@ ipcMain.handle('set-sidebar-width', async (_event, width: number) => {
 ipcMain.handle('choose-workdir', async (event) => {
   const win = getWinFromEvent(event)
   if (!win) return null
+  const state = getState(win)
 
   const result = await dialog.showOpenDialog(win, {
     properties: ['openDirectory'],
@@ -1688,10 +1715,10 @@ ipcMain.handle('choose-workdir', async (event) => {
 
   if (result.canceled || result.filePaths.length === 0) return null
 
-  sidebarState.workdirPath = result.filePaths[0]
-  sidebarState.workspacePaths = addWorkspacePath(sidebarState.workspacePaths, sidebarState.workdirPath)
-  sidebarState.workdirExpanded = true
-  await refreshWorkdirEntries()
+  state.workdirPath = result.filePaths[0]
+  sidebarState.workdirPath = state.workdirPath
+  sidebarState.workspacePaths = addWorkspacePath(sidebarState.workspacePaths, state.workdirPath)
+  await refreshWorkdirEntriesForWindow(win)
   await persistSidebarState()
   broadcastSidebarState()
   return createSidebarSnapshot(win)
@@ -1700,6 +1727,7 @@ ipcMain.handle('choose-workdir', async (event) => {
 ipcMain.handle('select-workspace', async (event, workspacePath: string) => {
   const win = getWinFromEvent(event)
   if (!win) return null
+  const state = getState(win)
   if (typeof workspacePath !== 'string' || !existsSync(workspacePath)) {
     sidebarState.workspacePaths = sidebarState.workspacePaths.filter((candidate) => existsSync(candidate))
     await persistSidebarState()
@@ -1707,10 +1735,10 @@ ipcMain.handle('select-workspace', async (event, workspacePath: string) => {
     return createSidebarSnapshot(win)
   }
 
-  sidebarState.workdirPath = workspacePath
+  state.workdirPath = workspacePath
   sidebarState.workspacePaths = addWorkspacePath(sidebarState.workspacePaths, workspacePath)
-  sidebarState.workdirExpanded = true
-  await refreshWorkdirEntries()
+  sidebarState.workdirPath = workspacePath
+  await refreshWorkdirEntriesForWindow(win)
   await persistSidebarState()
   broadcastSidebarState()
   return createSidebarSnapshot(win)
@@ -1724,6 +1752,12 @@ ipcMain.handle('remove-workspace', async (event, workspacePath: string) => {
   const next = removeWorkspacePath(sidebarState.workspacePaths, workspacePath, sidebarState.workdirPath)
   sidebarState.workspacePaths = next.workspacePaths
   sidebarState.workdirPath = next.workdirPath
+  for (const window of BrowserWindow.getAllWindows()) {
+    const state = getState(window)
+    if (state.workdirPath === workspacePath) {
+      state.workdirPath = next.workdirPath
+    }
+  }
   await refreshWorkdirEntries()
   await persistSidebarState()
   broadcastSidebarState()
@@ -1758,9 +1792,9 @@ ipcMain.handle('create-workdir-folder', async (event) => {
 ipcMain.handle('set-active-sidebar-tab', async (event, tab: string) => {
   const win = getWinFromEvent(event)
   if (!win) return null
-  sidebarState.activeSidebarTab = normalizeSidebarTab(tab)
-  persistSidebarState()
-  broadcastSidebarState()
+  const state = getState(win)
+  state.activeSidebarTab = normalizeSidebarTab(tab)
+  sendSidebarState(win)
   return createSidebarSnapshot(win)
 })
 
@@ -1783,7 +1817,7 @@ ipcMain.handle('toggle-pinned-file', async (event, filePath: string) => {
   if (typeof filePath !== 'string' || !canTogglePinnedFile({
     filePath,
     fileExists: existsSync(filePath),
-    knownWorkdirFiles: workdirEntries.map((entry) => entry.absolutePath),
+    knownWorkdirFiles: getState(win).workdirEntries.map((entry) => entry.absolutePath),
     recentFiles: sidebarState.recentFiles,
     currentFilePath: getState(win).filePath,
     pinnedItems: sidebarState.pinnedItems,

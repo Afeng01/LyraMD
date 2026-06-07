@@ -593,6 +593,7 @@ async function init(): Promise<void> {
   const editorStage = document.getElementById('editor-stage') as HTMLElement | null
   const editorPlaceholder = document.getElementById('editor-placeholder') as HTMLDivElement | null
   const documentStats = document.getElementById('document-stats') as HTMLDivElement | null
+  const agentActivityDot = document.getElementById('agent-activity-dot') as HTMLDivElement | null
   const titleSyncOverlay = document.getElementById('title-sync-overlay') as HTMLDivElement | null
   const titleSyncCurrentName = document.getElementById('title-sync-current-name') as HTMLSpanElement | null
   const titleSyncNextName = document.getElementById('title-sync-next-name') as HTMLSpanElement | null
@@ -714,6 +715,16 @@ async function init(): Promise<void> {
 
   let latestDocumentStatsText = formatDocumentStats(resolveDocumentStats(''))
   let documentStatsAiStatus = ''
+  let agentActivityLightState = 'idle'
+
+  const updateAgentActivityLight = (state: string): void => {
+    agentActivityLightState = state === 'active' || state === 'cooldown' || state === 'thinking'
+      ? state
+      : 'idle'
+    if (!agentActivityDot) return
+    agentActivityDot.dataset.agentActivity = agentActivityLightState
+    agentActivityDot.className = `agent-activity-${agentActivityLightState}`
+  }
 
   const renderDocumentStats = (): void => {
     if (!documentStats) return
@@ -780,6 +791,73 @@ async function init(): Promise<void> {
     editorPlaceholder.style.textIndent = anchorStyle.textIndent
   }
 
+  let frontmatterExpanded = false
+
+  const syncFrontmatterCards = (content: string): void => {
+    const proseMirror = document.querySelector('#editor .ProseMirror') as HTMLElement | null
+    if (!proseMirror) return
+
+    proseMirror.querySelectorAll('.frontmatter-card').forEach((node) => node.remove())
+    proseMirror.querySelectorAll('.frontmatter-source-hidden').forEach((node) => {
+      node.classList.remove('frontmatter-source-hidden')
+      ;(node as HTMLElement).hidden = false
+    })
+
+    const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)
+    if (!match) return
+
+    const metadata = match[1].trimEnd()
+    if (!metadata.trim()) return
+
+    const sourceNodes: HTMLElement[] = []
+    const metadataLines = metadata.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+    for (const child of Array.from(proseMirror.children) as HTMLElement[]) {
+      if (child.classList.contains('frontmatter-card')) continue
+      const text = (child.textContent ?? '').trim()
+      const tag = child.tagName.toLowerCase()
+      const isMetadataNode = tag === 'hr'
+        || text === '---'
+        || metadataLines.some((line) => text.includes(line))
+      if (!isMetadataNode) break
+      sourceNodes.push(child)
+    }
+
+    const card = document.createElement('section')
+    card.className = `frontmatter-card${frontmatterExpanded ? ' frontmatter-expanded' : ' frontmatter-collapsed'}`
+    card.setAttribute('contenteditable', 'false')
+
+    const header = document.createElement('button')
+    header.type = 'button'
+    header.className = 'frontmatter-card-header'
+    header.setAttribute('aria-expanded', String(frontmatterExpanded))
+    header.textContent = '前置元数据'
+    header.addEventListener('mousedown', (event) => event.preventDefault())
+    header.addEventListener('click', () => {
+      frontmatterExpanded = !frontmatterExpanded
+      syncFrontmatterCards(getMarkdown())
+    })
+
+    const body = document.createElement('pre')
+    body.className = 'frontmatter-card-body'
+    body.textContent = metadata
+
+    card.append(header, body)
+    const anchor = sourceNodes[0] ?? proseMirror.firstElementChild
+    if (anchor) {
+      anchor.before(card)
+    } else {
+      proseMirror.appendChild(card)
+    }
+    for (const sourceNode of sourceNodes) {
+      sourceNode.classList.add('frontmatter-source-hidden')
+      sourceNode.hidden = true
+    }
+  }
+
+  const scheduleFrontmatterCardSync = (content: string): void => {
+    requestAnimationFrame(() => syncFrontmatterCards(content))
+  }
+
   const schedulePlaceholderLayoutSync = (): void => {
     requestAnimationFrame(() => {
       syncEditorPlaceholderLayout()
@@ -805,11 +883,13 @@ async function init(): Promise<void> {
   await createEditor('editor', (markdown) => {
     updateEditorPlaceholder(markdown)
     updateDocumentStats(markdown)
+    scheduleFrontmatterCardSync(markdown)
     refreshRenderedMedia()
     schedulePlaceholderLayoutSync()
   })
   updateEditorPlaceholder(getMarkdown())
   updateDocumentStats(getMarkdown())
+  scheduleFrontmatterCardSync(getMarkdown())
   refreshRenderedMedia()
   schedulePlaceholderLayoutSync()
   const settingsDialog = createSettingsDialogController({
@@ -1145,6 +1225,7 @@ async function init(): Promise<void> {
     refreshRenderedMedia()
     updateEditorPlaceholder(content)
     updateDocumentStats(content)
+    scheduleFrontmatterCardSync(content)
     schedulePlaceholderLayoutSync()
     refreshSearchPanel()
     if (outlinePanelOpen) renderOutlinePanel()
@@ -1311,6 +1392,7 @@ async function init(): Promise<void> {
     const markdown = getMarkdown()
     updateEditorPlaceholder(markdown)
     updateDocumentStats(markdown)
+    scheduleFrontmatterCardSync(markdown)
     refreshRenderedMedia()
     if (outlinePanelOpen) renderOutlinePanel()
 
@@ -1775,6 +1857,9 @@ async function init(): Promise<void> {
     }
     aiPaletteStartedAt = null
     updateDocumentStatsAiStatus('')
+    if (agentActivityLightState === 'thinking') {
+      updateAgentActivityLight('idle')
+    }
   }
 
   const showAiPaletteStatusNotice = (status: string): void => {
@@ -1792,6 +1877,7 @@ async function init(): Promise<void> {
     aiPaletteStartedAt = Date.now()
     aiPaletteStatusText = '思考中… 0s'
     updateDocumentStatsAiStatus(aiPaletteStatusText)
+    updateAgentActivityLight('thinking')
     aiPaletteTimerInterval = setInterval(() => {
       if (!aiPaletteStartedAt) return
       const elapsed = Math.floor((Date.now() - aiPaletteStartedAt) / 1000)
@@ -2856,6 +2942,11 @@ img{max-width:100%}
   api.onSidebarState((state) => {
     setSidebarState(state)
     settingsDialog.refresh()
+  })
+
+  api.onAgentActivity((state) => {
+    if (agentActivityLightState === 'thinking') return
+    updateAgentActivityLight(state)
   })
 
   sidebarToggle?.addEventListener('click', () => {

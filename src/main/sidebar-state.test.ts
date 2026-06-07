@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 import {
   DEFAULT_SIDEBAR_STATE,
   DEFAULT_SIDEBAR_WIDTH,
   clampSidebarWidth,
+  createWindowSidebarViewState,
   filterMissingRecentFiles,
   getSidebarOpenForWindow,
   normalizeDrawerSidebarOpen,
@@ -25,6 +28,41 @@ describe('sidebar defaults', () => {
       Array.from({ length: 20 }, (_, index) => `${index}.md`),
       'new.md',
     )).toHaveLength(20)
+  })
+})
+
+describe('window sidebar view state', () => {
+  it('copies the persisted default tab and workdir without sharing mutable window view state', () => {
+    const first = createWindowSidebarViewState({
+      ...DEFAULT_SIDEBAR_STATE,
+      activeSidebarTab: 'recent',
+      workdirPath: '/workspace-a',
+    })
+    const second = createWindowSidebarViewState({
+      ...DEFAULT_SIDEBAR_STATE,
+      activeSidebarTab: 'recent',
+      workdirPath: '/workspace-a',
+    })
+
+    first.activeSidebarTab = 'workdir'
+    first.workdirPath = '/workspace-b'
+
+    expect(second).toEqual({
+      activeSidebarTab: 'recent',
+      workdirPath: '/workspace-a',
+    })
+  })
+
+  it('keeps tab and workspace selection local to each BrowserWindow handler', () => {
+    const main = readFileSync(join(process.cwd(), 'src/main/index.ts'), 'utf8')
+    const handlerStart = main.indexOf("ipcMain.handle('set-active-sidebar-tab'")
+    const handlerBlock = main.slice(handlerStart, handlerStart + 360)
+
+    expect(main).toContain('state.activeSidebarTab')
+    expect(main).toContain('state.workdirPath')
+    expect(handlerBlock).toContain('state.activeSidebarTab = normalizeSidebarTab(tab)')
+    expect(handlerBlock).not.toContain('sidebarState.activeSidebarTab =')
+    expect(handlerBlock).not.toContain('broadcastSidebarState()')
   })
 })
 

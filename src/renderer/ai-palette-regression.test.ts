@@ -186,6 +186,8 @@ describe('AI command palette regression', () => {
     expect(css).toMatch(/#agent-activity-dot\s*\{[\s\S]*top:\s*22px/)
     expect(css).toMatch(/#agent-activity-dot\s*\{[\s\S]*right:\s*16px/)
     expect(css).not.toContain('[data-agent-activity="thinking"]')
+    expect(css).toMatch(/#agent-activity-dot\[data-agent-activity="active"\]\s*\{[\s\S]*background:\s*#e8913a/)
+    expect(css).toMatch(/#agent-activity-dot\[data-agent-activity="cooldown"\]\s*\{[\s\S]*background:\s*#3dba5c/)
     expect(css).toContain('@keyframes agent-activity-breathe')
     expect(css).toContain('.document-stats-ai-status')
   })

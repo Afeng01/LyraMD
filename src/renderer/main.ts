@@ -591,6 +591,7 @@ async function init(): Promise<void> {
 
   const editorShell = document.getElementById('editor-shell') as HTMLElement | null
   const editorStage = document.getElementById('editor-stage') as HTMLElement | null
+  const editor = document.getElementById('editor') as HTMLElement | null
   const editorPlaceholder = document.getElementById('editor-placeholder') as HTMLDivElement | null
   const documentStats = document.getElementById('document-stats') as HTMLDivElement | null
   const agentActivityDot = document.getElementById('agent-activity-dot') as HTMLDivElement | null
@@ -795,9 +796,9 @@ async function init(): Promise<void> {
 
   const syncFrontmatterCards = (content: string): void => {
     const proseMirror = document.querySelector('#editor .ProseMirror') as HTMLElement | null
-    if (!proseMirror) return
+    if (!editor || !proseMirror) return
 
-    proseMirror.querySelectorAll('.frontmatter-card').forEach((node) => node.remove())
+    editor.querySelectorAll('.frontmatter-card').forEach((node) => node.remove())
     proseMirror.querySelectorAll('.frontmatter-source-hidden').forEach((node) => {
       node.classList.remove('frontmatter-source-hidden')
       ;(node as HTMLElement).hidden = false
@@ -842,12 +843,7 @@ async function init(): Promise<void> {
     body.textContent = metadata
 
     card.append(header, body)
-    const anchor = sourceNodes[0] ?? proseMirror.firstElementChild
-    if (anchor) {
-      anchor.before(card)
-    } else {
-      proseMirror.appendChild(card)
-    }
+    editor.insertBefore(card, proseMirror)
     for (const sourceNode of sourceNodes) {
       sourceNode.classList.add('frontmatter-source-hidden')
       sourceNode.hidden = true
@@ -1220,6 +1216,7 @@ async function init(): Promise<void> {
     const previousContent = getMarkdown()
     const shouldRestoreFocus = isEditorTextFocused()
     pendingBlankMaterialization = false
+    if (previousContent !== content) frontmatterExpanded = false
     setMarkdown(content)
     if (previousContent !== content) bumpMcpRevision()
     refreshRenderedMedia()
@@ -2945,7 +2942,6 @@ img{max-width:100%}
   })
 
   api.onAgentActivity((state) => {
-    if (agentActivityLightState === 'thinking') return
     updateAgentActivityLight(state)
   })
 

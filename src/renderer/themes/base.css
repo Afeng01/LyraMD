@@ -1949,14 +1949,14 @@ body.sidebar-resizing * {
 }
 
 #agent-activity-dot[data-agent-activity="active"] {
-  background: var(--link-color);
+  background: #e8913a;
   opacity: 1;
   animation: agent-activity-breathe 1.8s ease-in-out infinite;
 }
 
 #agent-activity-dot[data-agent-activity="cooldown"] {
-  background: #16a34a;
-  opacity: 0.82;
+  background: #3dba5c;
+  opacity: 1;
   animation: agent-activity-breathe 2.4s ease-in-out infinite;
 }
 
@@ -3324,18 +3324,15 @@ body.theme-dark .settings-option input[type="radio"]:checked::after {
   border-bottom: 1px solid color-mix(in srgb, var(--link-color) 45%, transparent 55%);
 }
 
-#editor .ProseMirror > .frontmatter-card {
-  margin: 0 0 1.7em;
+#editor > .frontmatter-card {
+  max-width: 780px;
+  margin: 0 auto 1.7em;
   border: 1px solid color-mix(in srgb, var(--border-color) 58%, transparent 42%);
   border-radius: 7px;
   background: color-mix(in srgb, var(--bg-color) 94%, var(--border-color) 6%);
   overflow: hidden;
   font-size: 0.86em;
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
-}
-
-#editor .ProseMirror > pre.frontmatter-card {
-  margin: 0 0 1.7em;
 }
 
 .frontmatter-card-header {
@@ -3369,7 +3366,7 @@ body.theme-dark .settings-option input[type="radio"]:checked::after {
   transform: rotate(90deg);
 }
 
-.frontmatter-card-body {
+#editor > .frontmatter-card .frontmatter-card-body {
   max-height: calc(1.55em * 3 + 18px);
   margin: 0;
   padding: 8px 14px 10px 34px;

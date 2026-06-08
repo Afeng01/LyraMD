@@ -38,7 +38,7 @@ import { buildTitleSyncPath, decideTitleSync } from './title-sync'
 import { resolveNewWorkdirFolderPath, resolveNewWorkdirMarkdownPath, scanWorkdir, scanWorkdirTree, shouldRefreshWorkdirForWatchEvent, type WorkdirEntry, type WorkdirTreeNode } from './workdir'
 import { moveFileToTrashAndVerify } from './file-removal'
 import { summarizeAgentChange } from './agent-change-summary'
-import { createWindowOptions } from './window-platform'
+import { createSettingsWindowOptions, createWindowOptions } from './window-platform'
 import { decideSecondInstanceAction, extractMarkdownLaunchPaths } from './windows-launch'
 import { resolveZoomShortcut } from './zoom-shortcuts'
 import {
@@ -306,6 +306,7 @@ interface WindowState {
 }
 
 const windowStates = new Map<number, WindowState>()
+let settingsWindow: BrowserWindow | null = null
 let pendingFilePaths: string[] = []
 const hasSingleInstanceLock = app.isPackaged ? app.requestSingleInstanceLock() : true
 
@@ -523,6 +524,12 @@ function sendSidebarState(win: BrowserWindow): void {
 function broadcastSidebarState(): void {
   for (const win of BrowserWindow.getAllWindows()) {
     sendSidebarState(win)
+  }
+}
+
+function broadcastSettingsState(): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) win.webContents.send('settings-updated', appSettings)
   }
 }
 
@@ -808,6 +815,44 @@ function createWindowMatchingSize(sourceWin: BrowserWindow | null): BrowserWindo
     nextWin.setSize(width, height)
   }
   return nextWin
+}
+
+function buildSettingsWindowUrl(pane?: string): string {
+  const params = new URLSearchParams({ settingsWindow: '1' })
+  if (pane) params.set('pane', pane)
+  return params.toString()
+}
+
+function loadSettingsWindow(win: BrowserWindow, pane?: string): void {
+  const query = buildSettingsWindowUrl(pane)
+  if (process.env.ELECTRON_RENDERER_URL) {
+    const url = new URL(process.env.ELECTRON_RENDERER_URL)
+    url.search = query
+    win.loadURL(url.toString())
+    return
+  }
+  win.loadFile(join(__dirname, '../renderer/index.html'), {
+    query: Object.fromEntries(new URLSearchParams(query)),
+  })
+}
+
+function openSettingsWindow(pane?: string): BrowserWindow {
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    if (pane) settingsWindow.webContents.send('settings-open-pane', pane)
+    settingsWindow.show()
+    settingsWindow.focus()
+    return settingsWindow
+  }
+
+  const win = new BrowserWindow(createSettingsWindowOptions({
+    preloadPath: join(__dirname, '../preload/index.js'),
+  }))
+  settingsWindow = win
+  loadSettingsWindow(win, pane)
+  win.on('closed', () => {
+    if (settingsWindow?.id === win.id) settingsWindow = null
+  })
+  return win
 }
 
 function findDraftEntryById(draftId: string | null): DraftEntry | null {
@@ -1494,7 +1539,13 @@ ipcMain.handle('update-settings', async (event, patch: Partial<AppSettings>) => 
   if (!win) return null
   appSettings = await updateAppSettings(settingsPath, appSettings, patch ?? {})
   buildMenu()
+  broadcastSettingsState()
   return appSettings
+})
+
+ipcMain.handle('open-settings-window', async (_event, pane?: string) => {
+  openSettingsWindow(typeof pane === 'string' ? pane : undefined)
+  return true
 })
 
 ipcMain.handle('complete-ai-prompt', async (event, prompt: string) => {
@@ -2257,7 +2308,7 @@ function buildMenu(): void {
         {
           label: '打开设置',
           accelerator: shortcutFor('settings'),
-          click: () => sendToFocused('menu-settings')
+          click: () => { openSettingsWindow() }
         }
       ]
     },

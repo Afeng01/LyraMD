@@ -737,6 +737,10 @@ export function createSettingsDialogController({
     dialogOpen = false
     stopRecording()
     clearShortcutConflict()
+    if (document.body.classList.contains('settings-window-mode')) {
+      api.closeWindow().catch(() => {})
+      return
+    }
     if (!overlay) return
     overlay.hidden = true
     overlay.setAttribute('aria-hidden', 'true')

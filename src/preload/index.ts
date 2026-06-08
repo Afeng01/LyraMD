@@ -191,6 +191,7 @@ export interface ElectronAPI {
   loadThemeCSS: (fileName: string) => Promise<string | null>
   getSettings: () => Promise<AppSettings | null>
   updateSettings: (patch: Partial<AppSettings>) => Promise<AppSettings | null>
+  openSettingsWindow: (pane?: string) => Promise<boolean>
   completeAiPrompt: (prompt: string) => Promise<AiHelperCompletionResult>
   testAiHelperConnection: () => Promise<AiHelperCompletionResult>
   getCurrentDocument: () => Promise<CurrentDocumentSnapshot | null>
@@ -246,6 +247,8 @@ export interface ElectronAPI {
   onMenuCleanCjkTypography: (callback: () => void) => void
   onMenuOpenAiPalette: (callback: () => void) => void
   onMenuSettings: (callback: () => void) => void
+  onSettingsChanged: (callback: (settings: AppSettings) => void) => void
+  onSettingsOpenPane: (callback: (pane: string) => void) => void
   onMenuToggleOutline: (callback: () => void) => void
   onMenuExportPDF: (callback: () => void) => void
   onMenuExportHTML: (callback: () => void) => void
@@ -274,6 +277,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   loadThemeCSS: (fileName: string) => ipcRenderer.invoke('load-theme-css', fileName),
   getSettings: () => ipcRenderer.invoke('get-settings'),
   updateSettings: (patch: Partial<AppSettings>) => ipcRenderer.invoke('update-settings', patch),
+  openSettingsWindow: (pane?: string) => ipcRenderer.invoke('open-settings-window', pane),
   completeAiPrompt: (prompt: string) => ipcRenderer.invoke('complete-ai-prompt', prompt),
   testAiHelperConnection: () => ipcRenderer.invoke('test-ai-helper-connection'),
   getCurrentDocument: () => ipcRenderer.invoke('get-current-document'),
@@ -350,6 +354,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onMenuSettings: (callback: () => void) => {
     ipcRenderer.on('menu-settings', () => callback())
+  },
+  onSettingsChanged: (callback: (settings: AppSettings) => void) => {
+    ipcRenderer.on('settings-updated', (_event, settings) => callback(settings))
+  },
+  onSettingsOpenPane: (callback: (pane: string) => void) => {
+    ipcRenderer.on('settings-open-pane', (_event, pane) => callback(pane))
   },
   onMenuToggleOutline: (callback: () => void) => {
     ipcRenderer.on('menu-toggle-outline', () => callback())

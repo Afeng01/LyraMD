@@ -37,3 +37,24 @@ export function createWindowOptions({
 
   return options
 }
+
+export function createSettingsWindowOptions({
+  preloadPath,
+}: {
+  preloadPath: string
+}): BrowserWindowConstructorOptions {
+  return {
+    width: 760,
+    height: 620,
+    minWidth: 560,
+    minHeight: 420,
+    resizable: true,
+    title: '设置 — LyraMD',
+    webPreferences: {
+      preload: preloadPath,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  }
+}

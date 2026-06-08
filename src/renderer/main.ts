@@ -56,7 +56,7 @@ import {
   type AgentPanelPlacement,
   type ContextPanelMode,
 } from './phase-c-layout'
-import { createSettingsDialogController } from './settings-dialog'
+import { createSettingsDialogController, type SettingsPaneId } from './settings-dialog'
 import {
   resolvePinnedItems,
   resolvePinControl,
@@ -114,6 +114,13 @@ function buildSuggestedTitleSyncPath(filePath: string | null, nextTitle: string)
   if (!stem) return null
   const extension = extname(filePath) || '.md'
   return `${dirname(filePath)}/${stem}${extension}`
+}
+
+function extractLeadingFrontmatter(content: string): string | null {
+  const match = content.replace(/^\uFEFF/, '').match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)
+  if (!match) return null
+  const metadata = match[1].trimEnd()
+  return metadata.trim() ? metadata : null
 }
 
 function isSamePath(a: string | null, b: string | null): boolean {
@@ -462,6 +469,10 @@ function renderEmpty(element: Element, text: string): void {
 
 async function init(): Promise<void> {
   const api = window.electronAPI as TitleEditingAPI
+  const searchParams = new URLSearchParams(window.location.search)
+  const settingsWindowMode = searchParams.get('settingsWindow') === '1'
+  const initialSettingsPane = searchParams.get('pane') as SettingsPaneId | null
+  document.body.classList.toggle('settings-window-mode', settingsWindowMode)
   document.body.classList.toggle('platform-win32', api.platform === 'win32')
   let appSettings = createDefaultSettings()
   let sidebarState: SidebarState | null = null
@@ -717,6 +728,7 @@ async function init(): Promise<void> {
   let latestDocumentStatsText = formatDocumentStats(resolveDocumentStats(''))
   let documentStatsAiStatus = ''
   let agentActivityLightState = 'idle'
+  let rememberedFrontmatterMetadata: string | null = null
 
   const updateAgentActivityLight = (state: string): void => {
     agentActivityLightState = state === 'active' || state === 'cooldown'
@@ -804,11 +816,10 @@ async function init(): Promise<void> {
       ;(node as HTMLElement).hidden = false
     })
 
-    const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)
-    if (!match) return
-
-    const metadata = match[1].trimEnd()
-    if (!metadata.trim()) return
+    const explicitFrontmatter = extractLeadingFrontmatter(content)
+    if (explicitFrontmatter !== null) rememberedFrontmatterMetadata = explicitFrontmatter
+    const metadata = extractLeadingFrontmatter(content) ?? rememberedFrontmatterMetadata
+    if (!metadata) return
 
     const sourceNodes: HTMLElement[] = []
     const metadataLines = metadata.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
@@ -903,6 +914,32 @@ async function init(): Promise<void> {
       setSidebarState(state)
     },
   })
+  const openSettingsSurface = (pane?: SettingsPaneId): void => {
+    if (settingsWindowMode) {
+      if (pane) settingsDialog.openPane(pane)
+      else settingsDialog.open()
+      return
+    }
+    api.openSettingsWindow(pane).catch(() => {
+      if (pane) settingsDialog.openPane(pane)
+      else settingsDialog.open()
+    })
+  }
+  api.onSettingsChanged((settings) => {
+    appSettings = settings
+    applyBackgroundSettings(appSettings.background)
+    applyFontSettings(appSettings.font)
+    renderDocumentStats()
+    refreshAgentPanelPlacement()
+    settingsDialog.refresh()
+  })
+  api.onSettingsOpenPane((pane) => {
+    settingsDialog.openPane(pane as SettingsPaneId)
+  })
+  if (settingsWindowMode) {
+    if (initialSettingsPane) settingsDialog.openPane(initialSettingsPane)
+    else settingsDialog.open()
+  }
 
   let immediateSaveInFlight = false
   let pendingImmediateSaveContent: string | null = null
@@ -1216,6 +1253,7 @@ async function init(): Promise<void> {
     const previousContent = getMarkdown()
     const shouldRestoreFocus = isEditorTextFocused()
     pendingBlankMaterialization = false
+    rememberedFrontmatterMetadata = extractLeadingFrontmatter(content)
     if (previousContent !== content) frontmatterExpanded = false
     setMarkdown(content)
     if (previousContent !== content) bumpMcpRevision()
@@ -2849,7 +2887,7 @@ img{max-width:100%}
         break
       case 'settings':
         closeTitleSyncPrompt()
-        settingsDialog.open()
+        openSettingsSurface()
         break
       case 'import-theme':
         void importCustomThemeSelection()
@@ -2891,7 +2929,7 @@ img{max-width:100%}
   })
   api.onMenuSettings?.(() => {
     closeTitleSyncPrompt()
-    settingsDialog.open()
+    openSettingsSurface()
   })
   api.onMenuExportPDF(() => api.exportPDF())
   api.onMenuExportHTML(() => {
@@ -2953,7 +2991,7 @@ img{max-width:100%}
 
   settingsToggle?.addEventListener('click', () => {
     closeTitleSyncPrompt()
-    settingsDialog.open()
+    openSettingsSurface()
   })
 
   agentToggle?.addEventListener('click', () => {
@@ -2962,7 +3000,7 @@ img{max-width:100%}
 
   aiPaletteProviderLink?.addEventListener('click', () => {
     closeAiPalette({ restoreFocus: false })
-    settingsDialog.openPane('integrations')
+    openSettingsSurface('integrations')
   })
 
   const handleAiHelperTemplateChange = (templateSelect: HTMLSelectElement): void => {

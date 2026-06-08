@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { createWindowOptions } from './window-platform'
+import { createSettingsWindowOptions, createWindowOptions } from './window-platform'
 
 describe('createWindowOptions', () => {
   it('keeps the hidden inset title bar on macOS', () => {
@@ -39,5 +39,21 @@ describe('createWindowOptions', () => {
     expect(options.minWidth).toBeGreaterThanOrEqual(280 + 44)
     expect(options.minWidth).toBeGreaterThanOrEqual(168 + 32)
     expect(options.minHeight).toBeGreaterThanOrEqual(52 + 42 + 120)
+  })
+
+  it('uses a detached resizable native window for settings', () => {
+    const options = createSettingsWindowOptions({
+      preloadPath: '/app/dist/preload/index.js',
+    })
+
+    expect(options.width).toBe(760)
+    expect(options.height).toBe(620)
+    expect(options.minWidth).toBe(560)
+    expect(options.minHeight).toBe(420)
+    expect(options.resizable).toBe(true)
+    expect(options.modal).toBeUndefined()
+    expect(options.parent).toBeUndefined()
+    expect(options.title).toBe('设置 — LyraMD')
+    expect(options.webPreferences?.preload).toBe('/app/dist/preload/index.js')
   })
 })

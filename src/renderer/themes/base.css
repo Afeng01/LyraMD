@@ -2411,8 +2411,6 @@ body.sidebar-resizing * {
   box-shadow:
     0 30px 70px rgba(0, 0, 0, 0.22),
     0 8px 24px rgba(0, 0, 0, 0.12);
-  transform: scale(var(--app-zoom, 1));
-  transform-origin: center;
   animation: settings-dialog-enter 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
@@ -2421,8 +2419,45 @@ body.theme-dark #settings-dialog {
 }
 
 @keyframes settings-dialog-enter {
-  from { opacity: 0; transform: scale(calc(var(--app-zoom, 1) * 0.98)) translateY(15px); }
-  to { opacity: 1; transform: scale(var(--app-zoom, 1)); }
+  from { opacity: 0; transform: scale(0.98) translateY(15px); }
+  to { opacity: 1; transform: none; }
+}
+
+body.settings-window-mode {
+  overflow: hidden;
+}
+
+body.settings-window-mode #titlebar,
+body.settings-window-mode #workspace,
+body.settings-window-mode #ai-command-overlay,
+body.settings-window-mode #onboarding-overlay,
+body.settings-window-mode #title-sync-overlay {
+  display: none !important;
+}
+
+body.settings-window-mode #app-shell {
+  display: block;
+  height: 100vh;
+}
+
+body.settings-window-mode #settings-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+  padding: 0;
+  background: var(--bg-color);
+}
+
+body.settings-window-mode #settings-dialog {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  animation: none;
 }
 
 .settings-top-bar {

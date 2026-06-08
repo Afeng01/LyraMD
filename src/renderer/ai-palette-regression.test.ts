@@ -197,7 +197,7 @@ describe('AI command palette regression', () => {
     const settings = readFileSync(join(process.cwd(), 'src/renderer/settings-dialog.ts'), 'utf8')
 
     expect(renderer).toContain('aiPaletteProviderLink')
-    expect(renderer).toContain("settingsDialog.openPane('integrations')")
+    expect(renderer).toContain("openSettingsSurface('integrations')")
     expect(settings).toContain('openPane: (pane: SettingsPaneId) => void')
     expect(settings).toContain('const openPane = (pane: SettingsPaneId): void => {')
   })

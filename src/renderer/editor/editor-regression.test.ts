@@ -17,6 +17,8 @@ describe('frontmatter card regression', () => {
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
 
     expect(renderer).toContain('syncFrontmatterCards')
+    expect(renderer).toContain('rememberedFrontmatterMetadata')
+    expect(renderer).toContain('extractLeadingFrontmatter(content) ?? rememberedFrontmatterMetadata')
     expect(renderer).toContain('frontmatter-card')
     expect(renderer).toContain('前置元数据')
     expect(renderer).toContain('frontmatterExpanded')

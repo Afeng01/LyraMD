@@ -97,7 +97,7 @@ describe('settings dialog regression', () => {
     expect(html.indexOf('data-settings-pane="release-notes"')).toBeGreaterThan(html.indexOf('data-settings-pane="feedback"'))
     expect(html).toContain('data-settings-panel="release-notes"')
     expect(html).toContain('更新日志')
-    expect(html).toContain('当前开发版（1.3.7 候选）')
+    expect(html).toContain('LyraMD 1.3.7')
     expect(html).toContain('LyraMD 1.3.6')
     expect(html).toContain('LyraMD 1.3.5')
     expect(html).toContain('LyraMD 1.3.0')

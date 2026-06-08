@@ -49,8 +49,8 @@ Download the latest builds from [Releases](https://github.com/Afeng01/LyraMD/rel
 
 | Platform | Format | Status |
 | --- | --- | --- |
-| macOS Apple Silicon | `LyraMD-1.3.6-arm64.dmg` / `.zip` | Stable target |
-| Windows x64 | `LyraMD-Setup-1.3.6-x64.exe` | Preview / needs real-device smoke testing |
+| macOS Apple Silicon | `LyraMD-1.3.7-arm64.dmg` / `.zip` | Stable target |
+| Windows x64 | `LyraMD-Setup-1.3.7-x64.exe` | Preview / needs real-device smoke testing |
 
 ## Install on macOS
 
@@ -69,7 +69,7 @@ Code signing and notarization are different. Signing identifies who produced an 
 
 ## Install on Windows
 
-Windows support is currently a preview path. The v1.3.6 release includes a Windows x64 installer, but it still needs real-device smoke testing before it should be treated as a stable Windows release.
+Windows support is currently a preview path. The v1.3.7 release includes a Windows x64 installer, but it still needs real-device smoke testing before it should be treated as a stable Windows release.
 
 Download `LyraMD-Setup-*-x64.exe` from [Releases](https://github.com/Afeng01/LyraMD/releases), run the installer, and follow the NSIS setup flow. Please verify launch, opening `.md` files, save / save as, and external file refresh on Windows before relying on it for regular work.
 

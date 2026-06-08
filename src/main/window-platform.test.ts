@@ -43,6 +43,7 @@ describe('createWindowOptions', () => {
 
   it('uses a detached resizable native window for settings', () => {
     const options = createSettingsWindowOptions({
+      platform: 'darwin',
       preloadPath: '/app/dist/preload/index.js',
     })
 
@@ -53,6 +54,8 @@ describe('createWindowOptions', () => {
     expect(options.resizable).toBe(true)
     expect(options.modal).toBeUndefined()
     expect(options.parent).toBeUndefined()
+    expect(options.titleBarStyle).toBe('hiddenInset')
+    expect(options.trafficLightPosition).toEqual({ x: 14, y: 14 })
     expect(options.title).toBe('设置 — LyraMD')
     expect(options.webPreferences?.preload).toBe('/app/dist/preload/index.js')
   })

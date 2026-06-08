@@ -2454,10 +2454,23 @@ body.settings-window-mode #settings-dialog {
   width: 100%;
   height: 100%;
   max-height: none;
+  grid-template-columns: 190px minmax(0, 1fr);
+  grid-template-rows: 42px 1fr;
   border: none;
   border-radius: 0;
   box-shadow: none;
   animation: none;
+}
+
+body.settings-window-mode .settings-top-bar {
+  padding-left: 92px;
+  -webkit-app-region: drag;
+}
+
+body.settings-window-mode .settings-close-x,
+body.settings-window-mode .settings-nav,
+body.settings-window-mode .settings-pane-shell {
+  -webkit-app-region: no-drag;
 }
 
 .settings-top-bar {
@@ -3517,29 +3530,29 @@ body.theme-dark .settings-theme-button.active {
 }
 
 @media (max-width: 840px) {
-  #settings-dialog {
+  body:not(.settings-window-mode) #settings-dialog {
     width: min(100vw - 24px, 720px);
     height: auto;
     max-height: calc(100vh - 28px);
     grid-template-columns: 1fr;
   }
 
-  .settings-nav {
+  body:not(.settings-window-mode) .settings-nav {
     padding: 16px 10px;
     border-right: none;
     border-bottom: 1px solid color-mix(in srgb, var(--border-color) 45%, transparent 55%);
   }
 
-  .settings-nav-list {
+  body:not(.settings-window-mode) .settings-nav-list {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
-  .settings-nav-section-label {
+  body:not(.settings-window-mode) .settings-nav-section-label {
     display: none;
   }
 
-  .settings-pane-content {
+  body:not(.settings-window-mode) .settings-pane-content {
     padding: 16px 24px 24px;
   }
 
@@ -3597,4 +3610,22 @@ body.theme-newsprint {
 
 #editor .ProseMirror {
   font-family: var(--lyra-editor-font-family) !important;
+}
+
+#editor .ProseMirror table {
+  display: block;
+  width: max-content;
+  min-width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-collapse: collapse;
+  white-space: nowrap;
+}
+
+#editor .ProseMirror th,
+#editor .ProseMirror td {
+  min-width: 96px;
+  white-space: nowrap;
+  vertical-align: top;
 }

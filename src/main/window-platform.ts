@@ -39,11 +39,13 @@ export function createWindowOptions({
 }
 
 export function createSettingsWindowOptions({
+  platform,
   preloadPath,
 }: {
+  platform: NodeJS.Platform
   preloadPath: string
 }): BrowserWindowConstructorOptions {
-  return {
+  const options: BrowserWindowConstructorOptions = {
     width: 760,
     height: 620,
     minWidth: 560,
@@ -57,4 +59,14 @@ export function createSettingsWindowOptions({
       sandbox: false,
     },
   }
+
+  if (platform === 'darwin') {
+    return {
+      ...options,
+      titleBarStyle: 'hiddenInset',
+      trafficLightPosition: { x: 14, y: 14 },
+    }
+  }
+
+  return options
 }

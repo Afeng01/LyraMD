@@ -247,6 +247,12 @@ describe('settings dialog regression', () => {
     expect(main).toContain("ipcMain.handle('open-settings-window'")
     expect(main).toContain("win.webContents.send('settings-updated', appSettings)")
     expect(css).toContain('body.settings-window-mode #settings-overlay')
+    expect(css).toContain('body.settings-window-mode .settings-top-bar')
+    expect(css).toContain('-webkit-app-region: drag')
+    expect(css).toContain('body.settings-window-mode #settings-dialog {\n  width: 100%;')
+    expect(css).toContain('grid-template-columns: 190px minmax(0, 1fr)')
+    expect(css).toContain('body:not(.settings-window-mode) #settings-dialog')
+    expect(css).toContain('body:not(.settings-window-mode) .settings-nav-list')
     expect(css).not.toMatch(/#settings-dialog\s*\{[\s\S]*transform:\s*scale\(var\(--app-zoom/)
     expect(css).not.toContain('.settings-window-controls')
     expect(css).not.toContain('settings-pane-kicker')
@@ -261,6 +267,17 @@ describe('settings dialog regression', () => {
     expect(html).toContain('cpa/new-api')
     expect(html).toContain('选中文本后按 Cmd/Ctrl+J')
     expect(html).not.toContain('按 Cmd/Ctrl+Y')
+  })
+
+  it('keeps wide markdown tables scrollable instead of squeezing columns', () => {
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+
+    expect(css).toContain('#editor .ProseMirror table')
+    expect(css).toContain('overflow-x: auto')
+    expect(css).toContain('width: max-content')
+    expect(css).toContain('max-width: 100%')
+    expect(css).toContain('min-width: 100%')
+    expect(css).toContain('white-space: nowrap')
   })
 
   it('applies background settings through renderer CSS variables', () => {

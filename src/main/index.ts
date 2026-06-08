@@ -845,6 +845,7 @@ function openSettingsWindow(pane?: string): BrowserWindow {
   }
 
   const win = new BrowserWindow(createSettingsWindowOptions({
+    platform: process.platform,
     preloadPath: join(__dirname, '../preload/index.js'),
   }))
   settingsWindow = win

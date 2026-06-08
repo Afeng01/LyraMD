@@ -286,6 +286,11 @@ describe('settings dialog regression', () => {
     expect(tableRule).toContain('scrollbar-width: none')
     expect(css).toContain('#editor .ProseMirror table::-webkit-scrollbar')
     expect(tableRule).toContain('white-space: nowrap')
+    expect(css).toContain('#editor .ProseMirror table :is(thead, tbody)')
+    expect(css).toContain('width: max-content')
+    expect(css).toContain('min-width: 100%')
+    expect(css).toContain('#editor .ProseMirror table tr')
+    expect(css).toContain('display: table-row')
   })
 
   it('applies background settings through renderer CSS variables', () => {

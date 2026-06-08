@@ -9,6 +9,7 @@ import { history } from '@milkdown/kit/plugin/history'
 import { listener, listenerCtx } from '@milkdown/kit/plugin/listener'
 import { clipboard } from '@milkdown/kit/plugin/clipboard'
 import { replaceAll } from '@milkdown/kit/utils'
+import remarkFrontmatter from 'remark-frontmatter'
 import {
   SearchQuery,
   findNext as findNextMatch,
@@ -19,6 +20,7 @@ import {
   type SearchResult,
 } from 'prosemirror-search'
 import { htmlView } from './html-view'
+import { frontmatterSchema, frontmatterView } from './frontmatter-node'
 import {
   sanitizeClipboardHtml,
   serializeClipboardPlainText,
@@ -316,7 +318,10 @@ export async function createEditor(
     .config((ctx) => {
       ctx.set(rootCtx, root)
       ctx.set(defaultValueCtx, defaultContent)
-      ctx.set(remarkPluginsCtx, [{ plugin: remarkBreaks, options: undefined }])
+      ctx.set(remarkPluginsCtx, [
+        { plugin: remarkFrontmatter, options: ['yaml'] },
+        { plugin: remarkBreaks, options: undefined },
+      ])
       ctx.update(prosePluginsCtx, (plugins) => plugins.concat(
         createAutoPairInputPlugin(),
         createProsemirrorSearchPlugin(),
@@ -348,6 +353,8 @@ export async function createEditor(
     .use(history)
     .use(listener)
     .use(clipboard)
+    .use(frontmatterSchema)
+    .use(frontmatterView)
     .use(htmlView)
     .create()
 

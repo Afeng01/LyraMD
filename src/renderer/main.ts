@@ -23,7 +23,6 @@ import {
 } from './editor/editor'
 import { resolveSearchPanelPreview, type SearchState } from './editor/search'
 import { formatCjkTypography } from './editor/cjk-format'
-import { collectFrontmatterSourceIndexes } from './editor/frontmatter-display'
 import {
   rememberQueryForDocument,
   resolveRememberedQuery,
@@ -115,13 +114,6 @@ function buildSuggestedTitleSyncPath(filePath: string | null, nextTitle: string)
   if (!stem) return null
   const extension = extname(filePath) || '.md'
   return `${dirname(filePath)}/${stem}${extension}`
-}
-
-function extractLeadingFrontmatter(content: string): string | null {
-  const match = content.replace(/^\uFEFF/, '').match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)
-  if (!match) return null
-  const metadata = match[1].trimEnd()
-  return metadata.trim() ? metadata : null
 }
 
 function isSamePath(a: string | null, b: string | null): boolean {
@@ -729,7 +721,6 @@ async function init(): Promise<void> {
   let latestDocumentStatsText = formatDocumentStats(resolveDocumentStats(''))
   let documentStatsAiStatus = ''
   let agentActivityLightState = 'idle'
-  let rememberedFrontmatterMetadata: string | null = null
 
   const updateAgentActivityLight = (state: string): void => {
     agentActivityLightState = state === 'active' || state === 'cooldown'
@@ -805,58 +796,6 @@ async function init(): Promise<void> {
     editorPlaceholder.style.textIndent = anchorStyle.textIndent
   }
 
-  let frontmatterExpanded = false
-
-  const syncFrontmatterCards = (content: string): void => {
-    const proseMirror = document.querySelector('#editor .ProseMirror') as HTMLElement | null
-    if (!editor || !proseMirror) return
-
-    editor.querySelectorAll('.frontmatter-card').forEach((node) => node.remove())
-    proseMirror.querySelectorAll('.frontmatter-source-hidden').forEach((node) => {
-      node.classList.remove('frontmatter-source-hidden')
-      ;(node as HTMLElement).hidden = false
-    })
-
-    const explicitFrontmatter = extractLeadingFrontmatter(content)
-    if (explicitFrontmatter !== null) rememberedFrontmatterMetadata = explicitFrontmatter
-    const metadata = extractLeadingFrontmatter(content) ?? rememberedFrontmatterMetadata
-    if (!metadata) return
-
-    const renderedNodes = Array.from(proseMirror.children) as HTMLElement[]
-    const sourceNodeIndexes = collectFrontmatterSourceIndexes(metadata, renderedNodes)
-    const sourceNodes = sourceNodeIndexes.map((index) => renderedNodes[index]).filter(Boolean)
-
-    const card = document.createElement('section')
-    card.className = `frontmatter-card${frontmatterExpanded ? ' frontmatter-expanded' : ' frontmatter-collapsed'}`
-    card.setAttribute('contenteditable', 'false')
-
-    const header = document.createElement('button')
-    header.type = 'button'
-    header.className = 'frontmatter-card-header'
-    header.setAttribute('aria-expanded', String(frontmatterExpanded))
-    header.textContent = '前置元数据'
-    header.addEventListener('mousedown', (event) => event.preventDefault())
-    header.addEventListener('click', () => {
-      frontmatterExpanded = !frontmatterExpanded
-      syncFrontmatterCards(getMarkdown())
-    })
-
-    const body = document.createElement('pre')
-    body.className = 'frontmatter-card-body'
-    body.textContent = metadata
-
-    card.append(header, body)
-    editor.insertBefore(card, proseMirror)
-    for (const sourceNode of sourceNodes) {
-      sourceNode.classList.add('frontmatter-source-hidden')
-      sourceNode.hidden = true
-    }
-  }
-
-  const scheduleFrontmatterCardSync = (content: string): void => {
-    requestAnimationFrame(() => syncFrontmatterCards(content))
-  }
-
   const schedulePlaceholderLayoutSync = (): void => {
     requestAnimationFrame(() => {
       syncEditorPlaceholderLayout()
@@ -882,13 +821,11 @@ async function init(): Promise<void> {
   await createEditor('editor', (markdown) => {
     updateEditorPlaceholder(markdown)
     updateDocumentStats(markdown)
-    scheduleFrontmatterCardSync(markdown)
     refreshRenderedMedia()
     schedulePlaceholderLayoutSync()
   })
   updateEditorPlaceholder(getMarkdown())
   updateDocumentStats(getMarkdown())
-  scheduleFrontmatterCardSync(getMarkdown())
   refreshRenderedMedia()
   schedulePlaceholderLayoutSync()
   const settingsDialog = createSettingsDialogController({
@@ -1245,14 +1182,11 @@ async function init(): Promise<void> {
     const previousContent = getMarkdown()
     const shouldRestoreFocus = isEditorTextFocused()
     pendingBlankMaterialization = false
-    rememberedFrontmatterMetadata = extractLeadingFrontmatter(content)
-    if (previousContent !== content) frontmatterExpanded = false
     setMarkdown(content)
     if (previousContent !== content) bumpMcpRevision()
     refreshRenderedMedia()
     updateEditorPlaceholder(content)
     updateDocumentStats(content)
-    scheduleFrontmatterCardSync(content)
     schedulePlaceholderLayoutSync()
     refreshSearchPanel()
     if (outlinePanelOpen) renderOutlinePanel()
@@ -1419,7 +1353,6 @@ async function init(): Promise<void> {
     const markdown = getMarkdown()
     updateEditorPlaceholder(markdown)
     updateDocumentStats(markdown)
-    scheduleFrontmatterCardSync(markdown)
     refreshRenderedMedia()
     if (outlinePanelOpen) renderOutlinePanel()
 

@@ -3384,7 +3384,7 @@ body.theme-dark .settings-option input[type="radio"]:checked::after {
   border-bottom: 1px solid color-mix(in srgb, var(--link-color) 45%, transparent 55%);
 }
 
-#editor > .frontmatter-card {
+#editor .ProseMirror .frontmatter-card {
   max-width: 780px;
   margin: 0 auto 1.7em;
   border: 1px solid color-mix(in srgb, var(--border-color) 58%, transparent 42%);
@@ -3426,7 +3426,7 @@ body.theme-dark .settings-option input[type="radio"]:checked::after {
   transform: rotate(90deg);
 }
 
-#editor > .frontmatter-card .frontmatter-card-body {
+#editor .ProseMirror .frontmatter-card .frontmatter-card-body {
   max-height: calc(1.55em * 3 + 18px);
   margin: 0;
   padding: 8px 14px 10px 34px;
@@ -3440,8 +3440,7 @@ body.theme-dark .settings-option input[type="radio"]:checked::after {
   white-space: pre-wrap;
 }
 
-.frontmatter-card.frontmatter-collapsed .frontmatter-card-body,
-.frontmatter-source-hidden {
+.frontmatter-card.frontmatter-collapsed .frontmatter-card-body {
   display: none !important;
 }
 
@@ -3640,8 +3639,19 @@ body.theme-newsprint {
   display: none;
 }
 
+#editor .ProseMirror table :is(thead, tbody) {
+  display: table;
+  width: max-content;
+  min-width: 100%;
+}
+
+#editor .ProseMirror table tr {
+  display: table-row;
+}
+
 #editor .ProseMirror th,
 #editor .ProseMirror td {
+  display: table-cell;
   min-width: 96px;
   white-space: nowrap;
   vertical-align: top;

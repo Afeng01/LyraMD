@@ -23,6 +23,14 @@ describe('settings dialog regression', () => {
     expect(file).toContain('api.updateSettings({ themeName')
   })
 
+  it('applies detached settings theme updates in editor windows', () => {
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+
+    expect(renderer).toContain('async function applyConfiguredTheme')
+    expect(renderer).toContain('await applyConfiguredTheme(appSettings.themeName)')
+    expect(renderer).toContain('api.onSettingsChanged((settings) => {')
+  })
+
   it('persists recorded shortcut changes through the shared app settings channel', () => {
     const file = readFileSync(join(process.cwd(), 'src/renderer/settings-dialog.ts'), 'utf8')
     const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')

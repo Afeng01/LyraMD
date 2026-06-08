@@ -462,6 +462,16 @@ function renderEmpty(element: Element, text: string): void {
 
 async function init(): Promise<void> {
   const api = window.electronAPI as TitleEditingAPI
+  async function applyConfiguredTheme(themeName: string): Promise<void> {
+    if (themeName.startsWith('custom:')) {
+      const fileName = themeName.slice(7)
+      const css = await api.loadThemeCSS(fileName)
+      applyTheme(themeName, css || undefined)
+      return
+    }
+    applyTheme(themeName)
+  }
+
   const searchParams = new URLSearchParams(window.location.search)
   const settingsWindowMode = searchParams.get('settingsWindow') === '1'
   const initialSettingsPane = searchParams.get('pane') as SettingsPaneId | null
@@ -584,13 +594,10 @@ async function init(): Promise<void> {
   appSettings = (await api.getSettings().catch(() => null)) ?? createDefaultSettings()
   applyBackgroundSettings(appSettings.background)
   applyFontSettings(appSettings.font)
-  const savedTheme = appSettings.themeName || loadSavedTheme()
-  applyTheme(savedTheme)
-
-  if (savedTheme.startsWith('custom:')) {
-    const fileName = savedTheme.slice(7)
-    const css = await api.loadThemeCSS(fileName)
-    if (css) applyTheme(savedTheme, css)
+  if (appSettings.themeName) {
+    await applyConfiguredTheme(appSettings.themeName)
+  } else {
+    await applyConfiguredTheme(loadSavedTheme())
   }
 
   const editorShell = document.getElementById('editor-shell') as HTMLElement | null
@@ -856,6 +863,7 @@ async function init(): Promise<void> {
   }
   api.onSettingsChanged((settings) => {
     appSettings = settings
+    void applyConfiguredTheme(appSettings.themeName)
     applyBackgroundSettings(appSettings.background)
     applyFontSettings(appSettings.font)
     renderDocumentStats()
@@ -2710,7 +2718,7 @@ img{max-width:100%}
   }
 
   const applyThemeSelection = async (theme: string): Promise<void> => {
-    applyTheme(theme)
+    await applyConfiguredTheme(theme)
     appSettings = (await api.updateSettings({ themeName: theme }).catch(() => null)) ?? {
       ...appSettings,
       themeName: theme,

@@ -23,6 +23,7 @@ import {
 } from './editor/editor'
 import { resolveSearchPanelPreview, type SearchState } from './editor/search'
 import { formatCjkTypography } from './editor/cjk-format'
+import { collectFrontmatterSourceIndexes } from './editor/frontmatter-display'
 import {
   rememberQueryForDocument,
   resolveRememberedQuery,
@@ -821,18 +822,9 @@ async function init(): Promise<void> {
     const metadata = extractLeadingFrontmatter(content) ?? rememberedFrontmatterMetadata
     if (!metadata) return
 
-    const sourceNodes: HTMLElement[] = []
-    const metadataLines = metadata.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
-    for (const child of Array.from(proseMirror.children) as HTMLElement[]) {
-      if (child.classList.contains('frontmatter-card')) continue
-      const text = (child.textContent ?? '').trim()
-      const tag = child.tagName.toLowerCase()
-      const isMetadataNode = tag === 'hr'
-        || text === '---'
-        || metadataLines.some((line) => text.includes(line))
-      if (!isMetadataNode) break
-      sourceNodes.push(child)
-    }
+    const renderedNodes = Array.from(proseMirror.children) as HTMLElement[]
+    const sourceNodeIndexes = collectFrontmatterSourceIndexes(metadata, renderedNodes)
+    const sourceNodes = sourceNodeIndexes.map((index) => renderedNodes[index]).filter(Boolean)
 
     const card = document.createElement('section')
     card.className = `frontmatter-card${frontmatterExpanded ? ' frontmatter-expanded' : ' frontmatter-collapsed'}`

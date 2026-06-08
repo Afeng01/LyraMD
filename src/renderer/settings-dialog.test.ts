@@ -247,10 +247,14 @@ describe('settings dialog regression', () => {
     expect(main).toContain("ipcMain.handle('open-settings-window'")
     expect(main).toContain("win.webContents.send('settings-updated', appSettings)")
     expect(css).toContain('body.settings-window-mode #settings-overlay')
-    expect(css).toContain('body.settings-window-mode .settings-top-bar')
+    expect(css).toContain('body.settings-window-mode #settings-dialog::before')
+    expect(css).toContain('body.settings-window-mode .settings-top-bar {\n  display: none;')
     expect(css).toContain('-webkit-app-region: drag')
-    expect(css).toContain('body.settings-window-mode #settings-dialog {\n  width: 100%;')
+    expect(css).toContain('body.settings-window-mode #settings-dialog {')
+    expect(css).toContain('position: relative')
     expect(css).toContain('grid-template-columns: 190px minmax(0, 1fr)')
+    expect(css).toContain('grid-template-rows: 1fr')
+    expect(css).toContain('padding-top: 38px')
     expect(css).toContain('body:not(.settings-window-mode) #settings-dialog')
     expect(css).toContain('body:not(.settings-window-mode) .settings-nav-list')
     expect(css).not.toMatch(/#settings-dialog\s*\{[\s\S]*transform:\s*scale\(var\(--app-zoom/)
@@ -271,13 +275,17 @@ describe('settings dialog regression', () => {
 
   it('keeps wide markdown tables scrollable instead of squeezing columns', () => {
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+    const tableRules = Array.from(css.matchAll(/#editor \.ProseMirror table\s*\{[\s\S]*?\n\}/g))
+    const tableRule = tableRules.at(-1)?.[0] ?? ''
 
     expect(css).toContain('#editor .ProseMirror table')
-    expect(css).toContain('overflow-x: auto')
-    expect(css).toContain('width: max-content')
-    expect(css).toContain('max-width: 100%')
-    expect(css).toContain('min-width: 100%')
-    expect(css).toContain('white-space: nowrap')
+    expect(tableRule).toContain('overflow-x: auto')
+    expect(tableRule).toContain('width: 100%')
+    expect(tableRule).toContain('max-width: 100%')
+    expect(tableRule).not.toContain('width: max-content')
+    expect(tableRule).toContain('scrollbar-width: none')
+    expect(css).toContain('#editor .ProseMirror table::-webkit-scrollbar')
+    expect(tableRule).toContain('white-space: nowrap')
   })
 
   it('applies background settings through renderer CSS variables', () => {

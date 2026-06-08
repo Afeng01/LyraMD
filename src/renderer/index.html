@@ -424,6 +424,12 @@
               </span>
               <span class="settings-nav-label">反馈与问题</span>
             </button>
+            <button type="button" class="settings-nav-item" data-settings-pane="release-notes">
+              <span class="settings-nav-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13"></path><path d="M8 12h13"></path><path d="M8 18h13"></path><path d="M3 6h.01"></path><path d="M3 12h.01"></path><path d="M3 18h.01"></path></svg>
+              </span>
+              <span class="settings-nav-label">更新日志</span>
+            </button>
           </nav>
         </aside>
 
@@ -624,6 +630,49 @@
                     <button id="settings-feedback-submit" type="button" class="overlay-button primary">提交到 GitHub Issue</button>
                     <div id="settings-feedback-status" class="settings-feedback-status" hidden></div>
                   </div>
+                </div>
+              </section>
+            </section>
+            <section class="settings-pane" data-settings-panel="release-notes" hidden>
+              <section class="settings-group">
+                <div class="settings-group-heading">
+                  <h4 class="settings-group-title">更新日志</h4>
+                  <p class="settings-group-copy">这里记录最近几个 LyraMD 1.x 版本的主要变化；更早的细节仍以 GitHub Releases 和提交记录为准。</p>
+                </div>
+                <div class="settings-release-notes">
+                  <article class="settings-release-card">
+                    <div class="settings-release-header">
+                      <span class="settings-release-version">LyraMD 1.3.6</span>
+                      <span class="settings-release-badge">当前公开版本</span>
+                    </div>
+                    <ul>
+                      <li>加入应用内检查更新入口，macOS 未签名构建会打开最新 DMG 或 Release 页面进行手动覆盖安装。</li>
+                      <li>发布流程补齐 Windows x64 安装包、更新元数据和 release workflow 校验。</li>
+                      <li>发布检查清单新增 cold-start smoke、Milkdown 依赖一致性和 artifact 核对要求。</li>
+                    </ul>
+                  </article>
+                  <article class="settings-release-card">
+                    <div class="settings-release-header">
+                      <span class="settings-release-version">LyraMD 1.3.5</span>
+                      <span class="settings-release-badge muted">启动修复</span>
+                    </div>
+                    <ul>
+                      <li>修复 1.3.0 包体启动后编辑器不可用的问题，统一 Milkdown core 依赖入口。</li>
+                      <li>增加 Milkdown 依赖回归测试，避免再次混用不同 core 注入链。</li>
+                      <li>补充项目内历史恢复和发布事故 checkpoint，方便后续接手排查。</li>
+                    </ul>
+                  </article>
+                  <article class="settings-release-card">
+                    <div class="settings-release-header">
+                      <span class="settings-release-version">LyraMD 1.3.0</span>
+                      <span class="settings-release-badge muted">交互打磨</span>
+                    </div>
+                    <ul>
+                      <li>回到 LyraMD 1.x / Electron + Milkdown 基线，明确 Cmd/Ctrl+J 打开 AI 精灵。</li>
+                      <li>打磨侧边栏、工作目录、AI 精灵和 provider presets，保留轻量写作工作台方向。</li>
+                      <li>加入反馈与问题入口，可生成预填 GitHub Issue，不在本地保存 GitHub token。</li>
+                    </ul>
+                  </article>
                 </div>
               </section>
             </section>

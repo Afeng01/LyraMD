@@ -3364,6 +3364,61 @@ body.theme-dark .settings-option input[type="radio"]:checked::after {
   color: #b45309;
 }
 
+.settings-release-notes {
+  display: grid;
+  gap: 12px;
+}
+
+.settings-release-card {
+  border: 1px solid color-mix(in srgb, var(--border-color) 30%, transparent 70%);
+  border-radius: 8px;
+  padding: 14px;
+  background: color-mix(in srgb, var(--bg-color) 94%, var(--border-color) 6%);
+}
+
+.settings-release-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.settings-release-version {
+  color: var(--text-color);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.settings-release-badge {
+  border: 1px solid color-mix(in srgb, var(--link-color) 28%, transparent 72%);
+  border-radius: 999px;
+  padding: 3px 8px;
+  color: var(--link-color);
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+  background: color-mix(in srgb, var(--selection-bg) 42%, transparent 58%);
+}
+
+.settings-release-badge.muted {
+  border-color: color-mix(in srgb, var(--border-color) 50%, transparent 50%);
+  color: var(--text-muted);
+  background: transparent;
+}
+
+.settings-release-card ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.settings-release-card li + li {
+  margin-top: 6px;
+}
+
 #editor .ProseMirror .markdown-token {
   border-radius: 4px;
   padding: 1px 3px;

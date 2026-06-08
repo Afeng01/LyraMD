@@ -79,6 +79,22 @@ describe('settings dialog regression', () => {
     expect(file).toContain("feedback: {")
   })
 
+  it('renders release notes as a settings pane below feedback', () => {
+    const file = readFileSync(join(process.cwd(), 'src/renderer/settings-dialog.ts'), 'utf8')
+    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+
+    expect(html).toContain('data-settings-pane="feedback"')
+    expect(html).toContain('data-settings-pane="release-notes"')
+    expect(html.indexOf('data-settings-pane="release-notes"')).toBeGreaterThan(html.indexOf('data-settings-pane="feedback"'))
+    expect(html).toContain('data-settings-panel="release-notes"')
+    expect(html).toContain('更新日志')
+    expect(html).toContain('LyraMD 1.3.6')
+    expect(html).toContain('LyraMD 1.3.5')
+    expect(file).toContain("'release-notes'")
+    expect(css).toContain('.settings-release-notes')
+  })
+
   it('builds a prefilled GitHub issue URL without requiring a local GitHub token', () => {
     const url = buildFeedbackIssueUrl({
       type: 'bug',

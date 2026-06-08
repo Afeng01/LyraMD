@@ -192,7 +192,7 @@ interface CreateSettingsDialogControllerOptions {
   onSidebarStateChange: (state: SidebarState) => void
 }
 
-export type SettingsPaneId = 'general' | 'workspace' | 'shortcuts' | 'integrations' | 'feedback'
+export type SettingsPaneId = 'general' | 'workspace' | 'shortcuts' | 'integrations' | 'feedback' | 'release-notes'
 
 const SETTINGS_PANE_META: Record<
   SettingsPaneId,
@@ -222,6 +222,11 @@ const SETTINGS_PANE_META: Record<
     description: '把问题和建议整理成 GitHub Issue，方便后续继续跟进。',
     kicker: '反馈',
     title: '反馈与问题',
+  },
+  'release-notes': {
+    description: '查看 LyraMD 最近几个版本的主要变化，判断当前构建补了什么。',
+    kicker: '反馈',
+    title: '更新日志',
   },
 }
 

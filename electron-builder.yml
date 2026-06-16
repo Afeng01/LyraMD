@@ -34,6 +34,14 @@ fileAssociations:
     name: Markdown Document
     role: Editor
     mimeType: text/markdown
+  - ext: mdown
+    name: Markdown Document
+    role: Editor
+    mimeType: text/markdown
+  - ext: mkd
+    name: Markdown Document
+    role: Editor
+    mimeType: text/markdown
 
 mac:
   target:

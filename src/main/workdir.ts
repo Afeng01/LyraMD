@@ -1,5 +1,6 @@
 import { readdir } from 'fs/promises'
 import { basename, join, relative } from 'path'
+import { isMarkdownFile } from './file-extensions'
 
 export interface WorkdirEntry {
   absolutePath: string
@@ -14,20 +15,12 @@ export interface WorkdirTreeNode {
   children?: WorkdirTreeNode[]
 }
 
-const MARKDOWN_EXTENSIONS = new Set(['.md', '.markdown', '.mdown', '.mkd'])
-
-function hasMarkdownExtension(fileName: string): boolean {
-  const dotIndex = fileName.lastIndexOf('.')
-  if (dotIndex === -1) return false
-  return MARKDOWN_EXTENSIONS.has(fileName.slice(dotIndex).toLowerCase())
-}
-
 export function shouldRefreshWorkdirForWatchEvent(fileName?: string | Buffer | null): boolean {
   if (!fileName) return true
   const normalizedName = String(fileName)
   if (!normalizedName) return true
   if (!normalizedName.includes('.')) return true
-  return hasMarkdownExtension(normalizedName)
+  return isMarkdownFile(normalizedName)
 }
 
 export function resolveNewWorkdirMarkdownPath(
@@ -87,7 +80,7 @@ export async function scanWorkdir(rootPath: string): Promise<WorkdirEntry[]> {
         return
       }
 
-      if (!entry.isFile() || !hasMarkdownExtension(entry.name)) return
+      if (!entry.isFile() || !isMarkdownFile(entry.name)) return
 
       entries.push({
         absolutePath,
@@ -123,7 +116,7 @@ export async function scanWorkdirTree(rootPath: string): Promise<WorkdirTreeNode
         }
       }
 
-      if (!entry.isFile() || !hasMarkdownExtension(entry.name)) return null
+      if (!entry.isFile() || !isMarkdownFile(entry.name)) return null
 
       return {
         absolutePath,

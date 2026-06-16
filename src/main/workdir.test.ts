@@ -12,7 +12,7 @@ describe('scanWorkdir', () => {
     await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
   })
 
-  it('recursively finds markdown files and sorts them by relative path', async () => {
+  it('recursively finds markdown files only and sorts them by relative path', async () => {
     const root = await mkdtemp(join(tmpdir(), 'lyramd-workdir-'))
     tempDirs.push(root)
 
@@ -23,6 +23,8 @@ describe('scanWorkdir', () => {
     await writeFile(join(root, 'daily', 'entry.md'), '# daily')
     await writeFile(join(root, 'notes', 'nested', 'idea.markdown'), '# idea')
     await writeFile(join(root, 'ignore.txt'), 'ignore')
+    await writeFile(join(root, 'config.json'), '{}')
+    await writeFile(join(root, 'skip.bin'), 'bin')
 
     const entries = await scanWorkdir(root)
 
@@ -57,8 +59,10 @@ describe('scanWorkdirTree', () => {
     await mkdir(join(root, 'notes', 'nested'), { recursive: true })
     await mkdir(join(root, 'empty'), { recursive: true })
     await writeFile(join(root, 'a.md'), '# a')
+    await writeFile(join(root, 'config.json'), '{}')
     await writeFile(join(root, 'notes', 'b.md'), '# b')
     await writeFile(join(root, 'notes', 'nested', 'c.markdown'), '# c')
+    await writeFile(join(root, 'notes', 'nested', 'script.ts'), 'export {}')
     await writeFile(join(root, 'notes', 'image.png'), 'ignore')
 
     const tree = await scanWorkdirTree(root)
@@ -169,8 +173,10 @@ describe('shouldRefreshWorkdirForWatchEvent', () => {
     expect(shouldRefreshWorkdirForWatchEvent(undefined)).toBe(true)
   })
 
-  it('ignores obvious non-markdown file changes', () => {
+  it('ignores non-markdown file changes', () => {
     expect(shouldRefreshWorkdirForWatchEvent('image.png')).toBe(false)
-    expect(shouldRefreshWorkdirForWatchEvent('notes.txt')).toBe(false)
+    expect(shouldRefreshWorkdirForWatchEvent('notes.pdf')).toBe(false)
+    expect(shouldRefreshWorkdirForWatchEvent('settings.json')).toBe(false)
+    expect(shouldRefreshWorkdirForWatchEvent('script.ts')).toBe(false)
   })
 })

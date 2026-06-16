@@ -39,7 +39,8 @@ import { resolveNewWorkdirFolderPath, resolveNewWorkdirMarkdownPath, scanWorkdir
 import { moveFileToTrashAndVerify } from './file-removal'
 import { summarizeAgentChange } from './agent-change-summary'
 import { createSettingsWindowOptions, createWindowOptions } from './window-platform'
-import { decideSecondInstanceAction, extractMarkdownLaunchPaths } from './windows-launch'
+import { EDITABLE_FILE_FILTERS } from './file-extensions'
+import { decideSecondInstanceAction, extractEditableLaunchPaths } from './windows-launch'
 import { resolveZoomShortcut } from './zoom-shortcuts'
 import {
   addWorkspacePath,
@@ -470,7 +471,7 @@ function openLaunchFilePath(filePath: string): void {
 }
 
 function handleSecondInstanceLaunch(argv: string[]): void {
-  const filePaths = extractMarkdownLaunchPaths(argv, { isPackaged: app.isPackaged })
+  const filePaths = extractEditableLaunchPaths(argv, { isPackaged: app.isPackaged })
   const action = decideSecondInstanceAction(filePaths)
 
   if (action.kind === 'open-files') {
@@ -1472,11 +1473,7 @@ ipcMain.handle('open-file', async (event) => {
   const win = getWinFromEvent(event)
   if (!win) return null
   const result = await dialog.showOpenDialog(win, {
-    filters: [
-      { name: 'Markdown', extensions: ['md', 'markdown', 'mdown', 'mkd'] },
-      { name: 'Text', extensions: ['txt'] },
-      { name: 'All Files', extensions: ['*'] }
-    ],
+    filters: EDITABLE_FILE_FILTERS,
     properties: ['openFile']
   })
   if (result.canceled || result.filePaths.length === 0) return null
@@ -1979,10 +1976,7 @@ ipcMain.handle('save-file', async (event, content: string) => {
       message: state.documentKind === 'draft'
         ? '保存后会成为正式文件，并从草稿中移出。草稿内容已自动保存。'
         : undefined,
-      filters: [
-        { name: 'Markdown', extensions: ['md'] },
-        { name: 'All Files', extensions: ['*'] }
-      ]
+      filters: EDITABLE_FILE_FILTERS
     })
     if (result.canceled || !result.filePath) return false
     return saveFileAsForWindow(win, result.filePath, content)
@@ -2003,10 +1997,7 @@ ipcMain.handle('save-file-as', async (event, content: string, requestedMode?: Ap
   }
   const result = await dialog.showSaveDialog(win, {
     defaultPath: suggestFileName(win, content),
-    filters: [
-      { name: 'Markdown', extensions: ['md'] },
-      { name: 'All Files', extensions: ['*'] }
-    ]
+    filters: EDITABLE_FILE_FILTERS
   })
   if (result.canceled || !result.filePath) return false
   try {
@@ -2345,7 +2336,7 @@ if (hasSingleInstanceLock) {
         configureAutoUpdates()
         buildMenu()
 
-        queuePendingFilePaths(extractMarkdownLaunchPaths(process.argv, { isPackaged: app.isPackaged }))
+        queuePendingFilePaths(extractEditableLaunchPaths(process.argv, { isPackaged: app.isPackaged }))
 
         if (pendingFilePaths.length > 0) {
           for (const fp of pendingFilePaths) {

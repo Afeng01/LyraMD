@@ -75,6 +75,14 @@ export function createDraftFileName(now: number, suffix?: number): string {
   return `draft-${datePart}-${timePart}${typeof suffix === 'number' ? `-${suffix}` : ''}.md`
 }
 
+export function createMaterializedDraftEntry(input: {
+  draftDirectoryPath: string
+  now: number
+  suffix?: number
+}): DraftEntry {
+  return createDraftEntry(input.draftDirectoryPath, '', input.now, input.suffix)
+}
+
 export function upsertDraftEntry({
   entries,
   content,

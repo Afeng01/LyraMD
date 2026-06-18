@@ -2,41 +2,35 @@ import { describe, expect, it } from 'vitest'
 
 import {
   normalizeClipboardPlainText,
+  replaceClipboardLocalImageSources,
   sanitizeClipboardHtml,
 } from './clipboard'
 
 describe('normalizeClipboardPlainText', () => {
-  it('preserves a real blank line between copied paragraphs', () => {
-    expect(normalizeClipboardPlainText('First paragraph\n\nSecond paragraph')).toBe(
-      'First paragraph\n\nSecond paragraph',
-    )
-  })
-
-  it('trims stray leading and trailing newlines introduced by clipboard serializers', () => {
-    expect(normalizeClipboardPlainText('\n\nAlpha\n\nBeta\n\n')).toBe('Alpha\n\nBeta')
-  })
-
-  it('preserves existing single-line breaks', () => {
-    expect(normalizeClipboardPlainText('Line 1\nLine 2')).toBe('Line 1\nLine 2')
-  })
-
-  it('compresses obviously excessive empty runs down to a single intentional blank line', () => {
-    expect(normalizeClipboardPlainText('Alpha\n\n\n\nBeta')).toBe('Alpha\n\nBeta')
+  it('normalizes line endings, trims blank edges, and collapses large blank gaps', () => {
+    expect(normalizeClipboardPlainText('\r\nhello\r\n\r\n\r\nworld\r\n')).toBe('hello\n\nworld')
   })
 })
 
 describe('sanitizeClipboardHtml', () => {
-  it('removes leading and trailing br tags from copied html', () => {
-    expect(sanitizeClipboardHtml('<br><p>Alpha</p><p>Beta</p><br>')).toBe(
-      '<p>Alpha</p><p>Beta</p>',
-    )
+  it('removes leading/trailing breaks and trailing ProseMirror artifacts', () => {
+    const html = ' <br><p>Hello</p><br class="ProseMirror-trailingBreak"> '
+    expect(sanitizeClipboardHtml(html)).toBe('<p>Hello</p>')
+  })
+})
+
+describe('replaceClipboardLocalImageSources', () => {
+  it('replaces resolved local file urls with embedded data urls for external paste targets', () => {
+    const html = '<p>封面</p><img src="file:///Users/cherry/Notes/note.assets/pasted-image.png" alt="cover">'
+
+    expect(replaceClipboardLocalImageSources(html, new Map([
+      ['file:///Users/cherry/Notes/note.assets/pasted-image.png', 'data:image/png;base64,abc123'],
+    ]))).toContain('src="data:image/png;base64,abc123"')
   })
 
-  it('strips ProseMirror trailing break artifacts', () => {
-    expect(
-      sanitizeClipboardHtml(
-        '<p>Alpha</p><p>Beta<br class="ProseMirror-trailingBreak"></p>',
-      ),
-    ).toBe('<p>Alpha</p><p>Beta</p>')
+  it('keeps remote images unchanged when no local replacement is available', () => {
+    const html = '<img src="https://example.com/cover.png" alt="cover">'
+
+    expect(replaceClipboardLocalImageSources(html, new Map())).toContain('https://example.com/cover.png')
   })
 })

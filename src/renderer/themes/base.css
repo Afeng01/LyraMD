@@ -3711,3 +3711,65 @@ body.theme-newsprint {
   white-space: nowrap;
   vertical-align: top;
 }
+
+.lyra-image-node {
+  position: relative;
+  display: inline-flex;
+  max-width: 100%;
+  margin: 0.35em 0;
+  border-radius: 12px;
+  line-height: 0;
+  vertical-align: top;
+}
+
+.lyra-image-node-image {
+  display: block;
+  max-width: 100%;
+  width: var(--lyra-image-width, auto);
+  border-radius: 12px;
+  box-shadow: 0 10px 26px color-mix(in srgb, var(--selection-bg) 18%, transparent 82%);
+}
+
+.lyra-image-node::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  pointer-events: none;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.lyra-image-node:hover::after,
+.lyra-image-node.selected::after {
+  border-color: color-mix(in srgb, var(--link-color) 36%, transparent 64%);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--selection-bg) 42%, transparent 58%);
+}
+
+.lyra-image-node-resize-handle {
+  position: absolute;
+  right: -8px;
+  bottom: -8px;
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  border: 1px solid color-mix(in srgb, var(--link-color) 42%, var(--border-color) 58%);
+  background:
+    linear-gradient(135deg, transparent 0 44%, color-mix(in srgb, var(--link-color) 60%, transparent 40%) 44% 56%, transparent 56% 100%),
+    color-mix(in srgb, var(--bg-color) 92%, var(--link-color) 8%);
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--selection-bg) 24%, transparent 76%);
+  cursor: nwse-resize;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.lyra-image-node:hover .lyra-image-node-resize-handle,
+.lyra-image-node.selected .lyra-image-node-resize-handle {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.lyra-image-node.selected .lyra-image-node-resize-handle {
+  transform: scale(1.02);
+}

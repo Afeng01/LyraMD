@@ -11,6 +11,14 @@ describe('document stats', () => {
     })
   })
 
+  it('ignores markdown image payloads when counting words and characters', () => {
+    expect(resolveDocumentStats('开头\n![](data:image/png;base64,abcdefghijklmnopqrstuvwxyz)\n结尾')).toEqual({
+      characters: 4,
+      lines: 3,
+      words: 4,
+    })
+  })
+
   it('formats the stats as a compact writing status label', () => {
     expect(formatDocumentStats({
       characters: 19,

@@ -61,6 +61,7 @@ export interface AppSettings {
   shortcuts: ShortcutMap
   agentPanelPosition: AgentPanelPosition
   showDocumentStats: boolean
+  embedLocalImagesOnCopy: boolean
   background: BackgroundSettings
   font: FontSettings
   aiHelper: AiHelperSettings
@@ -137,6 +138,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   shortcuts: DEFAULT_SHORTCUTS,
   agentPanelPosition: 'auto',
   showDocumentStats: true,
+  embedLocalImagesOnCopy: false,
   background: {
     mode: 'default',
     scope: 'editor',
@@ -203,6 +205,10 @@ function isEditorFontPreset(value: unknown): value is EditorFontPreset {
 
 function isThemeName(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0
+}
+
+function isBoolean(value: unknown): value is boolean {
+  return typeof value === 'boolean'
 }
 
 function clampNumber(value: unknown, fallback: number, min: number, max: number): number {
@@ -412,6 +418,9 @@ export function normalizeAppSettings(input: PersistedAppSettings | null | undefi
     showDocumentStats: typeof input?.showDocumentStats === 'boolean'
       ? input.showDocumentStats
       : DEFAULT_APP_SETTINGS.showDocumentStats,
+    embedLocalImagesOnCopy: isBoolean(input?.embedLocalImagesOnCopy)
+      ? input.embedLocalImagesOnCopy
+      : DEFAULT_APP_SETTINGS.embedLocalImagesOnCopy,
     background: normalizeBackgroundSettings(input?.background),
     font: normalizeFontSettings(input?.font),
     aiHelper: normalizeAiHelperSettings(input?.aiHelper),
@@ -459,6 +468,9 @@ export async function updateAppSettings(
     showDocumentStats: typeof patch.showDocumentStats === 'boolean'
       ? patch.showDocumentStats
       : currentSettings.showDocumentStats,
+    embedLocalImagesOnCopy: isBoolean(patch.embedLocalImagesOnCopy)
+      ? patch.embedLocalImagesOnCopy
+      : currentSettings.embedLocalImagesOnCopy,
     background: patch.background === undefined
       ? normalizeBackgroundSettings(currentSettings.background)
       : normalizeBackgroundSettings(patch.background),

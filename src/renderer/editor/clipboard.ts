@@ -20,3 +20,16 @@ export function sanitizeClipboardHtml(html: string): string {
     .replace(LEADING_OR_TRAILING_BR_PATTERN, '')
     .trim()
 }
+
+export function replaceClipboardLocalImageSources(
+  html: string,
+  replacements: Map<string, string>,
+): string {
+  if (replacements.size === 0) return html
+
+  return html.replace(/<img\b[^>]*\bsrc=(["'])([^"']+)\1/gi, (match, quote: string, src: string) => {
+    const replacement = replacements.get(src)
+    if (!replacement) return match
+    return match.replace(`${quote}${src}${quote}`, `${quote}${replacement}${quote}`)
+  })
+}

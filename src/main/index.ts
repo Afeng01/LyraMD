@@ -15,6 +15,7 @@ import {
   type PersistedSidebarState,
 } from './sidebar-state'
 import {
+  createMaterializedDraftEntry,
   deriveDocumentTitle,
   deriveDraftDisplayTitle,
   isBlankDocumentContent,
@@ -34,6 +35,13 @@ import {
 } from './file-sync'
 import { DEFAULT_SHORTCUTS, DEFAULT_APP_SETTINGS, loadAppSettings, updateAppSettings, type AppSettings, type ShortcutAction } from './settings'
 import { shouldPromptForFormalSave, shouldRemoveSourceAfterSaveAs } from './save-as'
+import {
+  applyDocumentAssetMoves,
+  createImageAssetFileName,
+  isSupportedImageMimeType,
+  planDocumentAssetMigration,
+  resolveDocumentAssetDirectoryPath,
+} from './image-assets'
 import { buildTitleSyncPath, decideTitleSync } from './title-sync'
 import { resolveNewWorkdirFolderPath, resolveNewWorkdirMarkdownPath, scanWorkdir, scanWorkdirTree, shouldRefreshWorkdirForWatchEvent, type WorkdirEntry, type WorkdirTreeNode } from './workdir'
 import { moveFileToTrashAndVerify } from './file-removal'
@@ -578,6 +586,164 @@ function resolveDraftDisplayTitle(draftId: string | null, content: string): stri
   return deriveDraftDisplayTitle(content, findDraftEntryById(draftId)?.manualTitle)
 }
 
+function isSupportedImageExtension(filePath: string): boolean {
+  const extension = extname(filePath).toLowerCase()
+  return extension === '.png'
+    || extension === '.jpg'
+    || extension === '.jpeg'
+    || extension === '.webp'
+    || extension === '.gif'
+}
+
+async function materializeBlankDocumentForImageAssets(win: BrowserWindow): Promise<SidebarSnapshot | null> {
+  const state = getState(win)
+  if (state.documentKind !== 'blank') return null
+
+  const now = Date.now()
+  const draftDirectoryPath = getEffectiveDraftDirectoryPath()
+  await mkdir(draftDirectoryPath, { recursive: true })
+  const draftEntry = createMaterializedDraftEntry({
+    draftDirectoryPath,
+    now,
+    suffix: sidebarState.draftEntries.length + 1,
+  })
+  await writeFile(draftEntry.path, '', 'utf-8')
+  sidebarState.draftEntries = [draftEntry, ...sidebarState.draftEntries]
+  await persistSidebarState()
+  setFileDocumentState(win, draftEntry.path, 'draft', draftEntry.id)
+  state.lastSyncedContent = ''
+  recordIgnoredWatchedContent(state.ignoredWatchedContents, '')
+  broadcastSidebarState()
+  return createSidebarSnapshot(win)
+}
+
+async function ensureDocumentPathForImageAssets(win: BrowserWindow): Promise<{
+  markdownPath: string | null
+  sidebarSnapshot: SidebarSnapshot | null
+}> {
+  const state = getState(win)
+  if (state.documentKind !== 'blank' && state.filePath) {
+    return {
+      markdownPath: state.filePath,
+      sidebarSnapshot: null,
+    }
+  }
+
+  const sidebarSnapshot = await materializeBlankDocumentForImageAssets(win)
+  return {
+    markdownPath: getState(win).filePath,
+    sidebarSnapshot,
+  }
+}
+
+async function copyManagedDocumentAssets({
+  sourcePath,
+  targetPath,
+  content,
+}: {
+  sourcePath: string | null
+  targetPath: string
+  content: string
+}): Promise<{ content: string; assetMoves: Array<{ from: string; to: string }> }> {
+  if (!sourcePath || sourcePath === targetPath) {
+    return { content, assetMoves: [] }
+  }
+
+  const plan = planDocumentAssetMigration({
+    sourceMarkdownPath: sourcePath,
+    targetMarkdownPath: targetPath,
+    markdown: content,
+  })
+  const existingAssetMoves = plan.assetMoves.filter((move) => existsSync(move.from))
+  await applyDocumentAssetMoves({
+    assetMoves: existingAssetMoves,
+    mode: 'copy',
+  })
+  return {
+    content: plan.markdown,
+    assetMoves: existingAssetMoves,
+  }
+}
+
+async function removeManagedDocumentAssetSources(assetMoves: Array<{ from: string; to: string }>): Promise<void> {
+  for (const move of assetMoves) {
+    if (!existsSync(move.from)) continue
+    await unlink(move.from).catch(() => {})
+  }
+}
+
+async function relocateManagedDocument({
+  sourcePath,
+  targetPath,
+  content,
+  removeSource,
+}: {
+  sourcePath: string
+  targetPath: string
+  content: string
+  removeSource: boolean
+}): Promise<string> {
+  const migrated = await copyManagedDocumentAssets({
+    sourcePath,
+    targetPath,
+    content,
+  })
+  await writeFile(targetPath, migrated.content, 'utf-8')
+  if (!removeSource) return migrated.content
+
+  await removeSourceFileAfterSaveAs(sourcePath)
+  await removeManagedDocumentAssetSources(migrated.assetMoves)
+  return migrated.content
+}
+
+async function persistImageAssetForWindow(
+  win: BrowserWindow,
+  payload: { bytes: Uint8Array; fileName: string; mimeType: string },
+): Promise<{ absoluteImagePath: string; markdownImagePath: string; sidebarState: SidebarSnapshot | null } | null> {
+  if (!isSupportedImageMimeType(payload.mimeType) && !isSupportedImageExtension(payload.fileName)) {
+    return null
+  }
+
+  const { markdownPath, sidebarSnapshot } = await ensureDocumentPathForImageAssets(win)
+  if (!markdownPath) return null
+
+  const assetDirectoryPath = resolveDocumentAssetDirectoryPath(markdownPath)
+  await mkdir(assetDirectoryPath, { recursive: true })
+  const existingFileNames = existsSync(assetDirectoryPath)
+    ? new Set(readdirSync(assetDirectoryPath))
+    : new Set<string>()
+  const fileName = createImageAssetFileName({
+    originalName: payload.fileName,
+    mimeType: payload.mimeType,
+    now: Date.now(),
+    existingFileNames,
+  })
+  const absoluteImagePath = join(assetDirectoryPath, fileName)
+  await writeFile(absoluteImagePath, payload.bytes)
+
+  return {
+    absoluteImagePath,
+    markdownImagePath: `./${basename(assetDirectoryPath)}/${fileName}`,
+    sidebarState: sidebarSnapshot,
+  }
+}
+
+async function readLocalImageAsDataUrl(imagePath: string): Promise<string | null> {
+  if (!existsSync(imagePath) || !isSupportedImageExtension(imagePath)) return null
+
+  const mimeType = ({
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.webp': 'image/webp',
+    '.gif': 'image/gif',
+  } as const)[extname(imagePath).toLowerCase() as '.png' | '.jpg' | '.jpeg' | '.webp' | '.gif']
+  if (!mimeType) return null
+
+  const buffer = await readFile(imagePath)
+  return `data:${mimeType};base64,${buffer.toString('base64')}`
+}
+
 async function renameCurrentFileToPath(win: BrowserWindow, nextPath: string): Promise<{ path: string | null }> {
   const state = getState(win)
   if (!state.filePath || state.documentKind !== 'file') return { path: null }
@@ -587,7 +753,14 @@ async function renameCurrentFileToPath(win: BrowserWindow, nextPath: string): Pr
   if (existsSync(nextPath)) return { path: null }
 
   const currentDisplayTitle = state.displayTitle
-  await rename(previousPath, nextPath)
+  const currentContent = await readFile(previousPath, 'utf-8').catch(() => null)
+  if (currentContent === null) return { path: null }
+  await relocateManagedDocument({
+    sourcePath: previousPath,
+    targetPath: nextPath,
+    content: currentContent,
+    removeSource: true,
+  })
   moveFileTitleOverride(previousPath, nextPath)
   sidebarState.pinnedItems = replacePinnedFilePath(sidebarState.pinnedItems, previousPath, nextPath)
   await persistSidebarState()
@@ -626,8 +799,17 @@ async function renameFormalFileByTitleForAllWindows(
   }
 
   const displayTitle = basename(nextPath, extname(nextPath))
+  const currentContent = await readFile(previousPath, 'utf-8').catch(() => null)
+  if (currentContent === null) {
+    return createSidebarSnapshot(triggerWin)
+  }
   try {
-    await rename(previousPath, nextPath)
+    await relocateManagedDocument({
+      sourcePath: previousPath,
+      targetPath: nextPath,
+      content: currentContent,
+      removeSource: true,
+    })
   } catch {
     return createSidebarSnapshot(triggerWin)
   }
@@ -676,7 +858,13 @@ async function applyManualDraftTitle(draftEntry: DraftEntry, nextTitle: string):
   )
 
   if (nextPath !== previousPath) {
-    await rename(previousPath, nextPath)
+    const currentContent = await readFile(previousPath, 'utf-8').catch(() => '')
+    await relocateManagedDocument({
+      sourcePath: previousPath,
+      targetPath: nextPath,
+      content: currentContent,
+      removeSource: true,
+    })
   }
 
   const nextEntry = updateDraftEntryManualTitle(draftEntry, trimmedTitle, nextPath, Date.now())
@@ -1155,27 +1343,28 @@ async function saveFileAsForWindow(win: BrowserWindow, nextPath: string, content
   if (previousDocumentKind === 'draft' && sourcePath) {
     try {
       state.isInternalSave = true
-      await writeFile(nextPath, content, 'utf-8')
-
-      if (shouldRemoveSourceAfterSaveAs({
-        documentKind: previousDocumentKind,
-        currentPath: sourcePath,
-        nextPath,
-        saveAsMode: appSettings.saveAsMode,
-      })) {
-        await removeSourceFileAfterSaveAs(sourcePath)
-      }
+      const nextContent = await relocateManagedDocument({
+        sourcePath,
+        targetPath: nextPath,
+        content,
+        removeSource: shouldRemoveSourceAfterSaveAs({
+          documentKind: previousDocumentKind,
+          currentPath: sourcePath,
+          nextPath,
+          saveAsMode: appSettings.saveAsMode,
+        }),
+      })
 
       removeDraftEntry({ draftId: sourceDraftId, draftPath: sourcePath })
       sidebarState.pinnedItems = migratePinnedDraftToFile(sidebarState.pinnedItems, sourceDraftId, nextPath)
       await persistSidebarState()
-      recordIgnoredWatchedContent(state.ignoredWatchedContents, content)
+      recordIgnoredWatchedContent(state.ignoredWatchedContents, nextContent)
       setFileDocumentState(win, nextPath, 'file', null)
-      state.lastSyncedContent = content
+      state.lastSyncedContent = nextContent
       if (sourceDraft?.manualTitle) {
         setFileTitleOverride(nextPath, sourceDraft.manualTitle)
       }
-      state.displayTitle = resolveFileDisplayTitle(nextPath, content)
+      state.displayTitle = resolveFileDisplayTitle(nextPath, nextContent)
       updateTitle(win)
       recordRecentFile(nextPath)
       if (isPathInsideAnyWorkspace(sourcePath) || isPathInsideAnyWorkspace(nextPath)) {
@@ -1190,17 +1379,24 @@ async function saveFileAsForWindow(win: BrowserWindow, nextPath: string, content
     }
   }
 
-  const didSave = await saveToPath(win, nextPath, content)
-  if (!didSave) return false
-
-  if (shouldRemoveSourceAfterSaveAs({
+  const removeSource = shouldRemoveSourceAfterSaveAs({
     documentKind: previousDocumentKind,
     currentPath: sourcePath,
     nextPath,
     saveAsMode: appSettings.saveAsMode,
-  }) && sourcePath) {
+  })
+  const migrated = await copyManagedDocumentAssets({
+    sourcePath,
+    targetPath: nextPath,
+    content,
+  })
+  const didSave = await saveToPath(win, nextPath, migrated.content)
+  if (!didSave) return false
+
+  if (removeSource && sourcePath) {
     try {
       await removeSourceFileAfterSaveAs(sourcePath)
+      await removeManagedDocumentAssetSources(migrated.assetMoves)
     } catch {
       return false
     }
@@ -1530,6 +1726,20 @@ ipcMain.handle('get-current-document', async (event) => {
     path: state.filePath,
     title: state.displayTitle,
   }
+})
+
+ipcMain.handle('persist-image-asset', async (
+  event,
+  payload: { bytes: Uint8Array; fileName: string; mimeType: string },
+) => {
+  const win = getWinFromEvent(event)
+  if (!win) return null
+  return persistImageAssetForWindow(win, payload)
+})
+
+ipcMain.handle('read-local-image-as-data-url', async (_event, imagePath: string) => {
+  if (typeof imagePath !== 'string' || imagePath.trim().length === 0) return null
+  return readLocalImageAsDataUrl(imagePath)
 })
 
 ipcMain.handle('update-settings', async (event, patch: Partial<AppSettings>) => {

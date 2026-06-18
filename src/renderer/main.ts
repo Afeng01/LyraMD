@@ -1,5 +1,6 @@
 import {
   activateSearchMatch,
+  clearClipboardLocalImageReplacements,
   createAiSuggestionFromSnapshot,
   createEditor,
   focusEditorAtLastSelection,
@@ -9,6 +10,7 @@ import {
   getMarkdown,
   getSelectedPlainText,
   getSelectedTextSnapshot,
+  insertImage,
   insertTextBelowSelection,
   isEditorTextFocused,
   replaceSelectedText,
@@ -18,7 +20,10 @@ import {
   previousSearchMatch,
   refreshMarkdownImageSources,
   scrollToOutlineItem,
+  setClipboardLocalImageReplacement,
+  setEmbedLocalImagesOnCopy,
   setMarkdown,
+  setPasteImageHandler,
   setSearchQuery,
 } from './editor/editor'
 import { resolveSearchPanelPreview, type SearchState } from './editor/search'
@@ -84,6 +89,8 @@ type TitleEditingAPI = typeof window.electronAPI & {
   onMenuSettings?: (callback: () => void) => void
 }
 
+const SUPPORTED_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif'])
+
 function basename(filePath: string | null): string {
   if (!filePath) return 'Untitled'
   const normalized = filePath.replaceAll('\\', '/')
@@ -102,6 +109,29 @@ function dirname(filePath: string | null): string {
   const normalized = filePath.replaceAll('\\', '/')
   const lastSlash = normalized.lastIndexOf('/')
   return lastSlash === -1 ? '' : normalized.slice(0, lastSlash)
+}
+
+function isSupportedImageFile(file: File): boolean {
+  const mimeType = file.type.trim().toLowerCase()
+  if (mimeType === 'image/png' || mimeType === 'image/jpeg' || mimeType === 'image/jpg' || mimeType === 'image/webp' || mimeType === 'image/gif') {
+    return true
+  }
+  return SUPPORTED_IMAGE_EXTENSIONS.has(extname(file.name).toLowerCase())
+}
+
+function fileUrlToAbsolutePath(fileUrl: string): string | null {
+  if (!fileUrl.startsWith('file://')) return null
+
+  try {
+    const url = new URL(fileUrl)
+    let pathname = decodeURIComponent(url.pathname)
+    if (/^\/[A-Za-z]:/.test(pathname)) {
+      pathname = pathname.slice(1)
+    }
+    return pathname
+  } catch {
+    return null
+  }
 }
 
 function sanitizeTitleToFileStem(title: string): string {
@@ -214,6 +244,7 @@ function createDefaultSettings(): AppSettings {
     },
     agentPanelPosition: 'auto',
     showDocumentStats: true,
+    embedLocalImagesOnCopy: false,
     background: {
       mode: 'default',
       scope: 'editor',
@@ -511,6 +542,7 @@ async function init(): Promise<void> {
   const expandedWorkdirFolders = new Set<string>()
   const collapsedWorkdirFolders = new Set<string>()
   const savedViewportOffsets = new Map<string, number>()
+  const embeddedClipboardImageUrls = new Map<string, string>()
   let viewportRestoreRequestId = 0
   let drawerOpenedByHover = false
   let drawerHoverOpenTimer: ReturnType<typeof setTimeout> | null = null
@@ -594,6 +626,7 @@ async function init(): Promise<void> {
   appSettings = (await api.getSettings().catch(() => null)) ?? createDefaultSettings()
   applyBackgroundSettings(appSettings.background)
   applyFontSettings(appSettings.font)
+  setEmbedLocalImagesOnCopy(appSettings.embedLocalImagesOnCopy === true)
   if (appSettings.themeName) {
     await applyConfiguredTheme(appSettings.themeName)
   } else {
@@ -774,9 +807,59 @@ async function init(): Promise<void> {
     return sidebarState.draftEntries.find((entry) => entry.id === sidebarState.currentDraftId)?.path ?? null
   }
 
+  const persistImageFile = async (file: File): Promise<string | null> => {
+    if (!isSupportedImageFile(file)) return null
+
+    const payload = await file.arrayBuffer().then((buffer) => {
+      return {
+        bytes: new Uint8Array(buffer),
+        fileName: file.name,
+        mimeType: file.type,
+      }
+    }).catch(() => null)
+    if (!payload) return null
+
+    const result = await api.persistImageAsset(payload).catch(() => null)
+    if (!result) return null
+    if (result.sidebarState) {
+      setSidebarState(result.sidebarState)
+    }
+    return result.markdownImagePath
+  }
+
+  const refreshClipboardImageEmbeds = async (): Promise<void> => {
+    if (!appSettings.embedLocalImagesOnCopy) {
+      embeddedClipboardImageUrls.clear()
+      clearClipboardLocalImageReplacements()
+      return
+    }
+
+    const root = document.querySelector('#editor .ProseMirror')
+    if (!root) return
+
+    const images = Array.from(root.querySelectorAll('img'))
+    for (const image of images) {
+      const resolvedSrc = image.getAttribute('src') ?? ''
+      if (!resolvedSrc.startsWith('file://')) continue
+
+      if (embeddedClipboardImageUrls.has(resolvedSrc)) {
+        setClipboardLocalImageReplacement(resolvedSrc, embeddedClipboardImageUrls.get(resolvedSrc) ?? null)
+        continue
+      }
+
+      const absolutePath = fileUrlToAbsolutePath(resolvedSrc)
+      if (!absolutePath) continue
+      const dataUrl = await api.readLocalImageAsDataUrl(absolutePath).catch(() => null)
+      if (!dataUrl) continue
+      embeddedClipboardImageUrls.set(resolvedSrc, dataUrl)
+      setClipboardLocalImageReplacement(resolvedSrc, dataUrl)
+    }
+  }
+
   const refreshRenderedMedia = (): void => {
     requestAnimationFrame(() => {
       refreshMarkdownImageSources(getCurrentDocumentPathForAssets())
+      void refreshClipboardImageEmbeds()
     })
   }
 
@@ -831,6 +914,12 @@ async function init(): Promise<void> {
     refreshRenderedMedia()
     schedulePlaceholderLayoutSync()
   })
+  setPasteImageHandler(async (file) => {
+    const imagePath = await persistImageFile(file)
+    if (!imagePath) return null
+    return imagePath
+  })
+  setEmbedLocalImagesOnCopy(appSettings.embedLocalImagesOnCopy === true)
   updateEditorPlaceholder(getMarkdown())
   updateDocumentStats(getMarkdown())
   refreshRenderedMedia()
@@ -843,8 +932,10 @@ async function init(): Promise<void> {
       appSettings = settings
       applyBackgroundSettings(appSettings.background)
       applyFontSettings(appSettings.font)
+      setEmbedLocalImagesOnCopy(appSettings.embedLocalImagesOnCopy === true)
       renderDocumentStats()
       refreshAgentPanelPlacement()
+      void refreshClipboardImageEmbeds()
     },
     onSidebarStateChange: (state) => {
       setSidebarState(state)
@@ -866,8 +957,10 @@ async function init(): Promise<void> {
     void applyConfiguredTheme(appSettings.themeName)
     applyBackgroundSettings(appSettings.background)
     applyFontSettings(appSettings.font)
+    setEmbedLocalImagesOnCopy(appSettings.embedLocalImagesOnCopy === true)
     renderDocumentStats()
     refreshAgentPanelPlacement()
+    void refreshClipboardImageEmbeds()
     settingsDialog.refresh()
   })
   api.onSettingsOpenPane((pane) => {
@@ -956,7 +1049,7 @@ async function init(): Promise<void> {
     }
 
     deferredIncomingContent = null
-    applyProgrammaticDocumentContent(content, scrollTop)
+    applyProgrammaticDocumentContent(content, scrollTop, { preserveHistory: true })
     if (options.agentChangePayload) {
       agentChangeSession = agentChangeSession
         ? mergeAgentChangeSession(agentChangeSession, options.agentChangePayload)
@@ -1186,11 +1279,15 @@ async function init(): Promise<void> {
     savedViewportOffsets.set(currentKey, editorShell.scrollTop)
   }
 
-  const applyProgrammaticDocumentContent = (content: string, nextScrollTop?: number): void => {
+  const applyProgrammaticDocumentContent = (
+    content: string,
+    nextScrollTop?: number,
+    options: { preserveHistory?: boolean } = {},
+  ): void => {
     const previousContent = getMarkdown()
     const shouldRestoreFocus = isEditorTextFocused()
     pendingBlankMaterialization = false
-    setMarkdown(content)
+    setMarkdown(content, { preserveHistory: options.preserveHistory })
     if (previousContent !== content) bumpMcpRevision()
     refreshRenderedMedia()
     updateEditorPlaceholder(content)
@@ -1262,7 +1359,7 @@ async function init(): Promise<void> {
             return
           }
 
-          applyProgrammaticDocumentContent(content, editorShell?.scrollTop ?? 0)
+          applyProgrammaticDocumentContent(content, editorShell?.scrollTop ?? 0, { preserveHistory: true })
           await saveImmediately(content)
           respondToMcpRequest(request.id, true, {
             revision: mcpRevision,
@@ -1493,7 +1590,7 @@ async function init(): Promise<void> {
   const restoreAgentChangeSession = (): void => {
     if (!agentChangeSession) return
     const previousContent = agentChangeSession.previousContent
-    applyProgrammaticDocumentContent(previousContent, editorShell?.scrollTop ?? 0)
+    applyProgrammaticDocumentContent(previousContent, editorShell?.scrollTop ?? 0, { preserveHistory: true })
     void saveImmediately(previousContent)
     clearAgentChangePanel()
   }
@@ -2662,7 +2759,7 @@ async function init(): Promise<void> {
       const markdown = getMarkdown()
       const nextMarkdown = formatCjkTypography(markdown)
       if (nextMarkdown === markdown) return
-      applyProgrammaticDocumentContent(nextMarkdown, editorShell?.scrollTop ?? 0)
+      applyProgrammaticDocumentContent(nextMarkdown, editorShell?.scrollTop ?? 0, { preserveHistory: true })
       void saveImmediately(nextMarkdown)
     })
   }
@@ -3752,8 +3849,16 @@ img{max-width:100%}
   document.addEventListener('dragover', (e) => e.preventDefault())
   document.addEventListener('drop', async (e) => {
     e.preventDefault()
+    const target = e.target as HTMLElement | null
     const file = e.dataTransfer?.files[0]
     if (!file) return
+    if (target?.closest('#editor') && isSupportedImageFile(file)) {
+      const imagePath = await persistImageFile(file)
+      if (imagePath) {
+        insertImage(imagePath)
+        return
+      }
+    }
     const filePath = api.getPathForFile(file)
     if (!filePath) return
     persistCurrentViewportOffset()

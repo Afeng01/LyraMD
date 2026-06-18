@@ -21,7 +21,9 @@ import {
 } from 'prosemirror-search'
 import { htmlView } from './html-view'
 import { frontmatterSchema, frontmatterView } from './frontmatter-node'
+import { imageView } from './image-node'
 import {
+  replaceClipboardLocalImageSources,
   sanitizeClipboardHtml,
   serializeClipboardPlainText,
 } from './clipboard'
@@ -58,6 +60,9 @@ let searchState: SearchState = {
 }
 let lastEditorSelection: { anchor: number; head: number } | null = null
 let isManagedSelectionChange = false
+let embedLocalImagesOnCopy = false
+let pasteImageHandler: ((file: File) => Promise<string | null>) | null = null
+const clipboardLocalImageSources = new Map<string, string>()
 
 type AiSuggestionPreview = {
   from: number
@@ -114,7 +119,25 @@ function enhanceClipboard(e: ClipboardEvent): void {
     ;(el as HTMLElement).setAttribute('style', 'background:none;padding:0;font-size:.875em;line-height:1.6;font-family:Menlo,Monaco,monospace;')
   })
 
-  e.clipboardData?.setData('text/html', sanitizeClipboardHtml(doc.body.innerHTML))
+  const styledHtml = sanitizeClipboardHtml(doc.body.innerHTML)
+  e.clipboardData?.setData('text/html', embedLocalImagesOnCopy
+    ? replaceClipboardLocalImageSources(styledHtml, clipboardLocalImageSources)
+    : styledHtml)
+}
+
+async function handleEditorPaste(event: ClipboardEvent): Promise<void> {
+  if (!pasteImageHandler) return
+
+  const imageFile = Array.from(event.clipboardData?.items ?? []).find((item) => (
+    item.kind === 'file' && item.type.startsWith('image/')
+  ))?.getAsFile()
+
+  if (!imageFile) return
+
+  event.preventDefault()
+  const imagePath = await pasteImageHandler(imageFile)
+  if (!imagePath) return
+  insertImage(imagePath)
 }
 
 const defaultContent = ''
@@ -355,12 +378,16 @@ export async function createEditor(
     .use(clipboard)
     .use(frontmatterSchema)
     .use(frontmatterView)
+    .use(imageView)
     .use(htmlView)
     .create()
 
   // Enhance clipboard with inline styles for rich text paste (e.g. WeChat)
   root.addEventListener('copy', enhanceClipboard)
   root.addEventListener('cut', enhanceClipboard)
+  root.addEventListener('paste', (event) => {
+    void handleEditorPaste(event)
+  })
 
   // Cmd+click (Mac) / Ctrl+click (Win/Linux) to open links in browser
   root.addEventListener('click', (e) => {
@@ -447,6 +474,23 @@ export function insertTextBelowSelection(text: string): boolean {
   }) ?? false
 }
 
+export function insertImage(src: string, alt = '', title = ''): boolean {
+  return withEditorView((view) => {
+    const imageNodeType = view.state.schema.nodes.image
+    if (!imageNodeType || !src.trim()) return false
+
+    const imageNode = imageNodeType.create({
+      src,
+      alt,
+      title,
+    })
+    const tr = view.state.tr.replaceSelectionWith(imageNode).scrollIntoView()
+    view.dispatch(tr)
+    rememberCurrentSelection()
+    return true
+  }) ?? false
+}
+
 export function createAiSuggestionFromSelection(text: string): boolean {
   return withEditorView((view) => {
     const { from, to, empty } = view.state.selection
@@ -518,10 +562,11 @@ export function rejectAiSuggestion(): boolean {
   }) ?? false
 }
 
-export function setMarkdown(content: string): void {
+export function setMarkdown(content: string, options: { preserveHistory?: boolean } = {}): void {
   if (!editorInstance) return
   const currentContent = getMarkdown()
   if (currentContent === content) return
+  const preserveHistory = options.preserveHistory ?? false
 
   const selectionBeforeReplace = lastEditorSelection
   const previousActiveFrom = withEditorView((view) => {
@@ -534,7 +579,7 @@ export function setMarkdown(content: string): void {
     return activeResult?.from ?? null
   }) ?? null
   isProgrammaticChange = true
-  editorInstance.action(replaceAll(content, true))
+  editorInstance.action(replaceAll(content, !preserveHistory))
   if (selectionBeforeReplace) {
     restoreSelection(selectionBeforeReplace)
   }
@@ -694,6 +739,26 @@ export function refreshMarkdownImageSources(markdownFilePath: string | null): vo
       img.setAttribute('src', resolvedSrc)
     }
   })
+}
+
+export function setEmbedLocalImagesOnCopy(enabled: boolean): void {
+  embedLocalImagesOnCopy = enabled
+}
+
+export function setPasteImageHandler(handler: ((file: File) => Promise<string | null>) | null): void {
+  pasteImageHandler = handler
+}
+
+export function setClipboardLocalImageReplacement(src: string, dataUrl: string | null): void {
+  if (!dataUrl) {
+    clipboardLocalImageSources.delete(src)
+    return
+  }
+  clipboardLocalImageSources.set(src, dataUrl)
+}
+
+export function clearClipboardLocalImageReplacements(): void {
+  clipboardLocalImageSources.clear()
 }
 
 function rememberCurrentSelection(): void {

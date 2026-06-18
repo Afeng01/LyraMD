@@ -34,3 +34,29 @@ describe('frontmatter card regression', () => {
     expect(css).toContain('font-family: "SF Mono"')
   })
 })
+
+describe('programmatic content refresh regression', () => {
+  it('keeps image node views enabled and avoids recreating editor state for every content sync', () => {
+    const editor = readFileSync(join(process.cwd(), 'src/renderer/editor/editor.ts'), 'utf8')
+    const imageNode = readFileSync(join(process.cwd(), 'src/renderer/editor/image-node.ts'), 'utf8')
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+
+    expect(editor).toContain('.use(imageView)')
+    expect(editor).toContain('replaceAll(content, !preserveHistory)')
+    expect(editor).not.toContain('replaceAll(content, true)')
+    expect(imageNode).toContain('lyra-image-node-resize-handle')
+    expect(css).toContain('.lyra-image-node.selected .lyra-image-node-resize-handle')
+  })
+})
+
+describe('image asset workflow regression', () => {
+  it('keeps explicit paste insertion and copy embedding hooks wired into the editor layer', () => {
+    const editor = readFileSync(join(process.cwd(), 'src/renderer/editor/editor.ts'), 'utf8')
+    const clipboard = readFileSync(join(process.cwd(), 'src/renderer/editor/clipboard.ts'), 'utf8')
+
+    expect(editor).toContain('root.addEventListener(\'paste\'')
+    expect(editor).toContain('export function insertImage(')
+    expect(editor).toContain('replaceClipboardLocalImageSources')
+    expect(clipboard).toContain('replaceClipboardLocalImageSources')
+  })
+})

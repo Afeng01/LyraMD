@@ -85,6 +85,12 @@ export interface CurrentDocumentSnapshot {
   title: string
 }
 
+export interface PersistedImageAsset {
+  absoluteImagePath: string
+  markdownImagePath: string
+  sidebarState: SidebarState | null
+}
+
 export interface AppSettings {
   titleSyncMode: TitleSyncMode
   saveAsMode: SaveAsMode
@@ -92,6 +98,7 @@ export interface AppSettings {
   shortcuts: ShortcutMap
   agentPanelPosition: AgentPanelPosition
   showDocumentStats: boolean
+  embedLocalImagesOnCopy: boolean
   background: BackgroundSettings
   font: FontSettings
   aiHelper: AiHelperSettings
@@ -195,6 +202,8 @@ export interface ElectronAPI {
   completeAiPrompt: (prompt: string) => Promise<AiHelperCompletionResult>
   testAiHelperConnection: () => Promise<AiHelperCompletionResult>
   getCurrentDocument: () => Promise<CurrentDocumentSnapshot | null>
+  persistImageAsset: (payload: { bytes: Uint8Array; fileName: string; mimeType: string }) => Promise<PersistedImageAsset | null>
+  readLocalImageAsDataUrl: (path: string) => Promise<string | null>
   getCodexIntegrationStatus: () => Promise<CodexIntegrationStatus | null>
   installCodexIntegration: () => Promise<CodexIntegrationStatus | null>
   removeCodexIntegration: () => Promise<CodexIntegrationStatus | null>
@@ -281,6 +290,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   completeAiPrompt: (prompt: string) => ipcRenderer.invoke('complete-ai-prompt', prompt),
   testAiHelperConnection: () => ipcRenderer.invoke('test-ai-helper-connection'),
   getCurrentDocument: () => ipcRenderer.invoke('get-current-document'),
+  persistImageAsset: (payload: { bytes: Uint8Array; fileName: string; mimeType: string }) => ipcRenderer.invoke('persist-image-asset', payload),
+  readLocalImageAsDataUrl: (path: string) => ipcRenderer.invoke('read-local-image-as-data-url', path),
   getCodexIntegrationStatus: () => ipcRenderer.invoke('codex-integration-status'),
   installCodexIntegration: () => ipcRenderer.invoke('codex-integration-install'),
   removeCodexIntegration: () => ipcRenderer.invoke('codex-integration-remove'),

@@ -309,6 +309,7 @@ export function createSettingsDialogController({
     document.querySelectorAll<HTMLInputElement>('input[name="settings-save-as-mode"]'),
   )
   const showDocumentStatsInput = document.getElementById('settings-show-document-stats') as HTMLInputElement | null
+  const embedLocalImagesOnCopyInput = document.getElementById('settings-embed-local-images-on-copy') as HTMLInputElement | null
   const backgroundScopeInputs = Array.from(
     document.querySelectorAll<HTMLInputElement>('input[name="settings-background-scope"]'),
   )
@@ -496,6 +497,10 @@ export function createSettingsDialogController({
 
     if (showDocumentStatsInput) {
       showDocumentStatsInput.checked = appSettings.showDocumentStats !== false
+    }
+
+    if (embedLocalImagesOnCopyInput) {
+      embedLocalImagesOnCopyInput.checked = appSettings.embedLocalImagesOnCopy === true
     }
 
     if (draftPreview) {
@@ -789,6 +794,16 @@ export function createSettingsDialogController({
     render()
   }
 
+  const updateEmbedLocalImagesOnCopy = async (embedLocalImagesOnCopy: boolean): Promise<void> => {
+    const current = getAppSettings()
+    const next = (await api.updateSettings({ embedLocalImagesOnCopy }).catch(() => null)) ?? {
+      ...current,
+      embedLocalImagesOnCopy,
+    }
+    onAppSettingsChange(next)
+    render()
+  }
+
   const updateBackgroundSettings = async (patch: Partial<BackgroundSettings>): Promise<void> => {
     const current = getAppSettings()
     const background = {
@@ -1067,6 +1082,10 @@ export function createSettingsDialogController({
 
   showDocumentStatsInput?.addEventListener('change', () => {
     void updateShowDocumentStats(showDocumentStatsInput.checked)
+  })
+
+  embedLocalImagesOnCopyInput?.addEventListener('change', () => {
+    void updateEmbedLocalImagesOnCopy(embedLocalImagesOnCopyInput.checked)
   })
 
   for (const input of backgroundScopeInputs) {

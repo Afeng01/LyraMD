@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   createDraftFileName,
+  createMaterializedDraftEntry,
   deriveDocumentTitle,
   deriveDraftDisplayTitle,
   isBlankDocumentContent,
@@ -60,6 +61,23 @@ describe('deriveDocumentTitle', () => {
 describe('createDraftFileName', () => {
   it('creates a deterministic markdown filename', () => {
     expect(createDraftFileName(Date.UTC(2026, 3, 28, 2, 31, 22), 1)).toBe('draft-20260428-023122-1.md')
+  })
+})
+
+describe('createMaterializedDraftEntry', () => {
+  it('can allocate a real draft path before the first markdown save when an image is pasted into a blank document', () => {
+    expect(createMaterializedDraftEntry({
+      draftDirectoryPath: '/drafts',
+      now: Date.UTC(2026, 3, 28, 2, 31, 22),
+      suffix: 2,
+    })).toEqual({
+      id: 'draft-20260428-023122-2',
+      path: join('/drafts', 'draft-20260428-023122-2.md'),
+      createdAt: Date.UTC(2026, 3, 28, 2, 31, 22),
+      updatedAt: Date.UTC(2026, 3, 28, 2, 31, 22),
+      displayTitle: '未命名草稿',
+      manualTitle: null,
+    })
   })
 })
 

@@ -98,6 +98,24 @@ describe('loadAppSettings', () => {
     expect(JSON.parse(await readFile(settingsPath, 'utf-8')).showDocumentStats).toBe(false)
   })
 
+  it('normalizes and updates copy-with-images preference', async () => {
+    const settingsModule = await loadSettingsModule()
+    const tempDir = await createTempDir()
+    const settingsPath = join(tempDir, 'settings.json')
+
+    expect(settingsModule.normalizeAppSettings({ embedLocalImagesOnCopy: true }).embedLocalImagesOnCopy).toBe(true)
+    expect(settingsModule.normalizeAppSettings({ embedLocalImagesOnCopy: 'nope' } as never).embedLocalImagesOnCopy).toBe(false)
+
+    const next = await settingsModule.updateAppSettings(
+      settingsPath,
+      settingsModule.DEFAULT_APP_SETTINGS,
+      { embedLocalImagesOnCopy: true } as never,
+    )
+
+    expect(next.embedLocalImagesOnCopy).toBe(true)
+    expect(JSON.parse(await readFile(settingsPath, 'utf-8')).embedLocalImagesOnCopy).toBe(true)
+  })
+
   it('rejects invalid background settings', async () => {
     const settingsModule = await loadSettingsModule()
 

@@ -237,6 +237,19 @@
               </div>
             </div>
           </div>
+          <div id="crash-recovery-panel" hidden aria-live="polite">
+            <div id="crash-recovery-summary">
+              <span id="crash-recovery-title">检测到上次异常退出</span>
+              <span id="crash-recovery-meta"></span>
+            </div>
+            <div id="crash-recovery-body">
+              已为最近一次文稿状态保留本地恢复副本。可以恢复为新草稿，避免覆盖原文件。
+            </div>
+            <div id="crash-recovery-actions">
+              <button id="crash-recovery-restore" type="button">恢复为新草稿</button>
+              <button id="crash-recovery-dismiss" type="button">先忽略</button>
+            </div>
+          </div>
         </div>
         <div id="editor-stage">
           <div id="editor-placeholder" aria-hidden="true">

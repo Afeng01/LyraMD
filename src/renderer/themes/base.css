@@ -2034,9 +2034,25 @@ body.sidebar-resizing * {
   animation: search-panel-enter 0.2s cubic-bezier(0.34, 1.15, 0.64, 1) both;
 }
 
+#crash-recovery-panel {
+  position: relative;
+  width: min(380px, calc(100% - 28px));
+  margin: 8px 0 0 auto;
+  border: 1px solid color-mix(in srgb, #c86f31 36%, var(--border-color) 64%);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--bg-color) 95%, #f3c48a 5%);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.10), 0 2px 7px rgba(15, 23, 42, 0.06);
+  backdrop-filter: blur(18px);
+  overflow: hidden;
+  pointer-events: auto;
+  animation: search-panel-enter 0.2s cubic-bezier(0.34, 1.15, 0.64, 1) both;
+}
+
 #agent-change-toggle,
 #agent-change-restore,
-#agent-change-dismiss {
+#agent-change-dismiss,
+#crash-recovery-restore,
+#crash-recovery-dismiss {
   font-family: "PingFang SC", "SF Pro Text", "Helvetica Neue", "Hiragino Sans GB", sans-serif;
 }
 
@@ -2157,6 +2173,68 @@ body.sidebar-resizing * {
   color: #fff;
   background: var(--link-color);
   border-color: var(--link-color);
+}
+
+#crash-recovery-summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px 6px;
+}
+
+#crash-recovery-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+#crash-recovery-meta {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+#crash-recovery-body {
+  padding: 0 12px 10px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+#crash-recovery-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+
+#crash-recovery-restore,
+#crash-recovery-dismiss {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 78%, transparent 22%);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+#crash-recovery-restore {
+  color: #9a4b11;
+  border-color: color-mix(in srgb, #c86f31 40%, var(--border-color) 60%);
+}
+
+#crash-recovery-dismiss:hover {
+  color: var(--text-color);
+  background: color-mix(in srgb, var(--selection-bg) 32%, transparent 68%);
+}
+
+#crash-recovery-restore:hover {
+  color: #fff;
+  background: #c86f31;
+  border-color: #c86f31;
 }
 
 #search-panel {

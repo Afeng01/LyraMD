@@ -77,7 +77,7 @@ import {
   type WorkdirTreeRow,
 } from './sidebar-view'
 import { applyTheme, loadSavedTheme } from './themes/theme-manager'
-import type { AgentChangePayload, AgentChangePreviewLine, AgentChangeSummary, AppSettings, BackgroundSettings, FontSettings, McpDocumentRequest, ShortcutAction, SidebarState, SidebarTab } from '../preload/index'
+import type { AgentChangePayload, AgentChangePreviewLine, AgentChangeSummary, AppSettings, BackgroundSettings, CrashRecoverySummary, FontSettings, McpDocumentRequest, ShortcutAction, SidebarState, SidebarTab } from '../preload/index'
 import { localMediaUrlToAbsolutePath } from '../shared/local-media'
 import './themes/base.css'
 
@@ -716,6 +716,12 @@ async function init(): Promise<void> {
   const agentChangeList = document.getElementById('agent-change-list') as HTMLDivElement | null
   const agentChangeRestore = document.getElementById('agent-change-restore') as HTMLButtonElement | null
   const agentChangeDismiss = document.getElementById('agent-change-dismiss') as HTMLButtonElement | null
+  const crashRecoveryPanel = document.getElementById('crash-recovery-panel') as HTMLDivElement | null
+  const crashRecoveryTitle = document.getElementById('crash-recovery-title') as HTMLSpanElement | null
+  const crashRecoveryMeta = document.getElementById('crash-recovery-meta') as HTMLSpanElement | null
+  const crashRecoveryBody = document.getElementById('crash-recovery-body') as HTMLDivElement | null
+  const crashRecoveryRestore = document.getElementById('crash-recovery-restore') as HTMLButtonElement | null
+  const crashRecoveryDismiss = document.getElementById('crash-recovery-dismiss') as HTMLButtonElement | null
   const aiPaletteOverlay = document.getElementById('ai-command-overlay') as HTMLDivElement | null
   const aiPaletteSearch = document.getElementById('ai-palette-search') as HTMLTextAreaElement | null
   const aiPaletteChips = document.getElementById('ai-palette-chips') as HTMLDivElement | null
@@ -1525,6 +1531,7 @@ async function init(): Promise<void> {
   let agentChangeSession: AgentChangeSession | null = null
   let agentChangeExpanded = false
   let hasShownAgentChangeHint = false
+  let crashRecoverySummary: CrashRecoverySummary | null = null
   const agentChangeAutoDismiss = createAgentChangeAutoDismiss(() => {
     clearAgentChangePanel()
   })
@@ -1600,6 +1607,33 @@ async function init(): Promise<void> {
     agentChangeSession = null
     agentChangeExpanded = false
     renderAgentChangePanel()
+  }
+
+  const renderCrashRecoveryPanel = (): void => {
+    if (!crashRecoveryPanel || !crashRecoveryTitle || !crashRecoveryMeta || !crashRecoveryBody) return
+
+    if (!crashRecoverySummary) {
+      crashRecoveryPanel.hidden = true
+      return
+    }
+
+    crashRecoveryPanel.hidden = false
+    crashRecoveryTitle.textContent = `检测到上次${crashRecoverySummary.reason}`
+    crashRecoveryMeta.textContent = new Date(crashRecoverySummary.updatedAt).toLocaleString('zh-CN', {
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      month: '2-digit',
+    })
+    const documentLabel = crashRecoverySummary.displayTitle || '未命名文稿'
+    crashRecoveryBody.textContent = crashRecoverySummary.hasContent
+      ? `已为“${documentLabel}”保留本地恢复副本。恢复时会写成新草稿，避免覆盖当前文件。`
+      : `已为“${documentLabel}”保留恢复入口，但最近一次快照内容为空。`
+  }
+
+  const refreshCrashRecoveryPanel = async (): Promise<void> => {
+    crashRecoverySummary = await api.getCrashRecoveryState?.().catch(() => null) ?? null
+    renderCrashRecoveryPanel()
   }
 
   const restoreAgentChangeSession = (): void => {
@@ -2950,6 +2984,7 @@ img{max-width:100%}
   if (sidebarState) {
     renderSidebar()
   }
+  await refreshCrashRecoveryPanel()
 
   api.onMenuOpen(async () => {
     persistCurrentViewportOffset()
@@ -3256,6 +3291,22 @@ img{max-width:100%}
 
   agentChangeDismiss?.addEventListener('click', () => {
     clearAgentChangePanel()
+  })
+
+  crashRecoveryRestore?.addEventListener('click', () => {
+    void api.restoreCrashRecovery?.().then((restored) => {
+      if (!restored) return
+      crashRecoverySummary = null
+      renderCrashRecoveryPanel()
+      syncSidebarState()
+    }).catch(() => {})
+  })
+
+  crashRecoveryDismiss?.addEventListener('click', () => {
+    void api.dismissCrashRecovery?.().then(() => {
+      crashRecoverySummary = null
+      renderCrashRecoveryPanel()
+    }).catch(() => {})
   })
 
   drawerBackdrop?.addEventListener('click', () => {

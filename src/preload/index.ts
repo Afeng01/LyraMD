@@ -91,6 +91,15 @@ export interface PersistedImageAsset {
   sidebarState: SidebarState | null
 }
 
+export interface CrashRecoverySummary {
+  displayTitle: string
+  documentKind: Exclude<DocumentKind, 'blank'>
+  filePath: string | null
+  hasContent: boolean
+  reason: string
+  updatedAt: number
+}
+
 export interface AppSettings {
   titleSyncMode: TitleSyncMode
   saveAsMode: SaveAsMode
@@ -202,6 +211,9 @@ export interface ElectronAPI {
   completeAiPrompt: (prompt: string) => Promise<AiHelperCompletionResult>
   testAiHelperConnection: () => Promise<AiHelperCompletionResult>
   getCurrentDocument: () => Promise<CurrentDocumentSnapshot | null>
+  getCrashRecoveryState: () => Promise<CrashRecoverySummary | null>
+  restoreCrashRecovery: () => Promise<boolean>
+  dismissCrashRecovery: () => Promise<boolean>
   persistImageAsset: (payload: { bytes: Uint8Array; fileName: string; mimeType: string }) => Promise<PersistedImageAsset | null>
   readLocalImageAsDataUrl: (path: string) => Promise<string | null>
   getCodexIntegrationStatus: () => Promise<CodexIntegrationStatus | null>
@@ -290,6 +302,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   completeAiPrompt: (prompt: string) => ipcRenderer.invoke('complete-ai-prompt', prompt),
   testAiHelperConnection: () => ipcRenderer.invoke('test-ai-helper-connection'),
   getCurrentDocument: () => ipcRenderer.invoke('get-current-document'),
+  getCrashRecoveryState: () => ipcRenderer.invoke('get-crash-recovery-state'),
+  restoreCrashRecovery: () => ipcRenderer.invoke('restore-crash-recovery'),
+  dismissCrashRecovery: () => ipcRenderer.invoke('dismiss-crash-recovery'),
   persistImageAsset: (payload: { bytes: Uint8Array; fileName: string; mimeType: string }) => ipcRenderer.invoke('persist-image-asset', payload),
   readLocalImageAsDataUrl: (path: string) => ipcRenderer.invoke('read-local-image-as-data-url', path),
   getCodexIntegrationStatus: () => ipcRenderer.invoke('codex-integration-status'),

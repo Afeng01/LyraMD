@@ -47,6 +47,15 @@ import { buildTitleSyncPath, decideTitleSync } from './title-sync'
 import { resolveNewWorkdirFolderPath, resolveNewWorkdirMarkdownPath, scanWorkdir, scanWorkdirTree, shouldRefreshWorkdirForWatchEvent, type WorkdirEntry, type WorkdirTreeNode } from './workdir'
 import { moveFileToTrashAndVerify } from './file-removal'
 import { summarizeAgentChange } from './agent-change-summary'
+import {
+  clearCrashRecoveryState,
+  readCrashRecoveryState,
+  recordRevisionSnapshot,
+  writeCrashRecoveryState,
+  type CrashRecoveryState,
+  type RevisionReason,
+  type RevisionSnapshotInput,
+} from './revision-store'
 import { createSettingsWindowOptions, createWindowOptions } from './window-platform'
 import { EDITABLE_FILE_FILTERS } from './file-extensions'
 import { decideSecondInstanceAction, extractEditableLaunchPaths } from './windows-launch'
@@ -83,6 +92,8 @@ const themesDir = join(appDataDir, 'themes')
 const sidebarStatePath = join(appDataDir, 'sidebar-state.json')
 const sessionStatePath = join(appDataDir, 'session-state.json')
 const settingsPath = join(appDataDir, 'settings.json')
+const revisionsDir = join(appDataDir, 'revisions')
+const crashRecoveryStatePath = join(appDataDir, 'crash-recovery.json')
 const mcpBridgeFilePath = getMcpBridgeFilePath(appDataDir)
 const DRAWER_BREAKPOINT = 960
 
@@ -331,6 +342,69 @@ const windowStates = new Map<number, WindowState>()
 let settingsWindow: BrowserWindow | null = null
 let pendingFilePaths: string[] = []
 const hasSingleInstanceLock = app.isPackaged ? app.requestSingleInstanceLock() : true
+
+function buildRevisionSnapshotFromWindowState(
+  state: WindowState,
+  content: string,
+  reason: RevisionReason,
+): RevisionSnapshotInput | null {
+  if (state.documentKind === 'blank' || !state.filePath) return null
+
+  return {
+    content,
+    displayTitle: state.displayTitle,
+    documentKind: state.documentKind,
+    draftId: state.draftId,
+    filePath: state.filePath,
+    reason,
+    updatedAt: Date.now(),
+  }
+}
+
+async function recordRevisionForWindowState(
+  state: WindowState,
+  content: string,
+  reason: RevisionReason,
+): Promise<void> {
+  const snapshot = buildRevisionSnapshotFromWindowState(state, content, reason)
+  if (!snapshot) return
+  await recordRevisionSnapshot(revisionsDir, snapshot).catch(() => {})
+}
+
+function formatCrashReasonLabel(reason: string): string {
+  if (reason === 'oom') return '内存不足'
+  if (reason === 'crashed') return '渲染器崩溃'
+  if (reason === 'killed') return '渲染器被终止'
+  if (reason === 'abnormal-exit') return '异常退出'
+  if (reason === 'launch-failed') return '启动失败'
+  return '渲染器异常中断'
+}
+
+async function persistCrashRecoveryForWindowState(
+  state: WindowState,
+  reason: string,
+): Promise<void> {
+  if (state.documentKind === 'blank' || !state.filePath || state.lastSyncedContent === null) return
+
+  const snapshot = await recordRevisionSnapshot(revisionsDir, {
+    content: state.lastSyncedContent,
+    displayTitle: state.displayTitle,
+    documentKind: state.documentKind,
+    draftId: state.draftId,
+    filePath: state.filePath,
+    reason: 'crash',
+    updatedAt: Date.now(),
+  }).catch(() => null)
+  if (!snapshot) return
+
+  const recoveryState: CrashRecoveryState = {
+    reason,
+    snapshot,
+    status: 'crashed',
+    updatedAt: Date.now(),
+  }
+  await writeCrashRecoveryState(crashRecoveryStatePath, recoveryState).catch(() => {})
+}
 
 interface RendererMcpRequestPayload {
   args?: Record<string, unknown>
@@ -719,6 +793,10 @@ async function persistImageAssetForWindow(
 
   const { markdownPath, sidebarSnapshot } = await ensureDocumentPathForImageAssets(win)
   if (!markdownPath) return null
+  const state = getState(win)
+  if (state.lastSyncedContent !== null) {
+    await recordRevisionForWindowState(state, state.lastSyncedContent, 'image-checkpoint')
+  }
 
   const assetDirectoryPath = resolveDocumentAssetDirectoryPath(markdownPath)
   await mkdir(assetDirectoryPath, { recursive: true })
@@ -757,6 +835,79 @@ async function readLocalImageAsDataUrl(imagePath: string): Promise<string | null
   return `data:${mimeType};base64,${buffer.toString('base64')}`
 }
 
+async function getCrashRecoverySummary(): Promise<{
+  displayTitle: string
+  documentKind: RevisionSnapshotInput['documentKind']
+  filePath: string | null
+  hasContent: boolean
+  reason: string
+  updatedAt: number
+} | null> {
+  const recoveryState = await readCrashRecoveryState(crashRecoveryStatePath)
+  if (!recoveryState) return null
+
+  return {
+    displayTitle: recoveryState.snapshot.displayTitle,
+    documentKind: recoveryState.snapshot.documentKind,
+    filePath: recoveryState.snapshot.filePath,
+    hasContent: recoveryState.snapshot.content.trim().length > 0,
+    reason: recoveryState.reason,
+    updatedAt: recoveryState.updatedAt,
+  }
+}
+
+async function restoreCrashRecoveryToDraft(triggerWin: BrowserWindow): Promise<boolean> {
+  const recoveryState = await readCrashRecoveryState(crashRecoveryStatePath)
+  if (!recoveryState) return false
+
+  const draftDirectoryPath = getEffectiveDraftDirectoryPath()
+  await mkdir(draftDirectoryPath, { recursive: true })
+  const now = Date.now()
+  const nextDraftState = upsertDraftEntry({
+    entries: sidebarState.draftEntries,
+    content: recoveryState.snapshot.content,
+    draftDirectoryPath,
+    now,
+    suffix: sidebarState.draftEntries.length + 1,
+  })
+  const draftEntry = nextDraftState.draftEntry ?? createMaterializedDraftEntry({
+    draftDirectoryPath,
+    now,
+    suffix: sidebarState.draftEntries.length + 1,
+  })
+
+  if (!nextDraftState.draftEntry) {
+    sidebarState.draftEntries = [draftEntry, ...sidebarState.draftEntries]
+  } else {
+    sidebarState.draftEntries = nextDraftState.entries
+  }
+  await writeFile(draftEntry.path, recoveryState.snapshot.content, 'utf-8')
+  await persistSidebarState()
+  await recordRevisionSnapshot(revisionsDir, {
+    content: recoveryState.snapshot.content,
+    displayTitle: draftEntry.displayTitle,
+    documentKind: 'draft',
+    draftId: draftEntry.id,
+    filePath: draftEntry.path,
+    reason: 'crash',
+    updatedAt: now,
+  }).catch(() => {})
+  await clearCrashRecoveryState(crashRecoveryStatePath).catch(() => {})
+
+  const activeState = getState(triggerWin)
+  const targetWin = activeState.documentKind === 'blank' && !activeState.filePath
+    ? triggerWin
+    : createWindowMatchingSize(triggerWin)
+  await loadFileInWindow(targetWin, draftEntry.path, {
+    documentKind: 'draft',
+    draftId: draftEntry.id,
+    recordRecent: false,
+  })
+  targetWin.focus()
+  broadcastSidebarState()
+  return true
+}
+
 function registerLocalMediaProtocol(): void {
   protocol.handle(LOCAL_MEDIA_PROTOCOL, async (request) => {
     const imagePath = localMediaUrlToAbsolutePath(request.url)
@@ -790,9 +941,11 @@ async function renameCurrentFileToPath(win: BrowserWindow, nextPath: string): Pr
   await persistSidebarState()
   setFileDocumentState(win, nextPath, 'file', null)
   state.displayTitle = currentDisplayTitle
+  state.lastSyncedContent = currentContent
   updateTitle(win)
   replaceRecentFilePath(previousPath, nextPath)
   await persistSidebarState()
+  await recordRevisionForWindowState(state, currentContent, 'rename')
   if (isPathInsideAnyWorkspace(previousPath) || isPathInsideAnyWorkspace(nextPath)) {
     await refreshWorkdirEntries()
   }
@@ -849,8 +1002,18 @@ async function renameFormalFileByTitleForAllWindows(
     if (state.documentKind !== 'file' || state.filePath !== previousPath) continue
     setFileDocumentState(window, nextPath, 'file', null)
     state.displayTitle = displayTitle
+    state.lastSyncedContent = currentContent
     updateTitle(window)
   }
+  await recordRevisionSnapshot(revisionsDir, {
+    content: currentContent,
+    displayTitle,
+    documentKind: 'file',
+    draftId: null,
+    filePath: nextPath,
+    reason: 'rename',
+    updatedAt: Date.now(),
+  }).catch(() => {})
 
   if (isPathInsideAnyWorkspace(previousPath) || isPathInsideAnyWorkspace(nextPath)) {
     await refreshWorkdirEntries()
@@ -875,6 +1038,7 @@ function removeDraftEntry({ draftId, draftPath }: { draftId?: string | null; dra
 async function applyManualDraftTitle(draftEntry: DraftEntry, nextTitle: string): Promise<DraftEntry> {
   const trimmedTitle = nextTitle.trim()
   const previousPath = draftEntry.path
+  const currentContent = await readFile(previousPath, 'utf-8').catch(() => '')
   const nextPath = resolveManualDraftPath(
     dirname(previousPath),
     trimmedTitle,
@@ -882,7 +1046,6 @@ async function applyManualDraftTitle(draftEntry: DraftEntry, nextTitle: string):
   )
 
   if (nextPath !== previousPath) {
-    const currentContent = await readFile(previousPath, 'utf-8').catch(() => '')
     await relocateManagedDocument({
       sourcePath: previousPath,
       targetPath: nextPath,
@@ -904,6 +1067,16 @@ async function applyManualDraftTitle(draftEntry: DraftEntry, nextTitle: string):
     state.displayTitle = nextEntry.displayTitle
     updateTitle(window)
   }
+
+  await recordRevisionSnapshot(revisionsDir, {
+    content: currentContent,
+    displayTitle: nextEntry.displayTitle,
+    documentKind: 'draft',
+    draftId: nextEntry.id,
+    filePath: nextEntry.path,
+    reason: 'rename',
+    updatedAt: Date.now(),
+  }).catch(() => {})
 
   return nextEntry
 }
@@ -1006,6 +1179,11 @@ function createWindow(initialDocument?: { filePath: string; documentKind?: Exclu
         recordRecent: initialDocument.documentKind !== 'draft',
       })
     }
+  })
+
+  win.webContents.on('render-process-gone', (_event, details) => {
+    if (details.reason === 'clean-exit') return
+    void persistCrashRecoveryForWindowState(state, formatCrashReasonLabel(details.reason))
   })
 
   win.on('closed', () => {
@@ -1292,7 +1470,12 @@ function findEmptyWindow(): BrowserWindow | null {
   return null
 }
 
-async function saveToPath(win: BrowserWindow, filePath: string, content: string): Promise<boolean> {
+async function saveToPath(
+  win: BrowserWindow,
+  filePath: string,
+  content: string,
+  reason: RevisionReason = 'save',
+): Promise<boolean> {
   const state = getState(win)
   try {
     const previousFilePath = state.filePath
@@ -1339,6 +1522,7 @@ async function saveToPath(win: BrowserWindow, filePath: string, content: string)
     if (state.filePath && state.filePath !== filePath && isPathInsideAnyWorkspace(state.filePath)) {
       await refreshWorkdirEntries()
     }
+    await recordRevisionForWindowState(state, content, reason)
     broadcastSidebarState()
     return true
   } catch {
@@ -1391,6 +1575,7 @@ async function saveFileAsForWindow(win: BrowserWindow, nextPath: string, content
       state.displayTitle = resolveFileDisplayTitle(nextPath, nextContent)
       updateTitle(win)
       recordRecentFile(nextPath)
+      await recordRevisionForWindowState(state, nextContent, 'save-as')
       if (isPathInsideAnyWorkspace(sourcePath) || isPathInsideAnyWorkspace(nextPath)) {
         await refreshWorkdirEntries()
       }
@@ -1414,7 +1599,7 @@ async function saveFileAsForWindow(win: BrowserWindow, nextPath: string, content
     targetPath: nextPath,
     content,
   })
-  const didSave = await saveToPath(win, nextPath, migrated.content)
+  const didSave = await saveToPath(win, nextPath, migrated.content, 'save-as')
   if (!didSave) return false
 
   if (removeSource && sourcePath) {
@@ -1481,7 +1666,7 @@ async function autosaveWindowDocument(
     return { kind: 'blank', path: null }
   }
 
-  await saveToPath(win, state.filePath, content)
+  await saveToPath(win, state.filePath, content, 'autosave')
   return { kind: state.documentKind, path: state.filePath }
 }
 
@@ -1750,6 +1935,21 @@ ipcMain.handle('get-current-document', async (event) => {
     path: state.filePath,
     title: state.displayTitle,
   }
+})
+
+ipcMain.handle('get-crash-recovery-state', async () => {
+  return getCrashRecoverySummary()
+})
+
+ipcMain.handle('restore-crash-recovery', async (event) => {
+  const win = getWinFromEvent(event)
+  if (!win) return false
+  return restoreCrashRecoveryToDraft(win)
+})
+
+ipcMain.handle('dismiss-crash-recovery', async () => {
+  await clearCrashRecoveryState(crashRecoveryStatePath).catch(() => {})
+  return true
 })
 
 ipcMain.handle('persist-image-asset', async (
@@ -2216,7 +2416,7 @@ ipcMain.handle('save-file', async (event, content: string) => {
     return saveFileAsForWindow(win, result.filePath, content)
   }
 
-  return saveToPath(win, state.filePath, content)
+  return saveToPath(win, state.filePath, content, 'save')
 })
 
 ipcMain.handle('save-file-as', async (event, content: string, requestedMode?: AppSettings['saveAsMode']) => {

@@ -21,6 +21,17 @@ describe('agent change panel regression', () => {
     expect(main).toContain('restoreAgentChangeSession()')
   })
 
+  it('keeps the crash recovery panel wired for renderer restart fallout', () => {
+    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
+    const main = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+
+    expect(html).toContain('id="crash-recovery-panel"')
+    expect(html).toContain('id="crash-recovery-restore"')
+    expect(main).toContain('refreshCrashRecoveryPanel')
+    expect(main).toContain("crashRecoveryRestore?.addEventListener('click'")
+    expect(main).toContain('api.restoreCrashRecovery?.()')
+  })
+
   it('opens the first external update summary as an inline onboarding hint', () => {
     const main = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
 

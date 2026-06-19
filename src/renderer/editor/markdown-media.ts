@@ -4,6 +4,9 @@ import {
   isLocalMediaUrl,
 } from '../../shared/local-media'
 
+const MARKDOWN_IMAGE_PATTERN = /!\[[^\]]*]\((?<src><[^>]+>|[^)\s]+)(?<suffix>[^)]*)\)/g
+const LOCAL_PATH_START_PATTERN = /^(?:\/|\.{1,2}\/|[A-Za-z]:[\\/])/
+const IMAGE_FILE_PATH_PATTERN = /\.(?:png|jpe?g|gif|webp|bmp|svg|avif)(?:[?#][^)]*)?$/i
 const WINDOWS_ABSOLUTE_PATH_PATTERN = /^[a-zA-Z]:[\\/]/
 
 export function resolveMarkdownImageSrc(src: string, markdownFilePath: string | null): string {
@@ -24,6 +27,19 @@ export function resolveMarkdownImageSrc(src: string, markdownFilePath: string | 
   if (!markdownFilePath) return src
 
   return absolutePathToLocalMediaUrl(joinLocalPath(dirname(markdownFilePath), trimmed))
+}
+
+export function normalizeMarkdownImageDestinations(markdown: string): string {
+  return markdown.replace(MARKDOWN_IMAGE_PATTERN, (match, rawSrc: string, suffix = '') => {
+    if (!suffix) return match
+    if (rawSrc.startsWith('<') && rawSrc.endsWith('>')) return match
+
+    const destination = `${rawSrc}${suffix}`.trimEnd()
+    if (!LOCAL_PATH_START_PATTERN.test(destination)) return match
+    if (!IMAGE_FILE_PATH_PATTERN.test(destination)) return match
+
+    return match.replace(rawSrc + suffix, `<${destination}>`)
+  })
 }
 
 function isAbsoluteLocalPath(path: string): boolean {

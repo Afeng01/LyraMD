@@ -42,8 +42,8 @@ describe('programmatic content refresh regression', () => {
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
 
     expect(editor).toContain('.use(imageView)')
-    expect(editor).toContain('replaceAll(content, !preserveHistory)')
-    expect(editor).not.toContain('replaceAll(content, true)')
+    expect(editor).toContain('replaceAll(normalizedContent, !preserveHistory)')
+    expect(editor).not.toContain('replaceAll(normalizedContent, true)')
     expect(imageNode).toContain('lyra-image-node-resize-handle')
     expect(css).toContain('.lyra-image-node.selected .lyra-image-node-resize-handle')
   })
@@ -58,5 +58,12 @@ describe('image asset workflow regression', () => {
     expect(editor).toContain('export function insertImage(')
     expect(editor).toContain('replaceClipboardLocalImageSources')
     expect(clipboard).toContain('replaceClipboardLocalImageSources')
+  })
+
+  it('normalizes markdown image destinations with local-space paths before programmatic content sync', () => {
+    const editor = readFileSync(join(process.cwd(), 'src/renderer/editor/editor.ts'), 'utf8')
+
+    expect(editor).toContain('normalizeMarkdownImageDestinations(content)')
+    expect(editor).toContain('replaceAll(normalizedContent, !preserveHistory)')
   })
 })

@@ -41,7 +41,7 @@ import {
   shouldIncludeHeadingLevel,
   type OutlineItem,
 } from './outline'
-import { resolveMarkdownImageSrc } from './markdown-media'
+import { normalizeMarkdownImageDestinations, resolveMarkdownImageSrc } from './markdown-media'
 import { collectMarkdownTokenRanges } from './markdown-tags'
 
 import '@milkdown/kit/prose/view/style/prosemirror.css'
@@ -564,8 +564,9 @@ export function rejectAiSuggestion(): boolean {
 
 export function setMarkdown(content: string, options: { preserveHistory?: boolean } = {}): void {
   if (!editorInstance) return
+  const normalizedContent = normalizeMarkdownImageDestinations(content)
   const currentContent = getMarkdown()
-  if (currentContent === content) return
+  if (currentContent === normalizedContent) return
   const preserveHistory = options.preserveHistory ?? false
 
   const selectionBeforeReplace = lastEditorSelection
@@ -579,7 +580,7 @@ export function setMarkdown(content: string, options: { preserveHistory?: boolea
     return activeResult?.from ?? null
   }) ?? null
   isProgrammaticChange = true
-  editorInstance.action(replaceAll(content, !preserveHistory))
+  editorInstance.action(replaceAll(normalizedContent, !preserveHistory))
   if (selectionBeforeReplace) {
     restoreSelection(selectionBeforeReplace)
   }

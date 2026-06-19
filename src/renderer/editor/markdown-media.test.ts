@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
-import { resolveMarkdownImageSrc } from './markdown-media'
+import {
+  normalizeMarkdownImageDestinations,
+  resolveMarkdownImageSrc,
+} from './markdown-media'
 import { absolutePathToLocalMediaUrl } from '../../shared/local-media'
 
 describe('resolveMarkdownImageSrc', () => {
@@ -33,5 +36,19 @@ describe('resolveMarkdownImageSrc', () => {
 
   it('leaves unresolved relative image paths unchanged without a markdown file path', () => {
     expect(resolveMarkdownImageSrc('./images/a.png', null)).toBe('./images/a.png')
+  })
+
+  it('normalizes local image markdown destinations with spaces so commonmark can parse them', () => {
+    const markdown = '![CleanShot](/Users/cherry_xiao/Library/Application Support/CleanShot/media/media_84nxxIDSHq/CleanShot 2026-06-19 at 14.00.49@2x.png)'
+
+    expect(normalizeMarkdownImageDestinations(markdown)).toBe(
+      '![CleanShot](</Users/cherry_xiao/Library/Application Support/CleanShot/media/media_84nxxIDSHq/CleanShot 2026-06-19 at 14.00.49@2x.png>)',
+    )
+  })
+
+  it('keeps already wrapped destinations unchanged', () => {
+    const markdown = '![CleanShot](</Users/cherry_xiao/Library/Application Support/CleanShot/media/media_84nxxIDSHq/CleanShot 2026-06-19 at 14.00.49@2x.png>)'
+
+    expect(normalizeMarkdownImageDestinations(markdown)).toBe(markdown)
   })
 })

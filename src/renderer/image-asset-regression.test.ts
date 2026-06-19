@@ -18,4 +18,12 @@ describe('image asset integration regression', () => {
     expect(settingsDialog).toContain('settings-embed-local-images-on-copy')
     expect(html).toContain('settings-embed-local-images-on-copy')
   })
+
+  it('re-renders relative images after sidebar state catches up with the newly opened document path', () => {
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+    const sidebarStateHandler = renderer.match(/api\.onSidebarState\(\(state\) => \{[\s\S]*?\n\s*\}\)/)
+
+    expect(sidebarStateHandler?.[0]).toContain('setSidebarState(state)')
+    expect(sidebarStateHandler?.[0]).toContain('refreshRenderedMedia()')
+  })
 })

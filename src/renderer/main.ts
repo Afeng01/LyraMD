@@ -3006,6 +3006,7 @@ img{max-width:100%}
 
   api.onSidebarState((state) => {
     setSidebarState(state)
+    refreshRenderedMedia()
     settingsDialog.refresh()
   })
 

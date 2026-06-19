@@ -1,4 +1,4 @@
-import type { AiHelperProviderSettings, AiHelperSettings, AiPromptTemplate, AppSettings, BackgroundMode, BackgroundScope, BackgroundSettings, CodexIntegrationStatus, EditorFontPreset, ElectronAPI, FontSettings, SaveAsMode, ShortcutAction, SidebarState, TitleSyncMode } from '../preload/index'
+import type { AiHelperProviderSettings, AiHelperSettings, AiPromptTemplate, AppSettings, BackgroundMode, BackgroundScope, BackgroundSettings, CodexIntegrationStatus, DocumentSafetySettings, EditorFontPreset, ElectronAPI, FontSettings, SaveAsMode, ShortcutAction, SidebarState, TitleSyncMode } from '../preload/index'
 import { applyTheme } from './themes/theme-manager'
 
 const BUILT_IN_THEMES = [
@@ -21,6 +21,10 @@ const DEFAULT_BACKGROUND_SETTINGS: BackgroundSettings = {
 const DEFAULT_FONT_SETTINGS: FontSettings = {
   preset: 'theme',
   customFamily: '',
+}
+
+const DEFAULT_DOCUMENT_SAFETY_SETTINGS: DocumentSafetySettings = {
+  maxRevisionsPerDocument: 40,
 }
 
 const DEFAULT_AI_PROMPT_TEMPLATES: AiPromptTemplate[] = [
@@ -199,7 +203,7 @@ const SETTINGS_PANE_META: Record<
   { description: string; kicker: string; title: string }
 > = {
   general: {
-    description: '决定标题同步、另存为切换方式，以及本地备份和恢复入口如何配合使用。',
+    description: '决定标题同步、另存为切换方式，以及本地备份、恢复入口和保留策略。',
     kicker: '基础',
     title: '编辑器行为',
   },
@@ -310,6 +314,8 @@ export function createSettingsDialogController({
   )
   const showDocumentStatsInput = document.getElementById('settings-show-document-stats') as HTMLInputElement | null
   const embedLocalImagesOnCopyInput = document.getElementById('settings-embed-local-images-on-copy') as HTMLInputElement | null
+  const documentSafetyMaxRevisionsInput = document.getElementById('settings-document-safety-max-revisions') as HTMLInputElement | null
+  const openRevisionsDirectoryButton = document.getElementById('settings-open-revisions-directory') as HTMLButtonElement | null
   const backgroundScopeInputs = Array.from(
     document.querySelectorAll<HTMLInputElement>('input[name="settings-background-scope"]'),
   )
@@ -501,6 +507,13 @@ export function createSettingsDialogController({
 
     if (embedLocalImagesOnCopyInput) {
       embedLocalImagesOnCopyInput.checked = appSettings.embedLocalImagesOnCopy === true
+    }
+
+    if (documentSafetyMaxRevisionsInput) {
+      documentSafetyMaxRevisionsInput.value = String(
+        appSettings.documentSafety?.maxRevisionsPerDocument
+          ?? DEFAULT_DOCUMENT_SAFETY_SETTINGS.maxRevisionsPerDocument,
+      )
     }
 
     if (draftPreview) {
@@ -804,6 +817,20 @@ export function createSettingsDialogController({
     render()
   }
 
+  const updateDocumentSafetySettings = async (patch: Partial<DocumentSafetySettings>): Promise<void> => {
+    const current = getAppSettings()
+    const documentSafety = {
+      ...(current.documentSafety ?? DEFAULT_DOCUMENT_SAFETY_SETTINGS),
+      ...patch,
+    }
+    const next = (await api.updateSettings({ documentSafety }).catch(() => null)) ?? {
+      ...current,
+      documentSafety,
+    }
+    onAppSettingsChange(next)
+    render()
+  }
+
   const updateBackgroundSettings = async (patch: Partial<BackgroundSettings>): Promise<void> => {
     const current = getAppSettings()
     const background = {
@@ -1086,6 +1113,25 @@ export function createSettingsDialogController({
 
   embedLocalImagesOnCopyInput?.addEventListener('change', () => {
     void updateEmbedLocalImagesOnCopy(embedLocalImagesOnCopyInput.checked)
+  })
+
+  documentSafetyMaxRevisionsInput?.addEventListener('change', () => {
+    const current = getAppSettings().documentSafety ?? DEFAULT_DOCUMENT_SAFETY_SETTINGS
+    void updateDocumentSafetySettings({
+      maxRevisionsPerDocument: clampNumber(
+        documentSafetyMaxRevisionsInput.value,
+        current.maxRevisionsPerDocument,
+        10,
+        200,
+      ),
+    })
+  })
+
+  openRevisionsDirectoryButton?.addEventListener('click', () => {
+    openRevisionsDirectoryButton.disabled = true
+    void api.openRevisionsDirectory().finally(() => {
+      openRevisionsDirectoryButton.disabled = false
+    })
   })
 
   for (const input of backgroundScopeInputs) {

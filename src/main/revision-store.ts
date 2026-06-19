@@ -27,6 +27,7 @@ export interface CrashRecoveryState {
 }
 
 const DEFAULT_MAX_REVISIONS_PER_DOCUMENT = 40
+const AUTOSAVE_REVISION_INTERVAL_MS = 15000
 
 export function createDocumentRevisionKey(snapshot: {
   documentKind: RevisionDocumentKind
@@ -60,6 +61,19 @@ export async function recordRevisionSnapshot(
     && previous.displayTitle === snapshot.displayTitle
     && previous.filePath === snapshot.filePath
     && previous.draftId === snapshot.draftId
+  ) {
+    return previous
+  }
+
+  if (
+    previous
+    && previous.reason === 'autosave'
+    && snapshot.reason === 'autosave'
+    && snapshot.updatedAt - previous.updatedAt < AUTOSAVE_REVISION_INTERVAL_MS
+    && (
+      snapshot.content.startsWith(previous.content)
+      || previous.content.startsWith(snapshot.content)
+    )
   ) {
     return previous
   }

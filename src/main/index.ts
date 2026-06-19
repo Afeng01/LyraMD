@@ -374,7 +374,16 @@ async function recordRevisionForWindowState(
 ): Promise<void> {
   const snapshot = buildRevisionSnapshotFromWindowState(state, content, reason)
   if (!snapshot) return
-  await recordRevisionSnapshot(revisionsDir, snapshot).catch(() => {})
+  await recordManagedRevisionSnapshot(snapshot).catch(() => {})
+}
+
+function getMaxRevisionsPerDocument(): number {
+  return appSettings.documentSafety?.maxRevisionsPerDocument
+    ?? DEFAULT_APP_SETTINGS.documentSafety.maxRevisionsPerDocument
+}
+
+function recordManagedRevisionSnapshot(snapshot: RevisionSnapshotInput): Promise<StoredRevisionSnapshot> {
+  return recordRevisionSnapshot(revisionsDir, snapshot, getMaxRevisionsPerDocument())
 }
 
 function formatCrashReasonLabel(reason: string): string {
@@ -397,14 +406,17 @@ function formatRevisionReasonLabel(reason: RevisionReason): string {
   return '本地备份'
 }
 
-function createRevisionSummary(snapshot: StoredRevisionSnapshot): {
-  displayTitle: string
-  documentKind: RevisionDocumentKind
-  id: string
-  reason: string
-  updatedAt: number
-} {
+function createRevisionSummary(
+  snapshot: StoredRevisionSnapshot,
+  previousSnapshot: StoredRevisionSnapshot | null,
+) {
   return {
+    changeSummary: previousSnapshot
+      ? summarizeAgentChange(previousSnapshot.content, snapshot.content, {
+        maxComparisonCells: 40000,
+        maxPreviewLines: 3,
+      })
+      : null,
     displayTitle: snapshot.displayTitle,
     documentKind: snapshot.documentKind,
     id: snapshot.id,
@@ -445,7 +457,7 @@ async function persistCrashRecoveryForWindowState(
 ): Promise<void> {
   if (state.documentKind === 'blank' || !state.filePath || state.lastSyncedContent === null) return
 
-  const snapshot = await recordRevisionSnapshot(revisionsDir, {
+  const snapshot = await recordManagedRevisionSnapshot({
     content: state.lastSyncedContent,
     displayTitle: state.displayTitle,
     documentKind: state.documentKind,
@@ -943,7 +955,7 @@ async function restoreRevisionSnapshotToDraft(
   }
   await writeFile(draftEntry.path, snapshot.content, 'utf-8')
   await persistSidebarState()
-  await recordRevisionSnapshot(revisionsDir, {
+  await recordManagedRevisionSnapshot({
     content: snapshot.content,
     displayTitle: draftEntry.displayTitle,
     documentKind: 'draft',
@@ -979,6 +991,7 @@ async function restoreCrashRecoveryToDraft(triggerWin: BrowserWindow): Promise<b
 }
 
 async function listDocumentRevisionsForWindow(win: BrowserWindow): Promise<Array<{
+  changeSummary: ReturnType<typeof summarizeAgentChange> | null
   displayTitle: string
   documentKind: RevisionDocumentKind
   id: string
@@ -990,7 +1003,7 @@ async function listDocumentRevisionsForWindow(win: BrowserWindow): Promise<Array
   if (!documentKey) return []
 
   const snapshots = await listRevisionSnapshots(revisionsDir, documentKey).catch(() => [])
-  return snapshots.map((snapshot) => createRevisionSummary(snapshot))
+  return snapshots.map((snapshot, index) => createRevisionSummary(snapshot, snapshots[index + 1] ?? null))
 }
 
 async function restoreDocumentRevisionToDraft(triggerWin: BrowserWindow, revisionId: string): Promise<boolean> {
@@ -1001,6 +1014,15 @@ async function restoreDocumentRevisionToDraft(triggerWin: BrowserWindow, revisio
   const snapshot = await readRevisionSnapshotById(revisionsDir, documentKey, revisionId).catch(() => null)
   if (!snapshot) return false
   return restoreRevisionSnapshotToDraft(triggerWin, snapshot, 'restore')
+}
+
+async function openRevisionsDirectoryForWindow(win: BrowserWindow): Promise<boolean> {
+  const state = getState(win)
+  const documentKey = createCurrentDocumentRevisionKey(state)
+  const targetPath = documentKey ? join(revisionsDir, documentKey) : revisionsDir
+  await mkdir(targetPath, { recursive: true }).catch(() => {})
+  const result = await shell.openPath(targetPath).catch(() => 'failed')
+  return result === ''
 }
 
 function registerLocalMediaProtocol(): void {
@@ -1108,7 +1130,7 @@ async function renameFormalFileByTitleForAllWindows(
     state.lastSyncedContent = currentContent
     updateTitle(window)
   }
-  await recordRevisionSnapshot(revisionsDir, {
+  await recordManagedRevisionSnapshot({
     content: currentContent,
     displayTitle,
     documentKind: 'file',
@@ -1171,7 +1193,7 @@ async function applyManualDraftTitle(draftEntry: DraftEntry, nextTitle: string):
     updateTitle(window)
   }
 
-  await recordRevisionSnapshot(revisionsDir, {
+  await recordManagedRevisionSnapshot({
     content: currentContent,
     displayTitle: nextEntry.displayTitle,
     documentKind: 'draft',
@@ -2070,6 +2092,12 @@ ipcMain.handle('list-document-revisions', async (event) => {
   const win = getWinFromEvent(event)
   if (!win) return []
   return listDocumentRevisionsForWindow(win)
+})
+
+ipcMain.handle('open-revisions-directory', async (event) => {
+  const win = getWinFromEvent(event)
+  if (!win) return false
+  return openRevisionsDirectoryForWindow(win)
 })
 
 ipcMain.handle('restore-document-revision', async (event, revisionId: string) => {

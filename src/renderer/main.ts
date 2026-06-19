@@ -244,6 +244,9 @@ function createDefaultSettings(): AppSettings {
       preset: 'theme',
       customFamily: '',
     },
+    documentSafety: {
+      maxRevisionsPerDocument: 40,
+    },
     aiHelper: {
       provider: {
         type: 'openai-compatible',
@@ -648,6 +651,7 @@ async function init(): Promise<void> {
   const appShell = document.getElementById('app-shell')
   const sidebarToggle = document.getElementById('sidebar-toggle') as HTMLButtonElement | null
   const settingsToggle = document.getElementById('settings-toggle') as HTMLButtonElement | null
+  const safetyToggle = document.getElementById('safety-toggle') as HTMLButtonElement | null
   const agentToggle = document.getElementById('agent-toggle') as HTMLButtonElement | null
   const outlineToggle = document.getElementById('outline-toggle') as HTMLButtonElement | null
   const windowsMenu = document.getElementById('windows-menu') as HTMLElement | null
@@ -743,6 +747,7 @@ async function init(): Promise<void> {
   const revisionHistoryDetails = document.getElementById('revision-history-details') as HTMLDivElement | null
   const revisionHistoryBody = document.getElementById('revision-history-body') as HTMLDivElement | null
   const revisionHistoryList = document.getElementById('revision-history-list') as HTMLDivElement | null
+  const revisionHistoryOpenDir = document.getElementById('revision-history-open-dir') as HTMLButtonElement | null
   const aiPaletteOverlay = document.getElementById('ai-command-overlay') as HTMLDivElement | null
   const aiPaletteSearch = document.getElementById('ai-palette-search') as HTMLTextAreaElement | null
   const aiPaletteChips = document.getElementById('ai-palette-chips') as HTMLDivElement | null
@@ -1579,6 +1584,14 @@ async function init(): Promise<void> {
     return `${line.previousText ?? ''} -> ${line.text}`
   }
 
+  const hasChangeSummaryDetails = (summary: AgentChangeSummary | null | undefined): summary is AgentChangeSummary => {
+    return !!summary && (
+      summary.addedLines > 0
+      || summary.removedLines > 0
+      || summary.changedLines > 0
+    )
+  }
+
   const renderAgentChangePanel = (): void => {
     if (!agentChangePanel || !agentChangeToggle || !agentChangeStats || !agentChangeDetails || !agentChangeList) return
 
@@ -1663,7 +1676,13 @@ async function init(): Promise<void> {
     }
 
     const hasActiveDocument = !!sidebarState && sidebarState.currentDocumentKind !== 'blank'
-    revisionHistoryPanel.hidden = !hasActiveDocument
+    safetyToggle?.classList.toggle('active', hasActiveDocument && documentRevisionExpanded)
+    safetyToggle?.setAttribute('aria-pressed', hasActiveDocument && documentRevisionExpanded ? 'true' : 'false')
+    if (safetyToggle) {
+      safetyToggle.disabled = !hasActiveDocument
+      safetyToggle.title = hasActiveDocument ? '文稿安全' : '当前没有可恢复的文稿'
+    }
+    revisionHistoryPanel.hidden = !hasActiveDocument || (!documentRevisionExpanded && !documentRevisionLoading)
     if (!hasActiveDocument) return
 
     revisionHistoryToggle.setAttribute('aria-expanded', documentRevisionExpanded ? 'true' : 'false')
@@ -1704,13 +1723,51 @@ async function init(): Promise<void> {
         month: '2-digit',
       })}`
 
+      const summary = entry.changeSummary
+      const hasSummaryDetails = hasChangeSummaryDetails(summary)
+      const summaryStats = document.createElement('div')
+      summaryStats.className = 'revision-history-item-summary'
+      summaryStats.textContent = hasSummaryDetails
+        ? `本次修改 ${formatAgentChangeStats(summary)}`
+        : '这次主要记录文稿状态或文件动作，没有正文差异摘要。'
+
       const restore = document.createElement('button')
       restore.type = 'button'
       restore.className = 'revision-history-item-restore'
       restore.dataset.revisionId = entry.id
       restore.textContent = '恢复为草稿'
 
-      main.append(title, meta)
+      main.append(title, meta, summaryStats)
+
+      if (hasSummaryDetails) {
+        const preview = document.createElement('div')
+        preview.className = 'revision-history-preview'
+
+        for (const previewLine of summary.preview) {
+          const row = document.createElement('div')
+          row.className = `agent-change-line ${previewLine.type}`
+
+          const lineNumber = document.createElement('span')
+          lineNumber.className = 'agent-change-line-number'
+          lineNumber.textContent = String(previewLine.lineNumber)
+          row.appendChild(lineNumber)
+
+          const text = document.createElement('span')
+          text.className = 'agent-change-line-text'
+          text.title = formatAgentChangePreviewText(previewLine)
+          text.textContent = formatAgentChangePreviewText(previewLine)
+          row.appendChild(text)
+
+          preview.appendChild(row)
+        }
+
+        if (summary.truncated) {
+          preview.appendChild(createTextBlock('agent-change-truncated', '还有更多改动'))
+        }
+
+        main.appendChild(preview)
+      }
+
       item.append(main, restore)
       revisionHistoryList.appendChild(item)
     }
@@ -1729,6 +1786,23 @@ async function init(): Promise<void> {
     documentRevisionEntries = await api.listDocumentRevisions?.().catch(() => []) ?? []
     documentRevisionLoading = false
     renderDocumentRevisionPanel()
+  }
+
+  const openDocumentSafetyPanel = (): void => {
+    if (!sidebarState || sidebarState.currentDocumentKind === 'blank') return
+    documentRevisionExpanded = true
+    renderDocumentRevisionPanel()
+    void refreshDocumentRevisionPanel()
+  }
+
+  const toggleDocumentSafetyPanel = (): void => {
+    if (!sidebarState || sidebarState.currentDocumentKind === 'blank') return
+    if (documentRevisionExpanded) {
+      documentRevisionExpanded = false
+      renderDocumentRevisionPanel()
+      return
+    }
+    openDocumentSafetyPanel()
   }
 
   const restoreAgentChangeSession = (): void => {
@@ -3170,6 +3244,10 @@ img{max-width:100%}
     openSettingsSurface()
   })
 
+  safetyToggle?.addEventListener('click', () => {
+    toggleDocumentSafetyPanel()
+  })
+
   agentToggle?.addEventListener('click', () => {
     openAiPalette()
   })
@@ -3405,11 +3483,7 @@ img{max-width:100%}
   })
 
   revisionHistoryToggle?.addEventListener('click', () => {
-    documentRevisionExpanded = !documentRevisionExpanded
-    renderDocumentRevisionPanel()
-    if (documentRevisionExpanded) {
-      void refreshDocumentRevisionPanel()
-    }
+    toggleDocumentSafetyPanel()
   })
 
   revisionHistoryList?.addEventListener('click', (event) => {
@@ -3428,6 +3502,13 @@ img{max-width:100%}
       syncSidebarState()
     }).catch(() => {
       button.disabled = false
+    })
+  })
+
+  revisionHistoryOpenDir?.addEventListener('click', () => {
+    revisionHistoryOpenDir.disabled = true
+    void api.openRevisionsDirectory?.().finally(() => {
+      revisionHistoryOpenDir.disabled = false
     })
   })
 

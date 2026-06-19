@@ -34,6 +34,10 @@ export interface FontSettings {
   customFamily: string
 }
 
+export interface DocumentSafetySettings {
+  maxRevisionsPerDocument: number
+}
+
 export interface AiPromptTemplate {
   id: string
   title: string
@@ -64,6 +68,7 @@ export interface AppSettings {
   embedLocalImagesOnCopy: boolean
   background: BackgroundSettings
   font: FontSettings
+  documentSafety: DocumentSafetySettings
   aiHelper: AiHelperSettings
 }
 
@@ -151,6 +156,9 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   font: {
     preset: 'theme',
     customFamily: '',
+  },
+  documentSafety: {
+    maxRevisionsPerDocument: 40,
   },
   aiHelper: {
     provider: {
@@ -263,6 +271,27 @@ function normalizeFontSettings(input: unknown): FontSettings {
   return {
     preset,
     customFamily,
+  }
+}
+
+const MIN_REVISIONS_PER_DOCUMENT = 10
+const MAX_REVISIONS_PER_DOCUMENT = 200
+
+function normalizeDocumentSafetySettings(input: unknown): DocumentSafetySettings {
+  const candidate = input && typeof input === 'object'
+    ? input as Partial<Record<keyof DocumentSafetySettings, unknown>>
+    : {}
+  const fallback = DEFAULT_APP_SETTINGS.documentSafety.maxRevisionsPerDocument
+  const raw = candidate.maxRevisionsPerDocument
+  const maxRevisionsPerDocument = typeof raw === 'number'
+    && Number.isInteger(raw)
+    && raw >= MIN_REVISIONS_PER_DOCUMENT
+    && raw <= MAX_REVISIONS_PER_DOCUMENT
+    ? raw
+    : fallback
+
+  return {
+    maxRevisionsPerDocument,
   }
 }
 
@@ -423,6 +452,7 @@ export function normalizeAppSettings(input: PersistedAppSettings | null | undefi
       : DEFAULT_APP_SETTINGS.embedLocalImagesOnCopy,
     background: normalizeBackgroundSettings(input?.background),
     font: normalizeFontSettings(input?.font),
+    documentSafety: normalizeDocumentSafetySettings(input?.documentSafety),
     aiHelper: normalizeAiHelperSettings(input?.aiHelper),
   }
 }
@@ -477,6 +507,9 @@ export async function updateAppSettings(
     font: patch.font === undefined
       ? normalizeFontSettings(currentSettings.font)
       : normalizeFontSettings(patch.font),
+    documentSafety: patch.documentSafety === undefined
+      ? normalizeDocumentSafetySettings(currentSettings.documentSafety)
+      : normalizeDocumentSafetySettings(patch.documentSafety),
     aiHelper: patch.aiHelper === undefined
       ? normalizeAiHelperSettings(currentSettings.aiHelper)
       : normalizeAiHelperSettings(patch.aiHelper),

@@ -38,7 +38,9 @@ describe('agent change panel regression', () => {
 
     expect(html).toContain('id="revision-history-panel"')
     expect(html).toContain('id="revision-history-toggle"')
+    expect(html).toContain('id="safety-toggle"')
     expect(main).toContain('renderDocumentRevisionPanel')
+    expect(main).toContain('openDocumentSafetyPanel')
     expect(main).toContain("revisionHistoryToggle?.addEventListener('click'")
     expect(main).toContain('api.restoreDocumentRevision?.(')
   })

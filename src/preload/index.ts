@@ -51,6 +51,10 @@ export interface FontSettings {
   customFamily: string
 }
 
+export interface DocumentSafetySettings {
+  maxRevisionsPerDocument: number
+}
+
 export interface AiPromptTemplate {
   id: string
   title: string
@@ -101,6 +105,7 @@ export interface CrashRecoverySummary {
 }
 
 export interface DocumentRevisionSummary {
+  changeSummary: AgentChangeSummary | null
   displayTitle: string
   documentKind: Exclude<DocumentKind, 'blank'>
   id: string
@@ -118,6 +123,7 @@ export interface AppSettings {
   embedLocalImagesOnCopy: boolean
   background: BackgroundSettings
   font: FontSettings
+  documentSafety: DocumentSafetySettings
   aiHelper: AiHelperSettings
 }
 
@@ -223,6 +229,7 @@ export interface ElectronAPI {
   restoreCrashRecovery: () => Promise<boolean>
   dismissCrashRecovery: () => Promise<boolean>
   listDocumentRevisions: () => Promise<DocumentRevisionSummary[]>
+  openRevisionsDirectory: () => Promise<boolean>
   restoreDocumentRevision: (revisionId: string) => Promise<boolean>
   persistImageAsset: (payload: { bytes: Uint8Array; fileName: string; mimeType: string }) => Promise<PersistedImageAsset | null>
   readLocalImageAsDataUrl: (path: string) => Promise<string | null>
@@ -316,6 +323,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   restoreCrashRecovery: () => ipcRenderer.invoke('restore-crash-recovery'),
   dismissCrashRecovery: () => ipcRenderer.invoke('dismiss-crash-recovery'),
   listDocumentRevisions: () => ipcRenderer.invoke('list-document-revisions'),
+  openRevisionsDirectory: () => ipcRenderer.invoke('open-revisions-directory'),
   restoreDocumentRevision: (revisionId: string) => ipcRenderer.invoke('restore-document-revision', revisionId),
   persistImageAsset: (payload: { bytes: Uint8Array; fileName: string; mimeType: string }) => ipcRenderer.invoke('persist-image-asset', payload),
   readLocalImageAsDataUrl: (path: string) => ipcRenderer.invoke('read-local-image-as-data-url', path),

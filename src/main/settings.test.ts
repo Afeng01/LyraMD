@@ -116,6 +116,36 @@ describe('loadAppSettings', () => {
     expect(JSON.parse(await readFile(settingsPath, 'utf-8')).embedLocalImagesOnCopy).toBe(true)
   })
 
+  it('normalizes and updates document safety retention count', async () => {
+    const settingsModule = await loadSettingsModule()
+    const tempDir = await createTempDir()
+    const settingsPath = join(tempDir, 'settings.json')
+
+    expect(settingsModule.normalizeAppSettings({
+      documentSafety: {
+        maxRevisionsPerDocument: 18,
+      },
+    } as never).documentSafety.maxRevisionsPerDocument).toBe(18)
+    expect(settingsModule.normalizeAppSettings({
+      documentSafety: {
+        maxRevisionsPerDocument: 999,
+      },
+    } as never).documentSafety.maxRevisionsPerDocument).toBe(settingsModule.DEFAULT_APP_SETTINGS.documentSafety.maxRevisionsPerDocument)
+
+    const next = await settingsModule.updateAppSettings(
+      settingsPath,
+      settingsModule.DEFAULT_APP_SETTINGS,
+      {
+        documentSafety: {
+          maxRevisionsPerDocument: 24,
+        },
+      } as never,
+    )
+
+    expect(next.documentSafety.maxRevisionsPerDocument).toBe(24)
+    expect(JSON.parse(await readFile(settingsPath, 'utf-8')).documentSafety.maxRevisionsPerDocument).toBe(24)
+  })
+
   it('rejects invalid background settings', async () => {
     const settingsModule = await loadSettingsModule()
 

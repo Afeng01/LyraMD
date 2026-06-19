@@ -113,6 +113,12 @@
           <line x1="17" y1="16" x2="23" y2="16"></line>
         </svg>
       </button>
+      <button id="safety-toggle" type="button" aria-label="文稿安全" title="文稿安全">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 3l7 3v5c0 4.4-2.9 8.4-7 10-4.1-1.6-7-5.6-7-10V6l7-3z"></path>
+          <path d="M9.5 11.8l1.8 1.8 3.2-3.6"></path>
+        </svg>
+      </button>
       <button id="agent-toggle" class="context-toggle" type="button" aria-label="AI 精灵" title="AI 精灵 (Cmd/Ctrl+J)">
         <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M12.8 2.9l2.3 2.3-8.7 8.7-3.2.9.9-3.2 8.7-8.7z"></path>
@@ -260,6 +266,9 @@
                 所有恢复都会写成新草稿，不覆盖当前文稿。
               </div>
               <div id="revision-history-list"></div>
+              <div id="revision-history-actions">
+                <button id="revision-history-open-dir" type="button">打开备份目录</button>
+              </div>
             </div>
           </div>
         </div>
@@ -497,15 +506,42 @@
 
               <section class="settings-group">
                 <div class="settings-group-heading">
-                  <h4 class="settings-group-title">Agent 协作</h4>
-                  <p class="settings-group-copy">外部更新提示会显示新增、删除和修改行数；展开后可以查看摘要，并用“撤回这次更新”回到本轮外部更新之前。</p>
+                  <h4 class="settings-group-title">文稿安全</h4>
+                  <p class="settings-group-copy">把最近备份、异常恢复和本地保留策略放到同一个入口，减少崩溃或误操作后的损失。</p>
+                </div>
+                <div class="settings-field-grid">
+                  <label class="settings-field">
+                    <span>每篇文稿保留备份条数</span>
+                    <input id="settings-document-safety-max-revisions" type="number" min="10" max="200" step="1">
+                  </label>
+                  <div class="settings-field">
+                    <span>本地备份目录</span>
+                    <button id="settings-open-revisions-directory" type="button" class="overlay-button">打开备份目录</button>
+                  </div>
                 </div>
                 <div class="settings-integration-help settings-usage-guide">
                   <h5>本地备份与恢复怎么找</h5>
                   <ol>
-                    <li>打开任意草稿或正式 Markdown 文稿后，看编辑区右上方的浮层入口，点击“最近备份”即可展开当前文稿的本地历史。</li>
+                    <li>打开任意草稿或正式 Markdown 文稿后，点击标题栏的“文稿安全”按钮，即可展开当前文稿的本地历史。</li>
                     <li>列表会显示自动保存、手动保存、重命名、插图前检查点和异常恢复点；点“恢复为草稿”会新建一份草稿，不覆盖当前文稿。</li>
+                    <li>最近备份会优先显示这一版相对上一版的具体修改摘要，而不是从头把整篇文稿重新展开。</li>
                     <li>如果上次是异常退出，右上方还会额外出现“异常恢复”提示；点“恢复为新草稿”即可把崩溃前最后一次快照找回来。</li>
+                    <li>这里的保留条数只影响每篇文稿单独保留多少个本地版本，不会动你的正式 Markdown 文件。</li>
+                  </ol>
+                </div>
+              </section>
+
+              <section class="settings-group">
+                <div class="settings-group-heading">
+                  <h4 class="settings-group-title">Agent 协作</h4>
+                  <p class="settings-group-copy">外部更新提示会显示新增、删除和修改行数；展开后可以查看摘要，并用“撤回这次更新”回到本轮外部更新之前。</p>
+                </div>
+                <div class="settings-integration-help settings-usage-guide">
+                  <h5>和 Agent 一起改文稿时</h5>
+                  <ol>
+                    <li>外部更新提示会显示新增、删除和修改行数，方便先判断这次改动的量级。</li>
+                    <li>如果这次更新不对，直接点“撤回这次更新”，会回到这轮外部写入之前。</li>
+                    <li>如果要找更早的版本，再去“文稿安全”里从最近备份恢复成新草稿。</li>
                   </ol>
                 </div>
               </section>

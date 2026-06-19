@@ -484,8 +484,13 @@ export function insertImage(src: string, alt = '', title = ''): boolean {
       alt,
       title,
     })
-    const tr = view.state.tr.replaceSelectionWith(imageNode).scrollIntoView()
-    view.dispatch(tr)
+    const tr = view.state.tr.replaceSelectionWith(imageNode)
+    const selectionAnchor = Math.min(tr.doc.content.size, tr.selection.to)
+    view.dispatch(
+      tr
+        .setSelection(TextSelection.create(tr.doc, selectionAnchor))
+        .scrollIntoView(),
+    )
     rememberCurrentSelection()
     return true
   }) ?? false

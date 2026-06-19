@@ -158,11 +158,11 @@ describe('settings dialog regression', () => {
     const file = readFileSync(join(process.cwd(), 'src/renderer/settings-dialog.ts'), 'utf8')
     const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
 
-    expect(file).toContain('本地备份和恢复入口')
-    expect(html).toContain('本地备份与恢复怎么找')
-    expect(html).toContain('点击“最近备份”即可展开当前文稿的本地历史')
-    expect(html).toContain('点“恢复为草稿”会新建一份草稿，不覆盖当前文稿')
-    expect(html).toContain('点“恢复为新草稿”即可把崩溃前最后一次快照找回来')
+    expect(file).toContain('本地备份、恢复入口和保留策略')
+    expect(html).toContain('每篇文稿保留备份条数')
+    expect(html).toContain('id="settings-document-safety-max-revisions"')
+    expect(html).toContain('id="settings-open-revisions-directory"')
+    expect(html).toContain('点击标题栏的“文稿安全”按钮')
   })
 
   it('removes background controls and renders bottom status visibility control', () => {

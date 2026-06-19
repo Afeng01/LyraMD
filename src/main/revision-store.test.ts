@@ -89,6 +89,34 @@ describe('recordRevisionSnapshot', () => {
     expect(second.id).toBe(first.id)
   })
 
+  it('throttles noisy autosave snapshots while keeping the latest stable checkpoint', async () => {
+    const rootDir = await createTempDir()
+    const documentKey = createDocumentRevisionKey({ documentKind: 'file', draftId: null, filePath: '/tmp/note.md' })
+
+    const first = await recordRevisionSnapshot(rootDir, {
+      content: '# 第一版',
+      displayTitle: '标题一',
+      documentKind: 'file',
+      draftId: null,
+      filePath: '/tmp/note.md',
+      reason: 'autosave',
+      updatedAt: 1_000,
+    })
+
+    const second = await recordRevisionSnapshot(rootDir, {
+      content: '# 第一版\n继续写',
+      displayTitle: '标题一',
+      documentKind: 'file',
+      draftId: null,
+      filePath: '/tmp/note.md',
+      reason: 'autosave',
+      updatedAt: 5_000,
+    })
+
+    expect(second.id).toBe(first.id)
+    expect((await readLatestRevisionSnapshot(rootDir, documentKey))?.content).toBe('# 第一版')
+  })
+
   it('prunes old snapshots beyond the keep limit', async () => {
     const rootDir = await createTempDir()
 

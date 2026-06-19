@@ -273,6 +273,7 @@ body.platform-win32 #windows-titlebar {
 
 body.platform-win32 #sidebar-toggle,
 body.platform-win32 #settings-toggle,
+body.platform-win32 #safety-toggle,
 body.platform-win32 #agent-toggle,
 body.platform-win32 #outline-toggle {
   top: 4px;
@@ -284,6 +285,10 @@ body.platform-win32 #sidebar-toggle {
 
 body.platform-win32 #settings-toggle {
   left: 136px;
+}
+
+body.platform-win32 #safety-toggle {
+  left: 168px;
 }
 
 body.platform-win32 #agent-toggle {
@@ -332,6 +337,7 @@ body.platform-win32 #outline-toggle {
   transition: all 0.18s ease;
 }
 
+#safety-toggle,
 #agent-toggle,
 #outline-toggle {
   position: absolute;
@@ -351,6 +357,10 @@ body.platform-win32 #outline-toggle {
   transition: all 0.18s ease;
 }
 
+#safety-toggle {
+  left: 140px;
+}
+
 #agent-toggle {
   right: 88px;
 }
@@ -361,6 +371,8 @@ body.platform-win32 #outline-toggle {
 
 #sidebar-toggle:hover,
 #settings-toggle:hover,
+#safety-toggle:hover,
+#safety-toggle.active,
 #agent-toggle:hover,
 #agent-toggle.active,
 #outline-toggle:hover,
@@ -372,11 +384,17 @@ body.platform-win32 #outline-toggle {
 
 #sidebar-toggle svg,
 #settings-toggle svg,
+#safety-toggle svg,
 #agent-toggle svg,
 #outline-toggle svg {
   width: 16px;
   height: 16px;
   display: block;
+}
+
+#safety-toggle:disabled {
+  opacity: 0.34;
+  cursor: default;
 }
 
 #workspace {
@@ -2334,6 +2352,24 @@ body.sidebar-resizing * {
   color: var(--text-muted);
 }
 
+.revision-history-item-summary {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.revision-history-preview {
+  margin-top: 8px;
+  padding: 8px 9px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-color) 84%, var(--border-color) 16%);
+}
+
+.revision-history-preview .agent-change-line {
+  min-height: 20px;
+  padding: 2px 0;
+}
+
 .revision-history-item-restore {
   min-height: 30px;
   padding: 0 10px;
@@ -2348,6 +2384,28 @@ body.sidebar-resizing * {
 
 .revision-history-item-restore:hover {
   background: color-mix(in srgb, var(--link-color) 16%, var(--bg-color) 84%);
+}
+
+#revision-history-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+#revision-history-open-dir {
+  min-height: 26px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 78%, transparent 22%);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+#revision-history-open-dir:hover {
+  color: var(--text-color);
+  background: color-mix(in srgb, var(--selection-bg) 32%, transparent 68%);
 }
 
 #search-panel {

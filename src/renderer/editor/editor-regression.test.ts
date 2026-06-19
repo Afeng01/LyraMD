@@ -66,4 +66,12 @@ describe('image asset workflow regression', () => {
     expect(editor).toContain('normalizeMarkdownImageDestinations(content)')
     expect(editor).toContain('replaceAll(normalizedContent, !preserveHistory)')
   })
+
+  it('places the text selection after an inserted image so IME input can continue in text context', () => {
+    const editor = readFileSync(join(process.cwd(), 'src/renderer/editor/editor.ts'), 'utf8')
+
+    expect(editor).toContain('replaceSelectionWith(imageNode)')
+    expect(editor).toContain('TextSelection.create')
+    expect(editor).toContain('selectionAnchor')
+  })
 })

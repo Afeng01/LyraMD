@@ -77,7 +77,7 @@ import {
   type WorkdirTreeRow,
 } from './sidebar-view'
 import { applyTheme, loadSavedTheme } from './themes/theme-manager'
-import type { AgentChangePayload, AgentChangePreviewLine, AgentChangeSummary, AppSettings, BackgroundSettings, CrashRecoverySummary, FontSettings, McpDocumentRequest, ShortcutAction, SidebarState, SidebarTab } from '../preload/index'
+import type { AgentChangePayload, AgentChangePreviewLine, AgentChangeSummary, AppSettings, BackgroundSettings, CrashRecoverySummary, DocumentRevisionSummary, FontSettings, McpDocumentRequest, ShortcutAction, SidebarState, SidebarTab } from '../preload/index'
 import { localMediaUrlToAbsolutePath } from '../shared/local-media'
 import './themes/base.css'
 
@@ -500,6 +500,10 @@ async function init(): Promise<void> {
   let pendingBlankMaterialization = false
   let titleEditActive = false
   let titleEditValue = ''
+  let documentRevisionEntries: DocumentRevisionSummary[] = []
+  let documentRevisionExpanded = false
+  let documentRevisionLoading = false
+  let activeDocumentRevisionKey: string | null = null
   let mcpRevision = `rev-${Date.now()}-${Math.random().toString(16).slice(2)}`
   let titleSyncPromptState:
     | {
@@ -552,7 +556,17 @@ async function init(): Promise<void> {
       state.currentFilePath,
       state.currentDraftId,
     )
+    const nextDocumentRevisionKey = state.currentDocumentKind === 'blank'
+      ? null
+      : `${state.currentDocumentKind}:${state.currentDraftId ?? state.currentFilePath ?? ''}`
     sidebarState = state
+    if (activeDocumentRevisionKey !== nextDocumentRevisionKey) {
+      activeDocumentRevisionKey = nextDocumentRevisionKey
+      documentRevisionEntries = []
+      documentRevisionExpanded = false
+      documentRevisionLoading = false
+      renderDocumentRevisionPanel()
+    }
     if (lastDocumentViewportKey !== nextViewportKey) {
       bumpMcpRevision()
     }
@@ -722,6 +736,13 @@ async function init(): Promise<void> {
   const crashRecoveryBody = document.getElementById('crash-recovery-body') as HTMLDivElement | null
   const crashRecoveryRestore = document.getElementById('crash-recovery-restore') as HTMLButtonElement | null
   const crashRecoveryDismiss = document.getElementById('crash-recovery-dismiss') as HTMLButtonElement | null
+  const revisionHistoryPanel = document.getElementById('revision-history-panel') as HTMLDivElement | null
+  const revisionHistoryToggle = document.getElementById('revision-history-toggle') as HTMLButtonElement | null
+  const revisionHistoryTitle = document.getElementById('revision-history-title') as HTMLSpanElement | null
+  const revisionHistoryMeta = document.getElementById('revision-history-meta') as HTMLSpanElement | null
+  const revisionHistoryDetails = document.getElementById('revision-history-details') as HTMLDivElement | null
+  const revisionHistoryBody = document.getElementById('revision-history-body') as HTMLDivElement | null
+  const revisionHistoryList = document.getElementById('revision-history-list') as HTMLDivElement | null
   const aiPaletteOverlay = document.getElementById('ai-command-overlay') as HTMLDivElement | null
   const aiPaletteSearch = document.getElementById('ai-palette-search') as HTMLTextAreaElement | null
   const aiPaletteChips = document.getElementById('ai-palette-chips') as HTMLDivElement | null
@@ -1634,6 +1655,80 @@ async function init(): Promise<void> {
   const refreshCrashRecoveryPanel = async (): Promise<void> => {
     crashRecoverySummary = await api.getCrashRecoveryState?.().catch(() => null) ?? null
     renderCrashRecoveryPanel()
+  }
+
+  const renderDocumentRevisionPanel = (): void => {
+    if (!revisionHistoryPanel || !revisionHistoryToggle || !revisionHistoryTitle || !revisionHistoryMeta || !revisionHistoryDetails || !revisionHistoryBody || !revisionHistoryList) {
+      return
+    }
+
+    const hasActiveDocument = !!sidebarState && sidebarState.currentDocumentKind !== 'blank'
+    revisionHistoryPanel.hidden = !hasActiveDocument
+    if (!hasActiveDocument) return
+
+    revisionHistoryToggle.setAttribute('aria-expanded', documentRevisionExpanded ? 'true' : 'false')
+    revisionHistoryTitle.textContent = '最近备份'
+    revisionHistoryMeta.textContent = documentRevisionLoading
+      ? '读取中…'
+      : documentRevisionEntries.length > 0
+        ? `${documentRevisionEntries.length} 条本地版本`
+        : '查看本地版本'
+
+    revisionHistoryDetails.hidden = !documentRevisionExpanded
+    if (!documentRevisionExpanded) return
+
+    revisionHistoryBody.textContent = documentRevisionLoading
+      ? '正在读取当前文稿的本地备份…'
+      : documentRevisionEntries.length > 0
+        ? '所有恢复都会写成新草稿，不覆盖当前文稿。'
+        : '当前文稿还没有可恢复的本地版本。'
+
+    revisionHistoryList.replaceChildren()
+    for (const entry of documentRevisionEntries) {
+      const item = document.createElement('div')
+      item.className = 'revision-history-item'
+
+      const main = document.createElement('div')
+      main.className = 'revision-history-item-main'
+
+      const title = document.createElement('div')
+      title.className = 'revision-history-item-title'
+      title.textContent = entry.displayTitle || '未命名文稿'
+
+      const meta = document.createElement('div')
+      meta.className = 'revision-history-item-meta'
+      meta.textContent = `${entry.reason} · ${new Date(entry.updatedAt).toLocaleString('zh-CN', {
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        month: '2-digit',
+      })}`
+
+      const restore = document.createElement('button')
+      restore.type = 'button'
+      restore.className = 'revision-history-item-restore'
+      restore.dataset.revisionId = entry.id
+      restore.textContent = '恢复为草稿'
+
+      main.append(title, meta)
+      item.append(main, restore)
+      revisionHistoryList.appendChild(item)
+    }
+  }
+
+  const refreshDocumentRevisionPanel = async (): Promise<void> => {
+    if (!sidebarState || sidebarState.currentDocumentKind === 'blank') {
+      documentRevisionEntries = []
+      documentRevisionLoading = false
+      renderDocumentRevisionPanel()
+      return
+    }
+
+    documentRevisionLoading = true
+    renderDocumentRevisionPanel()
+    documentRevisionEntries = await api.listDocumentRevisions?.().catch(() => []) ?? []
+    documentRevisionLoading = false
+    renderDocumentRevisionPanel()
   }
 
   const restoreAgentChangeSession = (): void => {
@@ -3307,6 +3402,33 @@ img{max-width:100%}
       crashRecoverySummary = null
       renderCrashRecoveryPanel()
     }).catch(() => {})
+  })
+
+  revisionHistoryToggle?.addEventListener('click', () => {
+    documentRevisionExpanded = !documentRevisionExpanded
+    renderDocumentRevisionPanel()
+    if (documentRevisionExpanded) {
+      void refreshDocumentRevisionPanel()
+    }
+  })
+
+  revisionHistoryList?.addEventListener('click', (event) => {
+    const target = event.target
+    if (!(target instanceof HTMLElement)) return
+    const button = target.closest<HTMLButtonElement>('[data-revision-id]')
+    const revisionId = button?.dataset.revisionId
+    if (!button || !revisionId) return
+
+    button.disabled = true
+    void api.restoreDocumentRevision?.(revisionId).then((restored) => {
+      button.disabled = false
+      if (!restored) return
+      documentRevisionExpanded = false
+      renderDocumentRevisionPanel()
+      syncSidebarState()
+    }).catch(() => {
+      button.disabled = false
+    })
   })
 
   drawerBackdrop?.addEventListener('click', () => {

@@ -32,6 +32,17 @@ describe('agent change panel regression', () => {
     expect(main).toContain('api.restoreCrashRecovery?.()')
   })
 
+  it('ships a visible recent revisions entry point for local backups', () => {
+    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
+    const main = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+
+    expect(html).toContain('id="revision-history-panel"')
+    expect(html).toContain('id="revision-history-toggle"')
+    expect(main).toContain('renderDocumentRevisionPanel')
+    expect(main).toContain("revisionHistoryToggle?.addEventListener('click'")
+    expect(main).toContain('api.restoreDocumentRevision?.(')
+  })
+
   it('opens the first external update summary as an inline onboarding hint', () => {
     const main = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
 

@@ -49,12 +49,18 @@ import { moveFileToTrashAndVerify } from './file-removal'
 import { summarizeAgentChange } from './agent-change-summary'
 import {
   clearCrashRecoveryState,
+  createDocumentRevisionKey,
+  listRevisionSnapshots,
+  moveDocumentRevisionSnapshots,
   readCrashRecoveryState,
+  readRevisionSnapshotById,
   recordRevisionSnapshot,
   writeCrashRecoveryState,
   type CrashRecoveryState,
+  type RevisionDocumentKind,
   type RevisionReason,
   type RevisionSnapshotInput,
+  type StoredRevisionSnapshot,
 } from './revision-store'
 import { createSettingsWindowOptions, createWindowOptions } from './window-platform'
 import { EDITABLE_FILE_FILTERS } from './file-extensions'
@@ -378,6 +384,59 @@ function formatCrashReasonLabel(reason: string): string {
   if (reason === 'abnormal-exit') return '异常退出'
   if (reason === 'launch-failed') return '启动失败'
   return '渲染器异常中断'
+}
+
+function formatRevisionReasonLabel(reason: RevisionReason): string {
+  if (reason === 'autosave') return '自动保存'
+  if (reason === 'save') return '手动保存'
+  if (reason === 'save-as') return '另存为'
+  if (reason === 'rename') return '重命名'
+  if (reason === 'image-checkpoint') return '插图前检查点'
+  if (reason === 'crash') return '异常恢复点'
+  if (reason === 'restore') return '从备份恢复'
+  return '本地备份'
+}
+
+function createRevisionSummary(snapshot: StoredRevisionSnapshot): {
+  displayTitle: string
+  documentKind: RevisionDocumentKind
+  id: string
+  reason: string
+  updatedAt: number
+} {
+  return {
+    displayTitle: snapshot.displayTitle,
+    documentKind: snapshot.documentKind,
+    id: snapshot.id,
+    reason: formatRevisionReasonLabel(snapshot.reason),
+    updatedAt: snapshot.updatedAt,
+  }
+}
+
+function createCurrentDocumentRevisionKey(state: WindowState): string | null {
+  if (state.documentKind === 'blank' || !state.filePath) return null
+  return createDocumentRevisionKey({
+    documentKind: state.documentKind,
+    draftId: state.draftId,
+    filePath: state.filePath,
+  })
+}
+
+async function moveRevisionHistoryForDocument(
+  source: {
+    documentKind: RevisionDocumentKind
+    draftId: string | null
+    filePath: string | null
+  },
+  target: {
+    documentKind: RevisionDocumentKind
+    draftId: string | null
+    filePath: string | null
+  },
+): Promise<void> {
+  const sourceKey = createDocumentRevisionKey(source)
+  const targetKey = createDocumentRevisionKey(target)
+  await moveDocumentRevisionSnapshots(revisionsDir, sourceKey, targetKey).catch(() => {})
 }
 
 async function persistCrashRecoveryForWindowState(
@@ -856,16 +915,17 @@ async function getCrashRecoverySummary(): Promise<{
   }
 }
 
-async function restoreCrashRecoveryToDraft(triggerWin: BrowserWindow): Promise<boolean> {
-  const recoveryState = await readCrashRecoveryState(crashRecoveryStatePath)
-  if (!recoveryState) return false
-
+async function restoreRevisionSnapshotToDraft(
+  triggerWin: BrowserWindow,
+  snapshot: StoredRevisionSnapshot,
+  reason: RevisionReason,
+): Promise<boolean> {
   const draftDirectoryPath = getEffectiveDraftDirectoryPath()
   await mkdir(draftDirectoryPath, { recursive: true })
   const now = Date.now()
   const nextDraftState = upsertDraftEntry({
     entries: sidebarState.draftEntries,
-    content: recoveryState.snapshot.content,
+    content: snapshot.content,
     draftDirectoryPath,
     now,
     suffix: sidebarState.draftEntries.length + 1,
@@ -881,18 +941,17 @@ async function restoreCrashRecoveryToDraft(triggerWin: BrowserWindow): Promise<b
   } else {
     sidebarState.draftEntries = nextDraftState.entries
   }
-  await writeFile(draftEntry.path, recoveryState.snapshot.content, 'utf-8')
+  await writeFile(draftEntry.path, snapshot.content, 'utf-8')
   await persistSidebarState()
   await recordRevisionSnapshot(revisionsDir, {
-    content: recoveryState.snapshot.content,
+    content: snapshot.content,
     displayTitle: draftEntry.displayTitle,
     documentKind: 'draft',
     draftId: draftEntry.id,
     filePath: draftEntry.path,
-    reason: 'crash',
+    reason,
     updatedAt: now,
   }).catch(() => {})
-  await clearCrashRecoveryState(crashRecoveryStatePath).catch(() => {})
 
   const activeState = getState(triggerWin)
   const targetWin = activeState.documentKind === 'blank' && !activeState.filePath
@@ -906,6 +965,42 @@ async function restoreCrashRecoveryToDraft(triggerWin: BrowserWindow): Promise<b
   targetWin.focus()
   broadcastSidebarState()
   return true
+}
+
+async function restoreCrashRecoveryToDraft(triggerWin: BrowserWindow): Promise<boolean> {
+  const recoveryState = await readCrashRecoveryState(crashRecoveryStatePath)
+  if (!recoveryState) return false
+
+  const restored = await restoreRevisionSnapshotToDraft(triggerWin, recoveryState.snapshot, 'crash')
+  if (restored) {
+    await clearCrashRecoveryState(crashRecoveryStatePath).catch(() => {})
+  }
+  return restored
+}
+
+async function listDocumentRevisionsForWindow(win: BrowserWindow): Promise<Array<{
+  displayTitle: string
+  documentKind: RevisionDocumentKind
+  id: string
+  reason: string
+  updatedAt: number
+}>> {
+  const state = getState(win)
+  const documentKey = createCurrentDocumentRevisionKey(state)
+  if (!documentKey) return []
+
+  const snapshots = await listRevisionSnapshots(revisionsDir, documentKey).catch(() => [])
+  return snapshots.map((snapshot) => createRevisionSummary(snapshot))
+}
+
+async function restoreDocumentRevisionToDraft(triggerWin: BrowserWindow, revisionId: string): Promise<boolean> {
+  const state = getState(triggerWin)
+  const documentKey = createCurrentDocumentRevisionKey(state)
+  if (!documentKey) return false
+
+  const snapshot = await readRevisionSnapshotById(revisionsDir, documentKey, revisionId).catch(() => null)
+  if (!snapshot) return false
+  return restoreRevisionSnapshotToDraft(triggerWin, snapshot, 'restore')
 }
 
 function registerLocalMediaProtocol(): void {
@@ -936,6 +1031,10 @@ async function renameCurrentFileToPath(win: BrowserWindow, nextPath: string): Pr
     content: currentContent,
     removeSource: true,
   })
+  await moveRevisionHistoryForDocument(
+    { documentKind: 'file', draftId: null, filePath: previousPath },
+    { documentKind: 'file', draftId: null, filePath: nextPath },
+  )
   moveFileTitleOverride(previousPath, nextPath)
   sidebarState.pinnedItems = replacePinnedFilePath(sidebarState.pinnedItems, previousPath, nextPath)
   await persistSidebarState()
@@ -990,6 +1089,10 @@ async function renameFormalFileByTitleForAllWindows(
   } catch {
     return createSidebarSnapshot(triggerWin)
   }
+  await moveRevisionHistoryForDocument(
+    { documentKind: 'file', draftId: null, filePath: previousPath },
+    { documentKind: 'file', draftId: null, filePath: nextPath },
+  )
 
   delete sidebarState.fileTitleOverrides[previousPath]
   sidebarState.fileTitleOverrides[nextPath] = displayTitle
@@ -1569,6 +1672,10 @@ async function saveFileAsForWindow(win: BrowserWindow, nextPath: string, content
       recordIgnoredWatchedContent(state.ignoredWatchedContents, nextContent)
       setFileDocumentState(win, nextPath, 'file', null)
       state.lastSyncedContent = nextContent
+      await moveRevisionHistoryForDocument(
+        { documentKind: 'draft', draftId: sourceDraftId, filePath: sourcePath },
+        { documentKind: 'file', draftId: null, filePath: nextPath },
+      )
       if (sourceDraft?.manualTitle) {
         setFileTitleOverride(nextPath, sourceDraft.manualTitle)
       }
@@ -1601,6 +1708,13 @@ async function saveFileAsForWindow(win: BrowserWindow, nextPath: string, content
   })
   const didSave = await saveToPath(win, nextPath, migrated.content, 'save-as')
   if (!didSave) return false
+
+  if (removeSource && sourcePath) {
+    await moveRevisionHistoryForDocument(
+      { documentKind: 'file', draftId: null, filePath: sourcePath },
+      { documentKind: 'file', draftId: null, filePath: nextPath },
+    )
+  }
 
   if (removeSource && sourcePath) {
     try {
@@ -1950,6 +2064,18 @@ ipcMain.handle('restore-crash-recovery', async (event) => {
 ipcMain.handle('dismiss-crash-recovery', async () => {
   await clearCrashRecoveryState(crashRecoveryStatePath).catch(() => {})
   return true
+})
+
+ipcMain.handle('list-document-revisions', async (event) => {
+  const win = getWinFromEvent(event)
+  if (!win) return []
+  return listDocumentRevisionsForWindow(win)
+})
+
+ipcMain.handle('restore-document-revision', async (event, revisionId: string) => {
+  const win = getWinFromEvent(event)
+  if (!win || typeof revisionId !== 'string') return false
+  return restoreDocumentRevisionToDraft(win, revisionId)
 })
 
 ipcMain.handle('persist-image-asset', async (

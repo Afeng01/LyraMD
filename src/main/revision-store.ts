@@ -1,8 +1,8 @@
-import { mkdir, readdir, readFile, rm, writeFile } from 'fs/promises'
+import { mkdir, readdir, readFile, rename, rm, writeFile } from 'fs/promises'
 import { join } from 'path'
 
 export type RevisionDocumentKind = 'draft' | 'file'
-export type RevisionReason = 'autosave' | 'save' | 'save-as' | 'rename' | 'image-checkpoint' | 'crash'
+export type RevisionReason = 'autosave' | 'save' | 'save-as' | 'rename' | 'image-checkpoint' | 'crash' | 'restore'
 
 export interface RevisionSnapshotInput {
   content: string
@@ -83,19 +83,61 @@ export async function readLatestRevisionSnapshot(
   revisionsRootDir: string,
   documentKey: string,
 ): Promise<StoredRevisionSnapshot | null> {
-  const documentDir = join(revisionsRootDir, documentKey)
-  const fileNames = await readdir(documentDir).catch(() => [])
-  const latestFileName = fileNames
-    .filter((fileName) => fileName.endsWith('.json'))
-    .sort()
-    .at(-1)
+  const latestFileName = await listRevisionFileNames(revisionsRootDir, documentKey).then((fileNames) => fileNames.at(-1))
 
   if (!latestFileName) return null
 
-  const raw = await readFile(join(documentDir, latestFileName), 'utf-8').catch(() => null)
+  const raw = await readFile(join(revisionsRootDir, documentKey, latestFileName), 'utf-8').catch(() => null)
   if (!raw) return null
 
   return parseStoredRevisionSnapshot(raw)
+}
+
+export async function listRevisionSnapshots(
+  revisionsRootDir: string,
+  documentKey: string,
+  limit = 12,
+): Promise<StoredRevisionSnapshot[]> {
+  const fileNames = await listRevisionFileNames(revisionsRootDir, documentKey)
+  const selectedFileNames = fileNames.slice(Math.max(0, fileNames.length - limit)).reverse()
+  const snapshots = await Promise.all(selectedFileNames.map(async (fileName) => {
+    const raw = await readFile(join(revisionsRootDir, documentKey, fileName), 'utf-8').catch(() => null)
+    return raw ? parseStoredRevisionSnapshot(raw) : null
+  }))
+
+  return snapshots.filter((snapshot): snapshot is StoredRevisionSnapshot => snapshot !== null)
+}
+
+export async function readRevisionSnapshotById(
+  revisionsRootDir: string,
+  documentKey: string,
+  revisionId: string,
+): Promise<StoredRevisionSnapshot | null> {
+  if (!revisionId.trim()) return null
+
+  const snapshots = await listRevisionSnapshots(revisionsRootDir, documentKey, DEFAULT_MAX_REVISIONS_PER_DOCUMENT)
+  return snapshots.find((snapshot) => snapshot.id === revisionId) ?? null
+}
+
+export async function moveDocumentRevisionSnapshots(
+  revisionsRootDir: string,
+  sourceDocumentKey: string,
+  targetDocumentKey: string,
+): Promise<void> {
+  if (!sourceDocumentKey || !targetDocumentKey || sourceDocumentKey === targetDocumentKey) return
+
+  const sourceDir = join(revisionsRootDir, sourceDocumentKey)
+  const targetDir = join(revisionsRootDir, targetDocumentKey)
+  const fileNames = await listRevisionFileNames(revisionsRootDir, sourceDocumentKey)
+  if (fileNames.length === 0) return
+
+  await mkdir(targetDir, { recursive: true })
+
+  for (const fileName of fileNames) {
+    await rename(join(sourceDir, fileName), join(targetDir, fileName))
+  }
+
+  await rm(sourceDir, { recursive: true, force: true })
 }
 
 export async function writeCrashRecoveryState(
@@ -150,6 +192,12 @@ async function pruneRevisionSnapshots(documentDir: string, keepCount: number): P
 
   const filesToRemove = fileNames.slice(0, Math.max(0, fileNames.length - keepCount))
   await Promise.all(filesToRemove.map((fileName) => rm(join(documentDir, fileName), { force: true })))
+}
+
+async function listRevisionFileNames(revisionsRootDir: string, documentKey: string): Promise<string[]> {
+  return (await readdir(join(revisionsRootDir, documentKey)).catch(() => []))
+    .filter((fileName) => fileName.endsWith('.json'))
+    .sort()
 }
 
 function parseStoredRevisionSnapshot(raw: string): StoredRevisionSnapshot | null {

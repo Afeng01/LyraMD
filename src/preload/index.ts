@@ -100,6 +100,14 @@ export interface CrashRecoverySummary {
   updatedAt: number
 }
 
+export interface DocumentRevisionSummary {
+  displayTitle: string
+  documentKind: Exclude<DocumentKind, 'blank'>
+  id: string
+  reason: string
+  updatedAt: number
+}
+
 export interface AppSettings {
   titleSyncMode: TitleSyncMode
   saveAsMode: SaveAsMode
@@ -214,6 +222,8 @@ export interface ElectronAPI {
   getCrashRecoveryState: () => Promise<CrashRecoverySummary | null>
   restoreCrashRecovery: () => Promise<boolean>
   dismissCrashRecovery: () => Promise<boolean>
+  listDocumentRevisions: () => Promise<DocumentRevisionSummary[]>
+  restoreDocumentRevision: (revisionId: string) => Promise<boolean>
   persistImageAsset: (payload: { bytes: Uint8Array; fileName: string; mimeType: string }) => Promise<PersistedImageAsset | null>
   readLocalImageAsDataUrl: (path: string) => Promise<string | null>
   getCodexIntegrationStatus: () => Promise<CodexIntegrationStatus | null>
@@ -305,6 +315,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getCrashRecoveryState: () => ipcRenderer.invoke('get-crash-recovery-state'),
   restoreCrashRecovery: () => ipcRenderer.invoke('restore-crash-recovery'),
   dismissCrashRecovery: () => ipcRenderer.invoke('dismiss-crash-recovery'),
+  listDocumentRevisions: () => ipcRenderer.invoke('list-document-revisions'),
+  restoreDocumentRevision: (revisionId: string) => ipcRenderer.invoke('restore-document-revision', revisionId),
   persistImageAsset: (payload: { bytes: Uint8Array; fileName: string; mimeType: string }) => ipcRenderer.invoke('persist-image-asset', payload),
   readLocalImageAsDataUrl: (path: string) => ipcRenderer.invoke('read-local-image-as-data-url', path),
   getCodexIntegrationStatus: () => ipcRenderer.invoke('codex-integration-status'),

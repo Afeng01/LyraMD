@@ -250,6 +250,18 @@
               <button id="crash-recovery-dismiss" type="button">先忽略</button>
             </div>
           </div>
+          <div id="revision-history-panel" hidden aria-live="polite">
+            <button id="revision-history-toggle" type="button" aria-expanded="false">
+              <span id="revision-history-title">最近备份</span>
+              <span id="revision-history-meta">查看本地版本</span>
+            </button>
+            <div id="revision-history-details" hidden>
+              <div id="revision-history-body">
+                所有恢复都会写成新草稿，不覆盖当前文稿。
+              </div>
+              <div id="revision-history-list"></div>
+            </div>
+          </div>
         </div>
         <div id="editor-stage">
           <div id="editor-placeholder" aria-hidden="true">

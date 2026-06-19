@@ -16,7 +16,7 @@ Real-time collaboration between humans and AI agents, adapted for a quieter work
 
 - **Live file refresh**: when an AI agent edits the current Markdown file, LyraMD reloads it automatically.
 - **Agent change summary** for external edits, with compact preview, burst coalescing, and one-click rollback.
-- **Local safety net** with draft autosave, per-document local revision snapshots, image-insert checkpoints, and crash recovery into a new draft.
+- **Local safety net** with draft autosave, per-document local revision snapshots, image-insert checkpoints, a visible recent-backups panel, and crash recovery into a new draft.
 - **AI Genie command palette** for selected text, with editable prompt templates, model status, preview, replace, insert, and copy actions.
 - **OpenAI-compatible provider settings** for official OpenAI keys or custom gateways, including a built-in connection check.
 - **Codex MCP integration** from Settings, installing the LyraMD MCP bridge so Codex can read and write the current document.

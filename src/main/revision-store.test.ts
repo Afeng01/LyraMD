@@ -6,8 +6,11 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   clearCrashRecoveryState,
   createDocumentRevisionKey,
+  listRevisionSnapshots,
+  moveDocumentRevisionSnapshots,
   readCrashRecoveryState,
   readLatestRevisionSnapshot,
+  readRevisionSnapshotById,
   recordRevisionSnapshot,
   writeCrashRecoveryState,
 } from './revision-store'
@@ -125,6 +128,57 @@ describe('recordRevisionSnapshot', () => {
       createDocumentRevisionKey({ documentKind: 'file', draftId: null, filePath: '/tmp/note.md' }),
     )
     expect(surviving?.content).toBe('# 三')
+  })
+
+  it('lists snapshots newest-first and reads a snapshot by id', async () => {
+    const rootDir = await createTempDir()
+    const documentKey = createDocumentRevisionKey({ documentKind: 'file', draftId: null, filePath: '/tmp/note.md' })
+
+    const first = await recordRevisionSnapshot(rootDir, {
+      content: '# 一',
+      displayTitle: '一',
+      documentKind: 'file',
+      draftId: null,
+      filePath: '/tmp/note.md',
+      reason: 'autosave',
+      updatedAt: 1,
+    })
+
+    const second = await recordRevisionSnapshot(rootDir, {
+      content: '# 二',
+      displayTitle: '二',
+      documentKind: 'file',
+      draftId: null,
+      filePath: '/tmp/note.md',
+      reason: 'save',
+      updatedAt: 2,
+    })
+
+    const snapshots = await listRevisionSnapshots(rootDir, documentKey)
+
+    expect(snapshots.map((snapshot) => snapshot.id)).toEqual([second.id, first.id])
+    expect((await readRevisionSnapshotById(rootDir, documentKey, first.id))?.content).toBe('# 一')
+  })
+
+  it('moves a document revision chain to a new key', async () => {
+    const rootDir = await createTempDir()
+    const sourceKey = createDocumentRevisionKey({ documentKind: 'file', draftId: null, filePath: '/tmp/old.md' })
+    const targetKey = createDocumentRevisionKey({ documentKind: 'file', draftId: null, filePath: '/tmp/new.md' })
+
+    await recordRevisionSnapshot(rootDir, {
+      content: '# 历史',
+      displayTitle: '旧文件',
+      documentKind: 'file',
+      draftId: null,
+      filePath: '/tmp/old.md',
+      reason: 'rename',
+      updatedAt: 1,
+    })
+
+    await moveDocumentRevisionSnapshots(rootDir, sourceKey, targetKey)
+
+    expect(await readLatestRevisionSnapshot(rootDir, sourceKey)).toBeNull()
+    expect((await readLatestRevisionSnapshot(rootDir, targetKey))?.content).toBe('# 历史')
   })
 })
 

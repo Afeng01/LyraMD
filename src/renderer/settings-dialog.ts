@@ -199,7 +199,7 @@ const SETTINGS_PANE_META: Record<
   { description: string; kicker: string; title: string }
 > = {
   general: {
-    description: '决定标题和文件名如何一起工作，以及另存为后的切换方式。',
+    description: '决定标题同步、另存为切换方式，以及本地备份和恢复入口如何配合使用。',
     kicker: '基础',
     title: '编辑器行为',
   },

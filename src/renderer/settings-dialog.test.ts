@@ -154,6 +154,17 @@ describe('settings dialog regression', () => {
     expect(css).toContain('settings-usage-guide')
   })
 
+  it('documents recent backup and crash recovery entry points in general settings', () => {
+    const file = readFileSync(join(process.cwd(), 'src/renderer/settings-dialog.ts'), 'utf8')
+    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
+
+    expect(file).toContain('本地备份和恢复入口')
+    expect(html).toContain('本地备份与恢复怎么找')
+    expect(html).toContain('点击“最近备份”即可展开当前文稿的本地历史')
+    expect(html).toContain('点“恢复为草稿”会新建一份草稿，不覆盖当前文稿')
+    expect(html).toContain('点“恢复为新草稿”即可把崩溃前最后一次快照找回来')
+  })
+
   it('removes background controls and renders bottom status visibility control', () => {
     const file = readFileSync(join(process.cwd(), 'src/renderer/settings-dialog.ts'), 'utf8')
     const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')

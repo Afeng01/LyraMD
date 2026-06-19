@@ -1,17 +1,29 @@
-const PASSTHROUGH_SRC_PATTERN = /^(?:https?:|data:|blob:|file:)/i
+import {
+  absolutePathToLocalMediaUrl,
+  fileUrlToAbsolutePath,
+  isLocalMediaUrl,
+} from '../../shared/local-media'
+
 const WINDOWS_ABSOLUTE_PATH_PATTERN = /^[a-zA-Z]:[\\/]/
 
 export function resolveMarkdownImageSrc(src: string, markdownFilePath: string | null): string {
   const trimmed = src.trim()
-  if (!trimmed || PASSTHROUGH_SRC_PATTERN.test(trimmed) || trimmed.startsWith('#')) return src
+  if (!trimmed || trimmed.startsWith('#') || isLocalMediaUrl(trimmed)) return src
+
+  if (trimmed.toLowerCase().startsWith('file:')) {
+    const absolutePath = fileUrlToAbsolutePath(trimmed)
+    return absolutePath ? absolutePathToLocalMediaUrl(absolutePath) : src
+  }
+
+  if (/^(?:https?:|data:|blob:)/i.test(trimmed)) return src
 
   if (isAbsoluteLocalPath(trimmed)) {
-    return localPathToFileUrl(trimmed)
+    return absolutePathToLocalMediaUrl(trimmed)
   }
 
   if (!markdownFilePath) return src
 
-  return localPathToFileUrl(joinLocalPath(dirname(markdownFilePath), trimmed))
+  return absolutePathToLocalMediaUrl(joinLocalPath(dirname(markdownFilePath), trimmed))
 }
 
 function isAbsoluteLocalPath(path: string): boolean {
@@ -42,18 +54,4 @@ function joinLocalPath(basePath: string, relativePath: string): string {
   }
 
   return `${prefix}${segments.join('/')}`
-}
-
-function localPathToFileUrl(path: string): string {
-  const normalized = path.replaceAll('\\', '/')
-  const absolutePath = WINDOWS_ABSOLUTE_PATH_PATTERN.test(normalized)
-    ? `/${normalized}`
-    : normalized
-  const encodedPath = absolutePath
-    .split('/')
-    .map((segment) => encodeURIComponent(segment))
-    .join('/')
-    .replace('%3A', ':')
-
-  return `file://${encodedPath.startsWith('/') ? '' : '/'}${encodedPath}`
 }

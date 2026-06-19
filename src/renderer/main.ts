@@ -78,6 +78,7 @@ import {
 } from './sidebar-view'
 import { applyTheme, loadSavedTheme } from './themes/theme-manager'
 import type { AgentChangePayload, AgentChangePreviewLine, AgentChangeSummary, AppSettings, BackgroundSettings, FontSettings, McpDocumentRequest, ShortcutAction, SidebarState, SidebarTab } from '../preload/index'
+import { localMediaUrlToAbsolutePath } from '../shared/local-media'
 import './themes/base.css'
 
 type TitleEditingAPI = typeof window.electronAPI & {
@@ -117,21 +118,6 @@ function isSupportedImageFile(file: File): boolean {
     return true
   }
   return SUPPORTED_IMAGE_EXTENSIONS.has(extname(file.name).toLowerCase())
-}
-
-function fileUrlToAbsolutePath(fileUrl: string): string | null {
-  if (!fileUrl.startsWith('file://')) return null
-
-  try {
-    const url = new URL(fileUrl)
-    let pathname = decodeURIComponent(url.pathname)
-    if (/^\/[A-Za-z]:/.test(pathname)) {
-      pathname = pathname.slice(1)
-    }
-    return pathname
-  } catch {
-    return null
-  }
 }
 
 function sanitizeTitleToFileStem(title: string): string {
@@ -840,15 +826,14 @@ async function init(): Promise<void> {
     const images = Array.from(root.querySelectorAll('img'))
     for (const image of images) {
       const resolvedSrc = image.getAttribute('src') ?? ''
-      if (!resolvedSrc.startsWith('file://')) continue
+      const absolutePath = localMediaUrlToAbsolutePath(resolvedSrc)
+      if (!absolutePath) continue
 
       if (embeddedClipboardImageUrls.has(resolvedSrc)) {
         setClipboardLocalImageReplacement(resolvedSrc, embeddedClipboardImageUrls.get(resolvedSrc) ?? null)
         continue
       }
 
-      const absolutePath = fileUrlToAbsolutePath(resolvedSrc)
-      if (!absolutePath) continue
       const dataUrl = await api.readLocalImageAsDataUrl(absolutePath).catch(() => null)
       if (!dataUrl) continue
       embeddedClipboardImageUrls.set(resolvedSrc, dataUrl)

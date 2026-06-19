@@ -1,7 +1,8 @@
-import { app, BrowserWindow, ipcMain, dialog, Menu, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, shell } from 'electron'
 import { join, basename, dirname, extname, relative } from 'path'
 import { readFile, writeFile, readdir, copyFile, mkdir, rename, unlink } from 'fs/promises'
 import { FSWatcher, existsSync, readdirSync, watch } from 'fs'
+import { pathToFileURL } from 'url'
 import {
   clampSidebarWidth,
   createWindowSidebarViewState,
@@ -74,6 +75,7 @@ import {
 import { createMcpBridgeController, type McpBridgeRequest } from './mcp-bridge'
 import { completeAiHelperPrompt, testAiHelperConnection } from './ai-provider'
 import { checkForUpdatesFromMenu, configureAutoUpdates } from './updater'
+import { LOCAL_MEDIA_PROTOCOL, localMediaUrlToAbsolutePath } from '../shared/local-media'
 
 // Custom themes directory
 const appDataDir = join(app.getPath('home'), '.lyramd')
@@ -83,6 +85,17 @@ const sessionStatePath = join(appDataDir, 'session-state.json')
 const settingsPath = join(appDataDir, 'settings.json')
 const mcpBridgeFilePath = getMcpBridgeFilePath(appDataDir)
 const DRAWER_BREAKPOINT = 960
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: LOCAL_MEDIA_PROTOCOL,
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+    },
+  },
+])
 
 type DocumentKind = 'blank' | 'draft' | 'file'
 
@@ -742,6 +755,17 @@ async function readLocalImageAsDataUrl(imagePath: string): Promise<string | null
 
   const buffer = await readFile(imagePath)
   return `data:${mimeType};base64,${buffer.toString('base64')}`
+}
+
+function registerLocalMediaProtocol(): void {
+  protocol.handle(LOCAL_MEDIA_PROTOCOL, async (request) => {
+    const imagePath = localMediaUrlToAbsolutePath(request.url)
+    if (!imagePath || !existsSync(imagePath) || !isSupportedImageExtension(imagePath)) {
+      return new Response('Not Found', { status: 404 })
+    }
+
+    return net.fetch(pathToFileURL(imagePath).toString())
+  })
 }
 
 async function renameCurrentFileToPath(win: BrowserWindow, nextPath: string): Promise<{ path: string | null }> {
@@ -2543,6 +2567,7 @@ if (hasSingleInstanceLock) {
       .then(() => Promise.all([loadSidebarState(), loadSessionState(), loadSettingsState()]))
       .catch(() => {})
       .finally(() => {
+        registerLocalMediaProtocol()
         configureAutoUpdates()
         buildMenu()
 

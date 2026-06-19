@@ -856,11 +856,40 @@ async function init(): Promise<void> {
     }
   }
 
+  let renderedMediaRefreshQueued = false
+  let renderedMediaObserver: MutationObserver | null = null
+
+  const mutationAddsImageNode = (mutation: MutationRecord): boolean => {
+    return Array.from(mutation.addedNodes).some((node) => {
+      if (node instanceof HTMLImageElement) return true
+      return node instanceof HTMLElement
+        && (node.matches('img, .lyra-image-node') || node.querySelector('img') !== null)
+    })
+  }
+
   const refreshRenderedMedia = (): void => {
+    if (renderedMediaRefreshQueued) return
+    renderedMediaRefreshQueued = true
     requestAnimationFrame(() => {
+      renderedMediaRefreshQueued = false
       refreshMarkdownImageSources(getCurrentDocumentPathForAssets())
       void refreshClipboardImageEmbeds()
     })
+  }
+
+  const observeRenderedMedia = (): void => {
+    if (typeof MutationObserver === 'undefined') return
+
+    const root = document.querySelector('#editor .ProseMirror')
+    if (!root) return
+
+    renderedMediaObserver?.disconnect()
+    renderedMediaObserver = new MutationObserver((mutations) => {
+      if (mutations.some((mutation) => mutationAddsImageNode(mutation))) {
+        refreshRenderedMedia()
+      }
+    })
+    renderedMediaObserver.observe(root, { childList: true, subtree: true })
   }
 
   const syncEditorPlaceholderLayout = (): void => {
@@ -914,6 +943,7 @@ async function init(): Promise<void> {
     refreshRenderedMedia()
     schedulePlaceholderLayoutSync()
   })
+  observeRenderedMedia()
   setPasteImageHandler(async (file) => {
     const imagePath = await persistImageFile(file)
     if (!imagePath) return null

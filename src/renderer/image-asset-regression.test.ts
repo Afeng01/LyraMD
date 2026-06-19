@@ -26,4 +26,15 @@ describe('image asset integration regression', () => {
     expect(sidebarStateHandler?.[0]).toContain('setSidebarState(state)')
     expect(sidebarStateHandler?.[0]).toContain('refreshRenderedMedia()')
   })
+
+  it('observes newly mounted image nodes so relative paths are refreshed after the editor DOM settles', () => {
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+
+    expect(renderer).toContain('let renderedMediaObserver: MutationObserver | null = null')
+    expect(renderer).toContain('const mutationAddsImageNode = (mutation: MutationRecord): boolean => {')
+    expect(renderer).toContain("node.matches('img, .lyra-image-node') || node.querySelector('img') !== null")
+    expect(renderer).toContain("renderedMediaObserver = new MutationObserver((mutations) => {")
+    expect(renderer).toContain("renderedMediaObserver.observe(root, { childList: true, subtree: true })")
+    expect(renderer).toContain('observeRenderedMedia()')
+  })
 })

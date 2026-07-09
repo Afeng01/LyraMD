@@ -1115,6 +1115,7 @@ async function init(): Promise<void> {
       renderAgentChangePanel()
       if (options.agentChangePayload.risk.isDestructive) {
         agentChangeAutoDismiss.clear()
+        void refreshExternalChangeRecoveryPanel()
         openDocumentSafetyPanel()
       } else {
         agentChangeAutoDismiss.schedule()
@@ -1595,6 +1596,11 @@ async function init(): Promise<void> {
 
   const formatExternalRiskLabel = (session: AgentChangeSession): string | null => {
     if (!session.risk.isDestructive || !session.risk.reason) return null
+    if (session.applyBlocked) {
+      if (session.risk.reason === 'emptied-document') return '已阻止覆盖：外部更新试图清空文稿'
+      if (session.risk.reason === 'large-content-drop') return '已阻止覆盖：外部更新试图大幅缩短文稿'
+      return '已阻止覆盖：外部更新试图删除大量内容'
+    }
     if (session.risk.reason === 'emptied-document') return '高风险：外部更新清空了文稿'
     if (session.risk.reason === 'large-content-drop') return '高风险：外部更新大幅缩短了文稿'
     return '高风险：外部更新删除了大量内容'

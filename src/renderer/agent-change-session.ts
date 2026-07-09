@@ -1,4 +1,5 @@
 export interface AgentChangeSession {
+  applyBlocked: boolean
   previousContent: string
   updateCount: number
   summary: AgentChangeSummary
@@ -20,6 +21,7 @@ export interface ExternalChangeRisk {
 }
 
 export interface AgentChangePayload {
+  applyBlocked?: boolean
   previousContent: string
   summary: AgentChangeSummary
   risk: ExternalChangeRisk
@@ -40,6 +42,7 @@ export interface AgentChangeSummary {
 
 export function createAgentChangeSession(payload: AgentChangePayload): AgentChangeSession {
   return {
+    applyBlocked: !!payload.applyBlocked,
     previousContent: payload.previousContent,
     updateCount: 1,
     summary: payload.summary,
@@ -52,6 +55,7 @@ export function mergeAgentChangeSession(
   payload: AgentChangePayload,
 ): AgentChangeSession {
   return {
+    applyBlocked: session.applyBlocked || !!payload.applyBlocked,
     previousContent: session.previousContent,
     updateCount: session.updateCount + 1,
     risk: payload.risk.isDestructive ? payload.risk : session.risk,

@@ -1631,6 +1631,7 @@ function watchFile(win: BrowserWindow, state: WindowState): void {
           }
           if (!win.isDestroyed()) {
             win.webContents.send('agent-change-summary', {
+              applyBlocked: blockedDestructiveApply,
               previousContent,
               summary: changeSummary,
               risk: changeRisk,

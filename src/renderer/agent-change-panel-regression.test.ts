@@ -76,6 +76,14 @@ describe('agent change panel regression', () => {
     expect(main).toContain('options.agentChangePayload.risk.isDestructive')
     expect(main).toContain('openDocumentSafetyPanel()')
     expect(main).toContain('agentChangeAutoDismiss.clear()')
+    expect(main).toContain('refreshExternalChangeRecoveryPanel()')
+  })
+
+  it('tells the user when a destructive overwrite was blocked before applying', () => {
+    const main = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+
+    expect(main).toContain('session.applyBlocked')
+    expect(main).toContain('已阻止覆盖：外部更新试图清空文稿')
   })
 
   it('documents Agent collaboration behavior in Settings', () => {

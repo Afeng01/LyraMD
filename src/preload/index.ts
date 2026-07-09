@@ -201,6 +201,7 @@ export interface ExternalChangeRisk {
 }
 
 export interface AgentChangePayload {
+  applyBlocked?: boolean
   previousContent: string
   summary: AgentChangeSummary
   risk: ExternalChangeRisk

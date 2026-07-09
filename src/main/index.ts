@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, shell } from 'electron'
 import { join, basename, dirname, extname, relative } from 'path'
-import { readFile, writeFile, readdir, copyFile, mkdir, rename, unlink } from 'fs/promises'
+import { readFile, writeFile, readdir, copyFile, mkdir, rename, unlink, stat } from 'fs/promises'
 import { FSWatcher, existsSync, readdirSync, watch } from 'fs'
 import { pathToFileURL } from 'url'
 import {
@@ -95,6 +95,7 @@ import {
 import { createMcpBridgeController, type McpBridgeRequest } from './mcp-bridge'
 import { completeAiHelperPrompt, testAiHelperConnection } from './ai-provider'
 import { checkForUpdatesFromMenu, configureAutoUpdates } from './updater'
+import { shouldPromptForInstalledBundleRefresh } from './runtime-update-guard'
 import { LOCAL_MEDIA_PROTOCOL, localMediaUrlToAbsolutePath } from '../shared/local-media'
 
 // Custom themes directory
@@ -108,6 +109,8 @@ const crashRecoveryStatePath = join(appDataDir, 'crash-recovery.json')
 const externalChangeRecoveryStatePath = join(appDataDir, 'external-change-recovery.json')
 const mcpBridgeFilePath = getMcpBridgeFilePath(appDataDir)
 const DRAWER_BREAKPOINT = 960
+const APP_BUNDLE_REFRESH_CHECK_INTERVAL_MS = 60_000
+const appLaunchTimeMs = Date.now()
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -354,6 +357,8 @@ const windowStates = new Map<number, WindowState>()
 let settingsWindow: BrowserWindow | null = null
 let pendingFilePaths: string[] = []
 const hasSingleInstanceLock = app.isPackaged ? app.requestSingleInstanceLock() : true
+let installedBundleRefreshPromptShown = false
+let installedBundleRefreshCheckTimer: NodeJS.Timeout | null = null
 
 function buildRevisionSnapshotFromWindowState(
   state: WindowState,
@@ -731,6 +736,47 @@ function broadcastSettingsState(): void {
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed()) win.webContents.send('settings-updated', appSettings)
   }
+}
+
+function getDialogParentWindow(): BrowserWindow | undefined {
+  return BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? undefined
+}
+
+async function checkForInstalledBundleRefresh(): Promise<void> {
+  if (installedBundleRefreshPromptShown || !app.isPackaged) return
+
+  const bundleStats = await stat(app.getAppPath()).catch(() => null)
+  const shouldPrompt = shouldPromptForInstalledBundleRefresh({
+    bundleMtimeMs: bundleStats?.mtimeMs ?? null,
+    currentLaunchTimeMs: appLaunchTimeMs,
+    isPackaged: app.isPackaged,
+  })
+  if (!shouldPrompt) return
+
+  installedBundleRefreshPromptShown = true
+  const result = await dialog.showMessageBox(getDialogParentWindow(), {
+    type: 'warning',
+    buttons: ['重启应用', '稍后'],
+    defaultId: 0,
+    cancelId: 1,
+    message: 'LyraMD 安装包已更新',
+    detail: '检测到磁盘上的 LyraMD 已被替换为较新的版本，但当前窗口仍在运行旧实例。请重启应用，让最新的文稿安全修复真正生效。',
+  }).catch(() => null)
+
+  if (result?.response === 0) {
+    app.relaunch()
+    app.exit(0)
+  }
+}
+
+function scheduleInstalledBundleRefreshChecks(): void {
+  if (!app.isPackaged || installedBundleRefreshCheckTimer) return
+
+  installedBundleRefreshCheckTimer = setInterval(() => {
+    void checkForInstalledBundleRefresh().catch(() => {})
+  }, APP_BUNDLE_REFRESH_CHECK_INTERVAL_MS)
+
+  void checkForInstalledBundleRefresh().catch(() => {})
 }
 
 function recordRecentFile(filePath: string): void {
@@ -3014,6 +3060,7 @@ if (hasSingleInstanceLock) {
       .finally(() => {
         registerLocalMediaProtocol()
         configureAutoUpdates()
+        scheduleInstalledBundleRefreshChecks()
         buildMenu()
 
         queuePendingFilePaths(extractEditableLaunchPaths(process.argv, { isPackaged: app.isPackaged }))
@@ -3039,6 +3086,7 @@ if (hasSingleInstanceLock) {
         void mcpBridge.start().catch(() => {})
 
         app.on('activate', () => {
+          void checkForInstalledBundleRefresh().catch(() => {})
           if (BrowserWindow.getAllWindows().length === 0) createWindow()
         })
       })
@@ -3051,6 +3099,10 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', async (event) => {
   stopWatchingWorkdir()
+  if (installedBundleRefreshCheckTimer) {
+    clearInterval(installedBundleRefreshCheckTimer)
+    installedBundleRefreshCheckTimer = null
+  }
   if (sidebarQuitFlushStarted) return
 
   event.preventDefault()

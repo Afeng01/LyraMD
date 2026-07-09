@@ -50,14 +50,18 @@ import { summarizeAgentChange } from './agent-change-summary'
 import { assessExternalChangeRisk } from './external-change-risk'
 import {
   clearCrashRecoveryState,
+  clearExternalChangeRecoveryState,
   createDocumentRevisionKey,
   listRevisionSnapshots,
   moveDocumentRevisionSnapshots,
   readCrashRecoveryState,
+  readExternalChangeRecoveryState,
   readRevisionSnapshotById,
   recordRevisionSnapshot,
   writeCrashRecoveryState,
+  writeExternalChangeRecoveryState,
   type CrashRecoveryState,
+  type ExternalChangeRecoveryState,
   type RevisionDocumentKind,
   type RevisionReason,
   type RevisionSnapshotInput,
@@ -101,6 +105,7 @@ const sessionStatePath = join(appDataDir, 'session-state.json')
 const settingsPath = join(appDataDir, 'settings.json')
 const revisionsDir = join(appDataDir, 'revisions')
 const crashRecoveryStatePath = join(appDataDir, 'crash-recovery.json')
+const externalChangeRecoveryStatePath = join(appDataDir, 'external-change-recovery.json')
 const mcpBridgeFilePath = getMcpBridgeFilePath(appDataDir)
 const DRAWER_BREAKPOINT = 960
 
@@ -477,6 +482,32 @@ async function persistCrashRecoveryForWindowState(
     updatedAt: Date.now(),
   }
   await writeCrashRecoveryState(crashRecoveryStatePath, recoveryState).catch(() => {})
+}
+
+async function persistExternalChangeRecoveryForWindowState(
+  state: WindowState,
+  reason: string,
+): Promise<void> {
+  if (state.documentKind === 'blank' || !state.filePath || state.lastSyncedContent === null) return
+
+  const snapshot = await recordManagedRevisionSnapshot({
+    content: state.lastSyncedContent,
+    displayTitle: state.displayTitle,
+    documentKind: state.documentKind,
+    draftId: state.draftId,
+    filePath: state.filePath,
+    reason: 'external-change',
+    updatedAt: Date.now(),
+  }).catch(() => null)
+  if (!snapshot) return
+
+  const recoveryState: ExternalChangeRecoveryState = {
+    reason,
+    snapshot,
+    status: 'pending-external-change',
+    updatedAt: Date.now(),
+  }
+  await writeExternalChangeRecoveryState(externalChangeRecoveryStatePath, recoveryState).catch(() => {})
 }
 
 interface RendererMcpRequestPayload {
@@ -929,6 +960,27 @@ async function getCrashRecoverySummary(): Promise<{
   }
 }
 
+async function getExternalChangeRecoverySummary(): Promise<{
+  displayTitle: string
+  documentKind: RevisionSnapshotInput['documentKind']
+  filePath: string | null
+  hasContent: boolean
+  reason: string
+  updatedAt: number
+} | null> {
+  const recoveryState = await readExternalChangeRecoveryState(externalChangeRecoveryStatePath)
+  if (!recoveryState) return null
+
+  return {
+    displayTitle: recoveryState.snapshot.displayTitle,
+    documentKind: recoveryState.snapshot.documentKind,
+    filePath: recoveryState.snapshot.filePath,
+    hasContent: recoveryState.snapshot.content.trim().length > 0,
+    reason: recoveryState.reason,
+    updatedAt: recoveryState.updatedAt,
+  }
+}
+
 async function restoreRevisionSnapshotToDraft(
   triggerWin: BrowserWindow,
   snapshot: StoredRevisionSnapshot,
@@ -988,6 +1040,17 @@ async function restoreCrashRecoveryToDraft(triggerWin: BrowserWindow): Promise<b
   const restored = await restoreRevisionSnapshotToDraft(triggerWin, recoveryState.snapshot, 'crash')
   if (restored) {
     await clearCrashRecoveryState(crashRecoveryStatePath).catch(() => {})
+  }
+  return restored
+}
+
+async function restoreExternalChangeRecoveryToDraft(triggerWin: BrowserWindow): Promise<boolean> {
+  const recoveryState = await readExternalChangeRecoveryState(externalChangeRecoveryStatePath)
+  if (!recoveryState) return false
+
+  const restored = await restoreRevisionSnapshotToDraft(triggerWin, recoveryState.snapshot, 'restore')
+  if (restored) {
+    await clearExternalChangeRecoveryState(externalChangeRecoveryStatePath).catch(() => {})
   }
   return restored
 }
@@ -1487,6 +1550,12 @@ function watchFile(win: BrowserWindow, state: WindowState): void {
           state.lastSyncedContent = syncDecision.nextSyncedContent
           const changeSummary = summarizeAgentChange(previousContent, data)
           const changeRisk = assessExternalChangeRisk(previousContent, data, changeSummary)
+          if (changeRisk.isDestructive && previousContent.length > 0) {
+            void persistExternalChangeRecoveryForWindowState({
+              ...state,
+              lastSyncedContent: previousContent,
+            }, changeRisk.reason ?? 'external-change')
+          }
 
           // Agent activity detection
           const now = Date.now()
@@ -2092,6 +2161,21 @@ ipcMain.handle('restore-crash-recovery', async (event) => {
 
 ipcMain.handle('dismiss-crash-recovery', async () => {
   await clearCrashRecoveryState(crashRecoveryStatePath).catch(() => {})
+  return true
+})
+
+ipcMain.handle('get-external-change-recovery-state', async () => {
+  return getExternalChangeRecoverySummary()
+})
+
+ipcMain.handle('restore-external-change-recovery', async (event) => {
+  const win = getWinFromEvent(event)
+  if (!win) return false
+  return restoreExternalChangeRecoveryToDraft(win)
+})
+
+ipcMain.handle('dismiss-external-change-recovery', async () => {
+  await clearExternalChangeRecoveryState(externalChangeRecoveryStatePath).catch(() => {})
   return true
 })
 

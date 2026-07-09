@@ -77,7 +77,7 @@ import {
   type WorkdirTreeRow,
 } from './sidebar-view'
 import { applyTheme, loadSavedTheme } from './themes/theme-manager'
-import type { AgentChangePayload, AgentChangePreviewLine, AgentChangeSummary, AppSettings, BackgroundSettings, CrashRecoverySummary, DocumentRevisionSummary, FontSettings, McpDocumentRequest, ShortcutAction, SidebarState, SidebarTab } from '../preload/index'
+import type { AgentChangePayload, AgentChangePreviewLine, AgentChangeSummary, AppSettings, BackgroundSettings, CrashRecoverySummary, DocumentRevisionSummary, ExternalChangeRecoverySummary, FontSettings, McpDocumentRequest, ShortcutAction, SidebarState, SidebarTab } from '../preload/index'
 import { localMediaUrlToAbsolutePath } from '../shared/local-media'
 import './themes/base.css'
 
@@ -740,6 +740,12 @@ async function init(): Promise<void> {
   const crashRecoveryBody = document.getElementById('crash-recovery-body') as HTMLDivElement | null
   const crashRecoveryRestore = document.getElementById('crash-recovery-restore') as HTMLButtonElement | null
   const crashRecoveryDismiss = document.getElementById('crash-recovery-dismiss') as HTMLButtonElement | null
+  const externalChangeRecoveryPanel = document.getElementById('external-change-recovery-panel') as HTMLDivElement | null
+  const externalChangeRecoveryTitle = document.getElementById('external-change-recovery-title') as HTMLSpanElement | null
+  const externalChangeRecoveryMeta = document.getElementById('external-change-recovery-meta') as HTMLSpanElement | null
+  const externalChangeRecoveryBody = document.getElementById('external-change-recovery-body') as HTMLDivElement | null
+  const externalChangeRecoveryRestore = document.getElementById('external-change-recovery-restore') as HTMLButtonElement | null
+  const externalChangeRecoveryDismiss = document.getElementById('external-change-recovery-dismiss') as HTMLButtonElement | null
   const revisionHistoryPanel = document.getElementById('revision-history-panel') as HTMLDivElement | null
   const revisionHistoryToggle = document.getElementById('revision-history-toggle') as HTMLButtonElement | null
   const revisionHistoryTitle = document.getElementById('revision-history-title') as HTMLSpanElement | null
@@ -1563,6 +1569,7 @@ async function init(): Promise<void> {
   let agentChangeExpanded = false
   let hasShownAgentChangeHint = false
   let crashRecoverySummary: CrashRecoverySummary | null = null
+  let externalChangeRecoverySummary: ExternalChangeRecoverySummary | null = null
   const agentChangeAutoDismiss = createAgentChangeAutoDismiss(() => {
     collapseAgentChangePanel()
   })
@@ -1693,6 +1700,33 @@ async function init(): Promise<void> {
   const refreshCrashRecoveryPanel = async (): Promise<void> => {
     crashRecoverySummary = await api.getCrashRecoveryState?.().catch(() => null) ?? null
     renderCrashRecoveryPanel()
+  }
+
+  const renderExternalChangeRecoveryPanel = (): void => {
+    if (!externalChangeRecoveryPanel || !externalChangeRecoveryTitle || !externalChangeRecoveryMeta || !externalChangeRecoveryBody) return
+
+    if (!externalChangeRecoverySummary) {
+      externalChangeRecoveryPanel.hidden = true
+      return
+    }
+
+    externalChangeRecoveryPanel.hidden = false
+    externalChangeRecoveryTitle.textContent = `检测到高风险外部更新：${externalChangeRecoverySummary.reason}`
+    externalChangeRecoveryMeta.textContent = new Date(externalChangeRecoverySummary.updatedAt).toLocaleString('zh-CN', {
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      month: '2-digit',
+    })
+    const documentLabel = externalChangeRecoverySummary.displayTitle || '未命名文稿'
+    externalChangeRecoveryBody.textContent = externalChangeRecoverySummary.hasContent
+      ? `已为“${documentLabel}”保留外部覆盖前的本地恢复副本。恢复时会写成新草稿，避免覆盖当前文件。`
+      : `已为“${documentLabel}”保留恢复入口，但覆盖前快照内容为空。`
+  }
+
+  const refreshExternalChangeRecoveryPanel = async (): Promise<void> => {
+    externalChangeRecoverySummary = await api.getExternalChangeRecoveryState?.().catch(() => null) ?? null
+    renderExternalChangeRecoveryPanel()
   }
 
   const renderDocumentRevisionPanel = (): void => {
@@ -3179,6 +3213,7 @@ img{max-width:100%}
     renderSidebar()
   }
   await refreshCrashRecoveryPanel()
+  await refreshExternalChangeRecoveryPanel()
 
   api.onMenuOpen(async () => {
     persistCurrentViewportOffset()
@@ -3506,6 +3541,22 @@ img{max-width:100%}
     void api.dismissCrashRecovery?.().then(() => {
       crashRecoverySummary = null
       renderCrashRecoveryPanel()
+    }).catch(() => {})
+  })
+
+  externalChangeRecoveryRestore?.addEventListener('click', () => {
+    void api.restoreExternalChangeRecovery?.().then((restored) => {
+      if (!restored) return
+      externalChangeRecoverySummary = null
+      renderExternalChangeRecoveryPanel()
+      syncSidebarState()
+    }).catch(() => {})
+  })
+
+  externalChangeRecoveryDismiss?.addEventListener('click', () => {
+    void api.dismissExternalChangeRecovery?.().then(() => {
+      externalChangeRecoverySummary = null
+      renderExternalChangeRecoveryPanel()
     }).catch(() => {})
   })
 

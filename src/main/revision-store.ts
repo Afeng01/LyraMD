@@ -34,6 +34,13 @@ export interface CrashRecoveryState {
   updatedAt: number
 }
 
+export interface ExternalChangeRecoveryState {
+  reason: string
+  snapshot: StoredRevisionSnapshot
+  status: 'pending-external-change'
+  updatedAt: number
+}
+
 const DEFAULT_MAX_REVISIONS_PER_DOCUMENT = 40
 const AUTOSAVE_REVISION_INTERVAL_MS = 15000
 
@@ -169,6 +176,13 @@ export async function writeCrashRecoveryState(
   await writeFile(crashRecoveryStatePath, JSON.stringify(state, null, 2), 'utf-8')
 }
 
+export async function writeExternalChangeRecoveryState(
+  externalChangeRecoveryStatePath: string,
+  state: ExternalChangeRecoveryState,
+): Promise<void> {
+  await writeFile(externalChangeRecoveryStatePath, JSON.stringify(state, null, 2), 'utf-8')
+}
+
 export async function readCrashRecoveryState(
   crashRecoveryStatePath: string,
 ): Promise<CrashRecoveryState | null> {
@@ -195,8 +209,38 @@ export async function readCrashRecoveryState(
   }
 }
 
+export async function readExternalChangeRecoveryState(
+  externalChangeRecoveryStatePath: string,
+): Promise<ExternalChangeRecoveryState | null> {
+  const raw = await readFile(externalChangeRecoveryStatePath, 'utf-8').catch(() => null)
+  if (!raw) return null
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<ExternalChangeRecoveryState>
+    if (parsed.status !== 'pending-external-change' || !parsed.snapshot || typeof parsed.updatedAt !== 'number') {
+      return null
+    }
+
+    const snapshot = parseStoredRevisionSnapshot(JSON.stringify(parsed.snapshot))
+    if (!snapshot) return null
+
+    return {
+      reason: typeof parsed.reason === 'string' ? parsed.reason : 'external-change',
+      snapshot,
+      status: 'pending-external-change',
+      updatedAt: parsed.updatedAt,
+    }
+  } catch {
+    return null
+  }
+}
+
 export async function clearCrashRecoveryState(crashRecoveryStatePath: string): Promise<void> {
   await rm(crashRecoveryStatePath, { force: true })
+}
+
+export async function clearExternalChangeRecoveryState(externalChangeRecoveryStatePath: string): Promise<void> {
+  await rm(externalChangeRecoveryStatePath, { force: true })
 }
 
 function buildRevisionFileName(snapshot: StoredRevisionSnapshot): string {

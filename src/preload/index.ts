@@ -104,6 +104,15 @@ export interface CrashRecoverySummary {
   updatedAt: number
 }
 
+export interface ExternalChangeRecoverySummary {
+  displayTitle: string
+  documentKind: Exclude<DocumentKind, 'blank'>
+  filePath: string | null
+  hasContent: boolean
+  reason: string
+  updatedAt: number
+}
+
 export interface DocumentRevisionSummary {
   changeSummary: AgentChangeSummary | null
   displayTitle: string
@@ -243,6 +252,9 @@ export interface ElectronAPI {
   getCrashRecoveryState: () => Promise<CrashRecoverySummary | null>
   restoreCrashRecovery: () => Promise<boolean>
   dismissCrashRecovery: () => Promise<boolean>
+  getExternalChangeRecoveryState: () => Promise<ExternalChangeRecoverySummary | null>
+  restoreExternalChangeRecovery: () => Promise<boolean>
+  dismissExternalChangeRecovery: () => Promise<boolean>
   listDocumentRevisions: () => Promise<DocumentRevisionSummary[]>
   openRevisionsDirectory: () => Promise<boolean>
   restoreDocumentRevision: (revisionId: string) => Promise<boolean>
@@ -337,6 +349,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getCrashRecoveryState: () => ipcRenderer.invoke('get-crash-recovery-state'),
   restoreCrashRecovery: () => ipcRenderer.invoke('restore-crash-recovery'),
   dismissCrashRecovery: () => ipcRenderer.invoke('dismiss-crash-recovery'),
+  getExternalChangeRecoveryState: () => ipcRenderer.invoke('get-external-change-recovery-state'),
+  restoreExternalChangeRecovery: () => ipcRenderer.invoke('restore-external-change-recovery'),
+  dismissExternalChangeRecovery: () => ipcRenderer.invoke('dismiss-external-change-recovery'),
   listDocumentRevisions: () => ipcRenderer.invoke('list-document-revisions'),
   openRevisionsDirectory: () => ipcRenderer.invoke('open-revisions-directory'),
   restoreDocumentRevision: (revisionId: string) => ipcRenderer.invoke('restore-document-revision', revisionId),

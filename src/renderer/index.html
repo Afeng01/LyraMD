@@ -256,6 +256,19 @@
               <button id="crash-recovery-dismiss" type="button">先忽略</button>
             </div>
           </div>
+          <div id="external-change-recovery-panel" hidden aria-live="polite">
+            <div id="external-change-recovery-summary">
+              <span id="external-change-recovery-title">检测到高风险外部更新</span>
+              <span id="external-change-recovery-meta"></span>
+            </div>
+            <div id="external-change-recovery-body">
+              已为外部覆盖前的正文保留本地恢复副本。可以恢复为新草稿，避免覆盖当前文件。
+            </div>
+            <div id="external-change-recovery-actions">
+              <button id="external-change-recovery-restore" type="button">恢复覆盖前正文</button>
+              <button id="external-change-recovery-dismiss" type="button">先忽略</button>
+            </div>
+          </div>
           <div id="revision-history-panel" hidden aria-live="polite">
             <button id="revision-history-toggle" type="button" aria-expanded="false">
               <span id="revision-history-title">最近备份</span>

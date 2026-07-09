@@ -39,6 +39,17 @@ describe('agent change panel regression', () => {
     expect(main).toContain('api.restoreCrashRecovery?.()')
   })
 
+  it('keeps the external change recovery panel wired for destructive overwrite fallout', () => {
+    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
+    const main = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+
+    expect(html).toContain('id="external-change-recovery-panel"')
+    expect(html).toContain('id="external-change-recovery-restore"')
+    expect(main).toContain('refreshExternalChangeRecoveryPanel')
+    expect(main).toContain("externalChangeRecoveryRestore?.addEventListener('click'")
+    expect(main).toContain('api.restoreExternalChangeRecovery?.()')
+  })
+
   it('ships a visible recent revisions entry point for local backups', () => {
     const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
     const main = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')

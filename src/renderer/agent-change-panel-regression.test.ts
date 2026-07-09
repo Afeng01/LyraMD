@@ -12,6 +12,13 @@ describe('agent change panel regression', () => {
     expect(toggleBody).toContain('agentChangeAutoDismiss.schedule()')
   })
 
+  it('collapses timed-out external update hints without discarding rollback state', () => {
+    const main = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+
+    expect(main).toContain('collapseAgentChangePanel()')
+    expect(main).not.toContain('createAgentChangeAutoDismiss(() => {\n    clearAgentChangePanel()')
+  })
+
   it('ships a one-click rollback button for external updates', () => {
     const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
     const main = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')

@@ -1559,7 +1559,7 @@ async function init(): Promise<void> {
   let hasShownAgentChangeHint = false
   let crashRecoverySummary: CrashRecoverySummary | null = null
   const agentChangeAutoDismiss = createAgentChangeAutoDismiss(() => {
-    clearAgentChangePanel()
+    collapseAgentChangePanel()
   })
 
   const hasAgentChangeSession = (session: AgentChangeSession | null): session is AgentChangeSession => {
@@ -1634,6 +1634,12 @@ async function init(): Promise<void> {
     if (agentChangeSession.summary.truncated) {
       agentChangeList.appendChild(createTextBlock('agent-change-truncated', '还有更多变更'))
     }
+  }
+
+  const collapseAgentChangePanel = (): void => {
+    agentChangeAutoDismiss.clear()
+    agentChangeExpanded = false
+    renderAgentChangePanel()
   }
 
   const clearAgentChangePanel = (): void => {
@@ -3455,6 +3461,8 @@ img{max-width:100%}
     renderAgentChangePanel()
     if (agentChangeExpanded && hasAgentChangeSession(agentChangeSession)) {
       agentChangeAutoDismiss.schedule()
+    } else {
+      agentChangeAutoDismiss.clear()
     }
   })
 

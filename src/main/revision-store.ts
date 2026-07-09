@@ -2,7 +2,15 @@ import { mkdir, readdir, readFile, rename, rm, writeFile } from 'fs/promises'
 import { join } from 'path'
 
 export type RevisionDocumentKind = 'draft' | 'file'
-export type RevisionReason = 'autosave' | 'save' | 'save-as' | 'rename' | 'image-checkpoint' | 'crash' | 'restore'
+export type RevisionReason =
+  | 'autosave'
+  | 'save'
+  | 'save-as'
+  | 'rename'
+  | 'image-checkpoint'
+  | 'external-change'
+  | 'crash'
+  | 'restore'
 
 export interface RevisionSnapshotInput {
   content: string

@@ -401,6 +401,7 @@ function formatRevisionReasonLabel(reason: RevisionReason): string {
   if (reason === 'save-as') return '另存为'
   if (reason === 'rename') return '重命名'
   if (reason === 'image-checkpoint') return '插图前检查点'
+  if (reason === 'external-change') return '外部更新前备份'
   if (reason === 'crash') return '异常恢复点'
   if (reason === 'restore') return '从备份恢复'
   return '本地备份'
@@ -1478,8 +1479,11 @@ function watchFile(win: BrowserWindow, state: WindowState): void {
           if (consumeIgnoredWatchedContent(state.ignoredWatchedContents, data)) return
           const previousContent = state.lastSyncedContent ?? ''
           const syncDecision = reconcileWatchedContent(state.lastSyncedContent, data)
-          state.lastSyncedContent = syncDecision.nextSyncedContent
           if (!syncDecision.shouldPropagate) return
+          if (previousContent !== data && previousContent.length > 0) {
+            void recordRevisionForWindowState(state, previousContent, 'external-change')
+          }
+          state.lastSyncedContent = syncDecision.nextSyncedContent
           const changeSummary = summarizeAgentChange(previousContent, data)
 
           // Agent activity detection

@@ -1101,10 +1101,15 @@ async function init(): Promise<void> {
       agentChangeSession = agentChangeSession
         ? mergeAgentChangeSession(agentChangeSession, options.agentChangePayload)
         : createAgentChangeSession(options.agentChangePayload)
-      agentChangeExpanded = !hasShownAgentChangeHint
+      agentChangeExpanded = options.agentChangePayload.risk.isDestructive || !hasShownAgentChangeHint
       hasShownAgentChangeHint = true
       renderAgentChangePanel()
-      agentChangeAutoDismiss.schedule()
+      if (options.agentChangePayload.risk.isDestructive) {
+        agentChangeAutoDismiss.clear()
+        openDocumentSafetyPanel()
+      } else {
+        agentChangeAutoDismiss.schedule()
+      }
     } else {
       clearAgentChangePanel()
     }
@@ -1578,6 +1583,13 @@ async function init(): Promise<void> {
     return parts.join(' ')
   }
 
+  const formatExternalRiskLabel = (session: AgentChangeSession): string | null => {
+    if (!session.risk.isDestructive || !session.risk.reason) return null
+    if (session.risk.reason === 'emptied-document') return '高风险：外部更新清空了文稿'
+    if (session.risk.reason === 'large-content-drop') return '高风险：外部更新大幅缩短了文稿'
+    return '高风险：外部更新删除了大量内容'
+  }
+
   const formatAgentChangePreviewText = (line: AgentChangePreviewLine): string => {
     if (line.type === 'added') return `+ ${line.text}`
     if (line.type === 'removed') return `- ${line.text}`
@@ -1605,10 +1617,17 @@ async function init(): Promise<void> {
 
     agentChangePanel.hidden = false
     const title = document.getElementById('agent-change-title') as HTMLSpanElement | null
-    if (title) title.textContent = agentChangeSession.updateCount > 1
-      ? `外部更新 ${agentChangeSession.updateCount} 次`
-      : '外部更新'
-    agentChangeStats.textContent = formatAgentChangeStats(agentChangeSession.summary)
+    if (title) {
+      title.textContent = agentChangeSession.risk.isDestructive
+        ? (formatExternalRiskLabel(agentChangeSession) ?? '高风险外部更新')
+        : agentChangeSession.updateCount > 1
+          ? `外部更新 ${agentChangeSession.updateCount} 次`
+          : '外部更新'
+    }
+    const riskLabel = formatExternalRiskLabel(agentChangeSession)
+    agentChangeStats.textContent = riskLabel
+      ? `${riskLabel} · ${formatAgentChangeStats(agentChangeSession.summary)}`
+      : formatAgentChangeStats(agentChangeSession.summary)
     agentChangeToggle.setAttribute('aria-expanded', agentChangeExpanded ? 'true' : 'false')
     agentChangeDetails.hidden = !agentChangeExpanded
     clearElement(agentChangeList)

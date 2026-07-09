@@ -47,6 +47,7 @@ import { buildTitleSyncPath, decideTitleSync } from './title-sync'
 import { resolveNewWorkdirFolderPath, resolveNewWorkdirMarkdownPath, scanWorkdir, scanWorkdirTree, shouldRefreshWorkdirForWatchEvent, type WorkdirEntry, type WorkdirTreeNode } from './workdir'
 import { moveFileToTrashAndVerify } from './file-removal'
 import { summarizeAgentChange } from './agent-change-summary'
+import { assessExternalChangeRisk } from './external-change-risk'
 import {
   clearCrashRecoveryState,
   createDocumentRevisionKey,
@@ -1485,6 +1486,7 @@ function watchFile(win: BrowserWindow, state: WindowState): void {
           }
           state.lastSyncedContent = syncDecision.nextSyncedContent
           const changeSummary = summarizeAgentChange(previousContent, data)
+          const changeRisk = assessExternalChangeRisk(previousContent, data, changeSummary)
 
           // Agent activity detection
           const now = Date.now()
@@ -1514,6 +1516,7 @@ function watchFile(win: BrowserWindow, state: WindowState): void {
             win.webContents.send('agent-change-summary', {
               previousContent,
               summary: changeSummary,
+              risk: changeRisk,
             })
           }
           if (!win.isDestroyed()) win.webContents.send('file-changed', data)

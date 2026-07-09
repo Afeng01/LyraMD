@@ -2,11 +2,27 @@ export interface AgentChangeSession {
   previousContent: string
   updateCount: number
   summary: AgentChangeSummary
+  risk: ExternalChangeRisk
+}
+
+export type ExternalChangeRiskReason =
+  | 'emptied-document'
+  | 'large-content-drop'
+  | 'large-line-removal'
+
+export interface ExternalChangeRisk {
+  isDestructive: boolean
+  reason: ExternalChangeRiskReason | null
+  previousCharCount: number
+  nextCharCount: number
+  removedLineCount: number
+  charDropRatio: number
 }
 
 export interface AgentChangePayload {
   previousContent: string
   summary: AgentChangeSummary
+  risk: ExternalChangeRisk
 }
 
 export interface AgentChangeSummary {
@@ -27,6 +43,7 @@ export function createAgentChangeSession(payload: AgentChangePayload): AgentChan
     previousContent: payload.previousContent,
     updateCount: 1,
     summary: payload.summary,
+    risk: payload.risk,
   }
 }
 
@@ -37,6 +54,7 @@ export function mergeAgentChangeSession(
   return {
     previousContent: session.previousContent,
     updateCount: session.updateCount + 1,
+    risk: payload.risk.isDestructive ? payload.risk : session.risk,
     summary: {
       addedLines: session.summary.addedLines + payload.summary.addedLines,
       removedLines: session.summary.removedLines + payload.summary.removedLines,

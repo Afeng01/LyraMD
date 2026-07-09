@@ -56,7 +56,15 @@ describe('agent change panel regression', () => {
     const main = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
 
     expect(main).toContain('hasShownAgentChangeHint')
-    expect(main).toContain('agentChangeExpanded = !hasShownAgentChangeHint')
+    expect(main).toContain('agentChangeExpanded = options.agentChangePayload.risk.isDestructive || !hasShownAgentChangeHint')
+  })
+
+  it('treats destructive external updates as document safety incidents', () => {
+    const main = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+
+    expect(main).toContain('options.agentChangePayload.risk.isDestructive')
+    expect(main).toContain('openDocumentSafetyPanel()')
+    expect(main).toContain('agentChangeAutoDismiss.clear()')
   })
 
   it('documents Agent collaboration behavior in Settings', () => {

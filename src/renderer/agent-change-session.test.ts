@@ -5,6 +5,24 @@ import {
   mergeAgentChangeSession,
 } from './agent-change-session'
 
+const safeRisk = {
+  isDestructive: false,
+  reason: null,
+  previousCharCount: 120,
+  nextCharCount: 116,
+  removedLineCount: 1,
+  charDropRatio: 0.03,
+} as const
+
+const destructiveRisk = {
+  isDestructive: true,
+  reason: 'emptied-document' as const,
+  previousCharCount: 120,
+  nextCharCount: 0,
+  removedLineCount: 3,
+  charDropRatio: 1,
+}
+
 const firstSummary = {
   addedLines: 1,
   removedLines: 0,
@@ -30,10 +48,12 @@ describe('agent change session', () => {
     expect(createAgentChangeSession({
       previousContent: 'before first update',
       summary: firstSummary,
+      risk: safeRisk,
     })).toEqual({
       previousContent: 'before first update',
       updateCount: 1,
       summary: firstSummary,
+      risk: safeRisk,
     })
   })
 
@@ -41,14 +61,17 @@ describe('agent change session', () => {
     const session = createAgentChangeSession({
       previousContent: 'before first update',
       summary: firstSummary,
+      risk: safeRisk,
     })
 
     expect(mergeAgentChangeSession(session, {
       previousContent: 'between updates',
       summary: secondSummary,
+      risk: destructiveRisk,
     })).toEqual({
       previousContent: 'before first update',
       updateCount: 2,
+      risk: destructiveRisk,
       summary: {
         addedLines: 1,
         removedLines: 1,

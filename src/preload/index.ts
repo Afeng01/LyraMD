@@ -177,9 +177,24 @@ export interface AgentChangeSummary {
   truncated: boolean
 }
 
+export type ExternalChangeRiskReason =
+  | 'emptied-document'
+  | 'large-content-drop'
+  | 'large-line-removal'
+
+export interface ExternalChangeRisk {
+  isDestructive: boolean
+  reason: ExternalChangeRiskReason | null
+  previousCharCount: number
+  nextCharCount: number
+  removedLineCount: number
+  charDropRatio: number
+}
+
 export interface AgentChangePayload {
   previousContent: string
   summary: AgentChangeSummary
+  risk: ExternalChangeRisk
 }
 
 export interface SidebarState {

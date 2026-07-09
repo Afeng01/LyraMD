@@ -1,7 +1,8 @@
-export type IncomingContentResolution = 'ignore' | 'defer' | 'apply'
+export type IncomingContentResolution = 'ignore' | 'defer' | 'apply' | 'notify-only'
 
 export interface IncomingContentDecisionInput {
   currentContent: string
+  forceNotify: boolean
   incomingContent: string
   hasPendingLocalSave: boolean
   isKnownLocalEcho: boolean
@@ -30,11 +31,12 @@ export function consumeQueuedContent(queue: Map<string, number>, content: string
 
 export function resolveIncomingContentDecision({
   currentContent,
+  forceNotify,
   incomingContent,
   hasPendingLocalSave,
   isKnownLocalEcho,
 }: IncomingContentDecisionInput): IncomingContentResolution {
-  if (incomingContent === currentContent) return 'ignore'
+  if (incomingContent === currentContent) return forceNotify ? 'notify-only' : 'ignore'
   if (isKnownLocalEcho) return 'ignore'
   if (hasPendingLocalSave) return 'defer'
   return 'apply'

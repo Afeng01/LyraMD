@@ -30,15 +30,27 @@ describe('resolveIncomingContentDecision', () => {
   it('ignores incoming content that matches the current editor state', () => {
     expect(resolveIncomingContentDecision({
       currentContent: 'hello',
+      forceNotify: false,
       incomingContent: 'hello',
       hasPendingLocalSave: false,
       isKnownLocalEcho: false,
     })).toBe('ignore')
   })
 
+  it('keeps destructive external updates visible even when the editor content stays frozen', () => {
+    expect(resolveIncomingContentDecision({
+      currentContent: 'hello',
+      forceNotify: true,
+      incomingContent: 'hello',
+      hasPendingLocalSave: false,
+      isKnownLocalEcho: false,
+    })).toBe('notify-only')
+  })
+
   it('ignores known local save echoes even when the editor has moved on', () => {
     expect(resolveIncomingContentDecision({
       currentContent: 'hello world',
+      forceNotify: false,
       incomingContent: 'hello',
       hasPendingLocalSave: false,
       isKnownLocalEcho: true,
@@ -48,6 +60,7 @@ describe('resolveIncomingContentDecision', () => {
   it('defers true external updates while a local save is still in flight', () => {
     expect(resolveIncomingContentDecision({
       currentContent: 'hello world',
+      forceNotify: false,
       incomingContent: 'hello world from disk',
       hasPendingLocalSave: true,
       isKnownLocalEcho: false,
@@ -57,6 +70,7 @@ describe('resolveIncomingContentDecision', () => {
   it('applies true external updates when the local save queue is idle', () => {
     expect(resolveIncomingContentDecision({
       currentContent: 'hello world',
+      forceNotify: false,
       incomingContent: 'hello world from disk',
       hasPendingLocalSave: false,
       isKnownLocalEcho: false,

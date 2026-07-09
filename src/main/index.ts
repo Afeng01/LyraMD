@@ -1593,14 +1593,16 @@ function watchFile(win: BrowserWindow, state: WindowState): void {
           if (previousContent !== data && previousContent.length > 0) {
             void recordRevisionForWindowState(state, previousContent, 'external-change')
           }
-          state.lastSyncedContent = syncDecision.nextSyncedContent
           const changeSummary = summarizeAgentChange(previousContent, data)
           const changeRisk = assessExternalChangeRisk(previousContent, data, changeSummary)
-          if (changeRisk.isDestructive && previousContent.length > 0) {
+          const blockedDestructiveApply = changeRisk.isDestructive && previousContent.length > 0
+          if (blockedDestructiveApply) {
             void persistExternalChangeRecoveryForWindowState({
               ...state,
               lastSyncedContent: previousContent,
             }, changeRisk.reason ?? 'external-change')
+          } else {
+            state.lastSyncedContent = syncDecision.nextSyncedContent
           }
 
           // Agent activity detection
@@ -1612,7 +1614,7 @@ function watchFile(win: BrowserWindow, state: WindowState): void {
           } else if (state.agentState === 'active') {
             transitionAgentState(win, state, 'active')
           }
-          if (state.documentKind === 'draft' && state.draftId) {
+          if (!blockedDestructiveApply && state.documentKind === 'draft' && state.draftId) {
             const nextEntry = findDraftEntryById(state.draftId)
             if (nextEntry) {
               updateDraftEntry({
@@ -1623,7 +1625,7 @@ function watchFile(win: BrowserWindow, state: WindowState): void {
               state.displayTitle = resolveDraftDisplayTitle(state.draftId, data)
               updateTitle(win)
             }
-          } else if (state.documentKind === 'file' && state.filePath) {
+          } else if (!blockedDestructiveApply && state.documentKind === 'file' && state.filePath) {
             state.displayTitle = resolveFileDisplayTitle(state.filePath, data)
             updateTitle(win)
           }
@@ -1634,7 +1636,7 @@ function watchFile(win: BrowserWindow, state: WindowState): void {
               risk: changeRisk,
             })
           }
-          if (!win.isDestroyed()) win.webContents.send('file-changed', data)
+          if (!win.isDestroyed()) win.webContents.send('file-changed', blockedDestructiveApply ? previousContent : data)
           if (!win.isDestroyed()) sendSidebarState(win)
         })
         .catch(() => {})

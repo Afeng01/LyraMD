@@ -1085,6 +1085,7 @@ async function init(): Promise<void> {
   ): void => {
     const decision = resolveIncomingContentDecision({
       currentContent: getMarkdown(),
+      forceNotify: !!options.agentChangePayload?.risk.isDestructive,
       incomingContent: content,
       hasPendingLocalSave: options.allowDefer && hasPendingImmediateSave(),
       isKnownLocalEcho: consumeQueuedContent(recentLocalEchoes, content),
@@ -1102,7 +1103,9 @@ async function init(): Promise<void> {
     }
 
     deferredIncomingContent = null
-    applyProgrammaticDocumentContent(content, scrollTop, { preserveHistory: true })
+    if (decision === 'apply') {
+      applyProgrammaticDocumentContent(content, scrollTop, { preserveHistory: true })
+    }
     if (options.agentChangePayload) {
       agentChangeSession = agentChangeSession
         ? mergeAgentChangeSession(agentChangeSession, options.agentChangePayload)

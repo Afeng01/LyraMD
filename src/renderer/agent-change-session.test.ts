@@ -51,6 +51,7 @@ describe('agent change session', () => {
       risk: safeRisk,
     })).toEqual({
       previousContent: 'before first update',
+      applyBlocked: false,
       updateCount: 1,
       summary: firstSummary,
       risk: safeRisk,
@@ -70,6 +71,7 @@ describe('agent change session', () => {
       risk: destructiveRisk,
     })).toEqual({
       previousContent: 'before first update',
+      applyBlocked: false,
       updateCount: 2,
       risk: destructiveRisk,
       summary: {

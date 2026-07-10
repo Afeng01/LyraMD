@@ -539,6 +539,7 @@
                     <li>列表会显示自动保存、手动保存、重命名、插图前检查点和异常恢复点；点“恢复为草稿”会新建一份草稿，不覆盖当前文稿。</li>
                     <li>最近备份会优先显示这一版相对上一版的具体修改摘要，而不是从头把整篇文稿重新展开。</li>
                     <li>如果上次是异常退出，右上方还会额外出现“异常恢复”提示；点“恢复为新草稿”即可把崩溃前最后一次快照找回来。</li>
+                    <li>如果外部更新提示“已阻止覆盖”，先点“恢复覆盖前正文”确认快照；恢复会写成新草稿，不会改写现在打开的文件。</li>
                     <li>这里的保留条数只影响每篇文稿单独保留多少个本地版本，不会动你的正式 Markdown 文件。</li>
                   </ol>
                 </div>
@@ -547,13 +548,14 @@
               <section class="settings-group">
                 <div class="settings-group-heading">
                   <h4 class="settings-group-title">Agent 协作</h4>
-                  <p class="settings-group-copy">外部更新提示会显示新增、删除和修改行数；展开后可以查看摘要，并用“撤回这次更新”回到本轮外部更新之前。</p>
+                  <p class="settings-group-copy">普通外部更新会显示新增、删除和修改行数；明显的清空或大幅删改会被拦截，并保留覆盖前正文的恢复入口。</p>
                 </div>
                 <div class="settings-integration-help settings-usage-guide">
                   <h5>和 Agent 一起改文稿时</h5>
                   <ol>
-                    <li>外部更新提示会显示新增、删除和修改行数，方便先判断这次改动的量级。</li>
-                    <li>如果这次更新不对，直接点“撤回这次更新”，会回到这轮外部写入之前。</li>
+                    <li>先看外部更新提示的新增、删除和修改行数，再决定是否保留这次改动。</li>
+                    <li>普通但不合适的更新，直接点“撤回这次更新”，会回到本轮外部写入之前。</li>
+                    <li>若提示“已阻止覆盖”，说明本次更新疑似清空或大幅删改；当前正文会保持不动，点“恢复覆盖前正文”可另存为新草稿复核。</li>
                     <li>如果要找更早的版本，再去“文稿安全”里从最近备份恢复成新草稿。</li>
                   </ol>
                 </div>
@@ -724,8 +726,21 @@
                 <div class="settings-release-notes">
                   <article class="settings-release-card">
                     <div class="settings-release-header">
-                      <span class="settings-release-version">LyraMD 1.3.7</span>
+                      <span class="settings-release-version">LyraMD 1.3.8</span>
                       <span class="settings-release-badge">当前公开版本</span>
+                    </div>
+                    <ul>
+                      <li>外部 Agent 更新若试图清空文稿、删除绝大部分正文或大量删行，编辑器会阻止它直接覆盖当前正文。</li>
+                      <li>检测到高风险更新时，会保留覆盖前快照并显示“已阻止覆盖”与恢复入口；恢复始终生成新草稿，不覆盖当前文件。</li>
+                      <li>加强草稿自动保存、正式文稿 revision、异常退出和插图前检查点，让“撤回按钮错过了”后仍有本地恢复面。</li>
+                      <li>修复本地图片路径、空格路径和编辑器挂载后的刷新链路，并补齐受支持配置文件的“打开文件”路径。</li>
+                      <li>如果磁盘上的 LyraMD 已比当前运行窗口更新，启动时会提醒重启，避免旧窗口继续处理文稿。</li>
+                    </ul>
+                  </article>
+                  <article class="settings-release-card">
+                    <div class="settings-release-header">
+                      <span class="settings-release-version">LyraMD 1.3.7</span>
+                      <span class="settings-release-badge muted">编辑器与更新通道</span>
                     </div>
                     <ul>
                       <li>继续打磨设置窗口、窗口状态和右上角活动提示，让多窗口状态更稳定。</li>

@@ -14,15 +14,15 @@
 
 ## 功能
 
-- **文件实时刷新**：AI agent 修改当前 Markdown 文件时，LyraMD 自动刷新内容。
-- **Agent 变更摘要**：外部修改到达时显示新增、删除、改写行数和简短预览，连续更新会合并，并可一键撤回。
-- **本地安全网**：草稿自动保存、文稿级本地 revision 快照、插图前 checkpoint、可见的最近备份入口，以及崩溃后恢复为新草稿。
+- **文件实时刷新**：AI agent 修改当前 Markdown 文件时，LyraMD 自动刷新内容；清空、正文大幅缩减或大量删行等高风险更新不会直接覆盖编辑器。
+- **Agent 变更摘要**：外部修改到达时显示新增、删除、改写行数和简短预览，连续更新会合并；普通更新可一键撤回，高风险更新会显示已阻止覆盖和恢复入口。
+- **本地安全网**：草稿自动保存、文稿级本地 revision 快照、插图前 checkpoint、可见的最近备份入口，以及崩溃或高风险外部更新后恢复为新草稿。
 - **AI 精灵命令面板**：针对选中文本提供可编辑 prompt 模板、模型状态、预览、替换、插入和复制结果。
 - **OpenAI-compatible provider 设置**：支持 OpenAI 官方 API Key 或自定义网关，并提供内置连接检测。
 - **Codex MCP 集成**：设置页可检测 Codex CLI，并安装 LyraMD MCP bridge，让 Codex 读取和写入当前文档。
 - **反馈与问题上报**：设置页可填写问题或建议，打开预填好的 GitHub Issue，不在本地保存 GitHub token。
 - **所见即所得 Markdown 编辑**：基于 Milkdown。
-- **Markdown 大纲、图片与标签**：大纲识别 H1-H6 标题，渲染本地与相对路径图片，并识别 YAML tags、Obsidian `#tag` / `#nested/tag` 与 `[[wikilink]]`。
+- **Markdown 大纲、图片与标签**：大纲识别 H1-H6 标题，稳定渲染本地、相对路径和含空格路径的图片，并识别 YAML tags、Obsidian `#tag` / `#nested/tag` 与 `[[wikilink]]`。
 - **轻量侧边栏**：工作区与置顶区域固定，草稿 / 最近 / 工作目录 tab 更清晰，长标题可 hover 查看完整内容，文稿列表独立滚动。
 - **最近文件管理**：最多保留 10 条，可进入清除模式逐条移除。
 - **工作目录**：固定一个目录，递归展示其中的 Markdown 文件。
@@ -50,8 +50,8 @@ npm run dev
 
 | 平台 | 格式 | 状态 |
 | --- | --- | --- |
-| macOS Apple Silicon | `LyraMD-1.3.7-arm64.dmg` / `.zip` | 稳定发布目标 |
-| Windows x64 | `LyraMD-Setup-1.3.7-x64.exe` | Preview / 需要真实设备 smoke test |
+| macOS Apple Silicon | `LyraMD-1.3.8-arm64.dmg` / `.zip` | 稳定发布目标 |
+| Windows x64 | `LyraMD-Setup-1.3.8-x64.exe` | Preview / 需要真实设备 smoke test |
 
 ## macOS 安装与打开
 
@@ -70,13 +70,21 @@ LyraMD 目前没有做 Apple 公证，因为公证需要付费 Apple Developer �
 
 ## Windows 安装与打开
 
-Windows 支持目前是预览路径。v1.3.7 release 附带 Windows x64 安装器，但公开稳定发布前仍需要真实 Windows 设备 smoke test。
+Windows 支持目前是预览路径。v1.3.8 release 附带 Windows x64 安装器，但公开稳定发布前仍需要真实 Windows 设备 smoke test。
 
 从 [Releases](https://github.com/Afeng01/LyraMD/releases) 下载 `LyraMD-Setup-*-x64.exe`，运行安装器，并按 NSIS 安装流程完成安装。正式依赖前请先在 Windows 上验证启动、打开 `.md`、保存 / 另存为、外部文件刷新这几条主链路。
 
 Windows preview 版本目前暂不做代码签名。第一次启动时，Microsoft Defender SmartScreen 可能会提示“未知发布者”。只安装官方 GitHub Releases 页面下载的构建；如果你信任这个 unsigned preview build，可以选择 **更多信息 > 仍要运行**。
 
 面向公开 Windows 发版时，建议补 Windows code signing，避免用户遇到 unsigned publisher 警告。
+
+## 和 Agent 一起安全地改文稿
+
+1. 正常情况下，Agent 修改当前 Markdown 文件后，先看右上角的“外部更新”摘要，再决定是否继续写作。
+2. 普通但不合适的更新，点击 **撤回这次更新**，即可回到这轮外部写入前。
+3. 如果出现 **已阻止覆盖**，说明这次更新疑似清空、正文大幅缩减或大量删行。当前编辑器正文不会直接被替换；点击 **恢复覆盖前正文** 会生成一份新草稿，供你确认内容。
+4. 如果已经错过提示，点击标题栏 **文稿安全** 查看最近备份；也可以在 **设置 > 编辑器行为 > 文稿安全** 打开备份目录。所有恢复都会新建草稿，不覆盖你的正式文件。
+5. 安装新版本后请退出并重新打开 LyraMD。若旧窗口仍在运行，它会提示磁盘上的应用已更新；重启后才会使用新的文稿安全逻辑。
 
 ## 更新
 

@@ -90,7 +90,8 @@ describe('agent change panel regression', () => {
     const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
 
     expect(html).toContain('Agent 协作')
-    expect(html).toContain('外部更新提示会显示新增、删除和修改行数')
+    expect(html).toContain('普通外部更新会显示新增、删除和修改行数')
+    expect(html).toContain('已阻止覆盖')
     expect(html).toContain('撤回这次更新')
   })
 })

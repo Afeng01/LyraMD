@@ -14,15 +14,15 @@ Real-time collaboration between humans and AI agents, adapted for a quieter work
 
 ## Features
 
-- **Live file refresh**: when an AI agent edits the current Markdown file, LyraMD reloads it automatically.
-- **Agent change summary** for external edits, with compact preview, burst coalescing, and one-click rollback.
-- **Local safety net** with draft autosave, per-document local revision snapshots, image-insert checkpoints, a visible recent-backups panel, and crash recovery into a new draft.
+- **Live file refresh**: when an AI agent edits the current Markdown file, LyraMD reloads it automatically; destructive updates such as emptying a document, large content drops, or large line removals do not overwrite the editor directly.
+- **Agent change summary** for external edits, with compact preview, burst coalescing, one-click rollback for ordinary updates, and a blocked-overwrite recovery path for risky changes.
+- **Local safety net** with draft autosave, per-document local revision snapshots, image-insert checkpoints, a visible recent-backups panel, and crash or risky-external-update recovery into a new draft.
 - **AI Genie command palette** for selected text, with editable prompt templates, model status, preview, replace, insert, and copy actions.
 - **OpenAI-compatible provider settings** for official OpenAI keys or custom gateways, including a built-in connection check.
 - **Codex MCP integration** from Settings, installing the LyraMD MCP bridge so Codex can read and write the current document.
 - **Feedback and issue reporting** from Settings, opening a prefilled GitHub Issue without storing a GitHub token locally.
 - **WYSIWYG Markdown editing** powered by Milkdown.
-- **Markdown outline, images, and tokens** for H1-H6 headings, local/relative images, YAML tags, Obsidian `#tag` / nested tags, and `[[wikilink]]`.
+- **Markdown outline, images, and tokens** for H1-H6 headings, local/relative images including paths with spaces, YAML tags, Obsidian `#tag` / nested tags, and `[[wikilink]]`.
 - **Lightweight sidebar** with fixed workspace/pinned areas, clearer draft/recent/workdir tabs, full-title hover, and a scrolling document list.
 - **Recent file management** with a compact delete mode.
 - **Recursive Markdown workdir list** using relative paths.
@@ -50,8 +50,8 @@ Download the latest builds from [Releases](https://github.com/Afeng01/LyraMD/rel
 
 | Platform | Format | Status |
 | --- | --- | --- |
-| macOS Apple Silicon | `LyraMD-1.3.7-arm64.dmg` / `.zip` | Stable target |
-| Windows x64 | `LyraMD-Setup-1.3.7-x64.exe` | Preview / needs real-device smoke testing |
+| macOS Apple Silicon | `LyraMD-1.3.8-arm64.dmg` / `.zip` | Stable target |
+| Windows x64 | `LyraMD-Setup-1.3.8-x64.exe` | Preview / needs real-device smoke testing |
 
 ## Install on macOS
 
@@ -70,13 +70,21 @@ Code signing and notarization are different. Signing identifies who produced an 
 
 ## Install on Windows
 
-Windows support is currently a preview path. The v1.3.7 release includes a Windows x64 installer, but it still needs real-device smoke testing before it should be treated as a stable Windows release.
+Windows support is currently a preview path. The v1.3.8 release includes a Windows x64 installer, but it still needs real-device smoke testing before it should be treated as a stable Windows release.
 
 Download `LyraMD-Setup-*-x64.exe` from [Releases](https://github.com/Afeng01/LyraMD/releases), run the installer, and follow the NSIS setup flow. Please verify launch, opening `.md` files, save / save as, and external file refresh on Windows before relying on it for regular work.
 
 Windows preview builds are currently distributed without code signing. On first launch, Microsoft Defender SmartScreen may show an "unknown publisher" warning. Only install builds downloaded from the official GitHub Releases page, and use **More info > Run anyway** only if you trust this unsigned preview build.
 
 For a public Windows release, code signing is recommended so users can install LyraMD without the unsigned publisher warning.
+
+## Safe Agent Collaboration
+
+1. After an agent changes the current Markdown file, read the **External Update** summary before continuing to write.
+2. For an ordinary but unwanted update, select **Undo this update** to return to the state before that external write.
+3. If LyraMD shows **Overwrite blocked**, the update looked like an empty document, a large content drop, or a large line removal. The editor keeps its current text; choose **Restore pre-overwrite content** to create a separate recovery draft for review.
+4. If the prompt has gone away, open **Document Safety** in the title bar to browse recent backups, or open the backup directory from **Settings > Editor Behavior > Document Safety**. Every restore creates a new draft and does not overwrite the source file.
+5. After installing an update, quit and reopen LyraMD. A still-running older window warns when a newer app bundle is on disk; restart it before relying on the new document-safety behavior.
 
 ## Updates
 

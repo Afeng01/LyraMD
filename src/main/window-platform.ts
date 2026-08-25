@@ -17,6 +17,8 @@ export function createWindowOptions({
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      // No spellcheck UI in LyraMD — avoid red squiggles in the editor (upstream issue #7)
+      spellcheck: false,
     },
   }
 
@@ -57,6 +59,7 @@ export function createSettingsWindowOptions({
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      spellcheck: false,
     },
   }
 

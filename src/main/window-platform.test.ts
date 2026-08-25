@@ -25,6 +25,7 @@ describe('createWindowOptions', () => {
     expect(options.webPreferences?.preload).toBe('C:\\LyraMD\\dist\\preload\\index.js')
     expect(options.webPreferences?.contextIsolation).toBe(true)
     expect(options.webPreferences?.nodeIntegration).toBe(false)
+    expect(options.webPreferences?.spellcheck).toBe(false)
   })
 
   it('allows compact drawer windows without squeezing core controls', () => {

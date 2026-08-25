@@ -1,4 +1,4 @@
-import { Editor, rootCtx, defaultValueCtx, editorViewCtx, serializerCtx, remarkPluginsCtx, editorViewOptionsCtx, prosePluginsCtx } from '@milkdown/kit/core'
+import { Editor, rootCtx, defaultValueCtx, editorViewCtx, serializerCtx, remarkPluginsCtx, remarkStringifyOptionsCtx, editorViewOptionsCtx, prosePluginsCtx } from '@milkdown/kit/core'
 import { DOMSerializer, type Node as ProseNode } from '@milkdown/kit/prose/model'
 import { Plugin, PluginKey, TextSelection } from '@milkdown/kit/prose/state'
 import { Decoration, DecorationSet } from '@milkdown/kit/prose/view'
@@ -20,6 +20,7 @@ import {
   type SearchResult,
 } from 'prosemirror-search'
 import { htmlView } from './html-view'
+import { highlight, remarkHighlight, highlightStringifyHandler } from './highlight'
 import { frontmatterSchema, frontmatterView } from './frontmatter-node'
 import { imageView } from './image-node'
 import {
@@ -443,7 +444,15 @@ export async function createEditor(
       ctx.set(remarkPluginsCtx, [
         { plugin: remarkFrontmatter, options: ['yaml'] },
         { plugin: remarkBreaks, options: undefined },
+        { plugin: remarkHighlight, options: undefined },
       ])
+      // 教会 remark-stringify 输出自定义的 ==高亮== 节点
+      const stringifyOptions = ctx.get(remarkStringifyOptionsCtx)
+      ctx.set(remarkStringifyOptionsCtx, {
+        ...stringifyOptions,
+        // 'mark' 是自定义节点类型，不在带类型的 Handlers 映射里
+        handlers: { ...stringifyOptions.handlers, mark: highlightStringifyHandler } as typeof stringifyOptions.handlers,
+      })
       ctx.update(prosePluginsCtx, (plugins) => plugins.concat(
         createAutoPairInputPlugin(),
         createProsemirrorSearchPlugin(),
@@ -472,6 +481,7 @@ export async function createEditor(
     })
     .use(commonmark)
     .use(gfm)
+    .use(highlight)
     .use(history)
     .use(listener)
     .use(clipboard)
@@ -502,10 +512,63 @@ export async function createEditor(
     }
   })
 
+  // 点击待办项左侧复选框区域切换勾选状态（仅复选框附近生效，点正文仍是放置光标）
+  root.addEventListener('click', (e) => {
+    if (!(e.target instanceof HTMLElement)) return
+    const li = e.target.closest('li[data-item-type="task"]') as HTMLElement | null
+    if (!li) return
+    const rect = li.getBoundingClientRect()
+    if (e.clientX - rect.left > 24) return
+    e.preventDefault()
+    toggleTaskListItem(e)
+  })
+
+  // Cmd/Ctrl+Enter 切换光标所在待办项的勾选状态
+  root.addEventListener('keydown', (e) => {
+    if (!(e.metaKey || e.ctrlKey) || e.key !== 'Enter') return
+    e.preventDefault()
+    if (!editorInstance) return
+    editorInstance.action((ctx) => {
+      const view = ctx.get(editorViewCtx)
+      toggleCheckedTaskItemAt(view, view.state.selection.from)
+    })
+  })
+
   searchState = readSearchStateFromEditor(searchState.query)
   rememberCurrentSelection()
 
   return editorInstance
+}
+
+// 在文档位置 pos 处向上查找最近的待办列表项并翻转其 checked 状态。
+// 不能用 posAtDOM(li, 0)：它落在 li 内部第一个子节点上而不是 list_item
+// 本身，导致切换静默失效；改用点击/光标坐标解析后沿树向上找（与⌘+Enter 同路）。
+function toggleTaskListItem(e: MouseEvent): void {
+  if (!editorInstance) return
+  editorInstance.action((ctx) => {
+    const view = ctx.get(editorViewCtx)
+    const coords = view.posAtCoords({ left: e.clientX, top: e.clientY })
+    if (!coords) return
+    toggleCheckedTaskItemAt(view, coords.pos)
+  })
+}
+
+function toggleCheckedTaskItemAt(
+  view: NonNullable<ReturnType<typeof getEditorView>>,
+  pos: number,
+): void {
+  const $pos = view.state.doc.resolve(pos)
+  for (let d = $pos.depth; d >= 0; d--) {
+    const node = $pos.node(d)
+    if (node.type.name === 'list_item' && node.attrs.checked != null) {
+      const tr = view.state.tr.setNodeMarkup($pos.before(d), undefined, {
+        ...node.attrs,
+        checked: !node.attrs.checked,
+      })
+      view.dispatch(tr)
+      return
+    }
+  }
 }
 
 export function getMarkdown(): string {

@@ -65,6 +65,16 @@ describe('application menu shortcut regression', () => {
     expect(main).toContain("shortcutFor('cleanCjkTypography')")
   })
 
+  it('opens the built-in Markdown cheatsheet from the help menu', () => {
+    const main = readFileSync(join(process.cwd(), 'src/main/index.ts'), 'utf8')
+
+    expect(main).toContain("label: 'Markdown 语法速查'")
+    expect(main).toContain("accelerator: 'CmdOrCtrl+Shift+/'")
+    expect(main).toContain('click: () => openCheatsheet()')
+    // 速查窗口用内存内容打开：无文件、无 watcher、不进最近列表
+    expect(main).toContain("win.webContents.send('file-opened', { path: null, content: initialContent })")
+  })
+
   it('wires AI palette through shortcutFor openAiPalette and sends menu-open-ai-palette event', () => {
     const main = readFileSync(join(process.cwd(), 'src/main/index.ts'), 'utf8')
 

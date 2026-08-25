@@ -1369,7 +1369,7 @@ function resolveWorkdirCreationRoot(win: BrowserWindow): string | null {
   return sidebarState.workspacePaths.find((workspacePath) => existsSync(workspacePath)) ?? null
 }
 
-function createWindow(initialDocument?: { filePath: string; documentKind?: Exclude<DocumentKind, 'blank'>; draftId?: string | null }): BrowserWindow {
+function createWindow(initialDocument?: { filePath: string; documentKind?: Exclude<DocumentKind, 'blank'>; draftId?: string | null }, initialContent?: string): BrowserWindow {
   const win = new BrowserWindow(createWindowOptions({
     platform: process.platform,
     preloadPath: join(__dirname, '../preload/index.js'),
@@ -1414,6 +1414,9 @@ function createWindow(initialDocument?: { filePath: string; documentKind?: Exclu
         draftId: initialDocument.draftId,
         recordRecent: initialDocument.documentKind !== 'draft',
       })
+    } else if (initialContent) {
+      // 内存内容（如语法速查）——无文件、无 watcher、不进最近列表
+      win.webContents.send('file-opened', { path: null, content: initialContent })
     }
   })
 
@@ -1442,6 +1445,20 @@ function createWindowMatchingSize(sourceWin: BrowserWindow | null): BrowserWindo
     nextWin.setSize(width, height)
   }
   return nextWin
+}
+
+// 帮助 > Markdown 语法速查 打开的内置模板
+const cheatsheetPath = app.isPackaged
+  ? join(process.resourcesPath, 'templates', 'cheatsheet.md')
+  : join(__dirname, '../../resources/templates/cheatsheet.md')
+
+async function openCheatsheet(): Promise<void> {
+  try {
+    const content = await readFile(cheatsheetPath, 'utf-8')
+    createWindow(undefined, content)
+  } catch {
+    createWindow()
+  }
 }
 
 function buildSettingsWindowUrl(pane?: string): string {
@@ -3067,6 +3084,11 @@ function buildMenu(): void {
     {
       label: '帮助',
       submenu: [
+        {
+          label: 'Markdown 语法速查',
+          accelerator: 'CmdOrCtrl+Shift+/',
+          click: () => openCheatsheet()
+        },
         {
           label: '检查更新…',
           click: () => {

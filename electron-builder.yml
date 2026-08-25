@@ -14,6 +14,10 @@ extraResources:
     to: mcp
     filter:
       - "**/*"
+  - from: resources/templates
+    to: templates
+    filter:
+      - "**/*"
 
 npmArgs:
   - "--loglevel=error"

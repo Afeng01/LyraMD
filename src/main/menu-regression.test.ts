@@ -122,6 +122,22 @@ describe('application menu shortcut regression', () => {
     expect(renderer).toContain('api.checkForUpdates?.()')
   })
 
+  it('opens built-in feature demos from the help menu and ships them as extraResources', () => {
+    const main = readFileSync(join(process.cwd(), 'src/main/index.ts'), 'utf8')
+    const builder = readFileSync(join(process.cwd(), 'electron-builder.yml'), 'utf8')
+
+    expect(main).toContain("label: '新功能演示'")
+    expect(main).toContain("openDemo('changelog.md')")
+    expect(main).toContain("openDemo('tasks.md')")
+    expect(main).toContain("openDemo('format.md')")
+    expect(main).toContain("openDemo('agent-sim.md')")
+    // 打开模式照语法速查：packaged 读 resources 目录，dev 读仓库目录
+    expect(main).toContain("join(process.resourcesPath, 'demo')")
+    expect(main).toContain("join(__dirname, '../../resources/demo')")
+    expect(builder).toMatch(/from:\s*resources\/demo/)
+    expect(builder).toMatch(/to:\s*demo/)
+  })
+
   it('wires Word export through native menu, preload and renderer', () => {
     const main = readFileSync(join(process.cwd(), 'src/main/index.ts'), 'utf8')
     const preload = readFileSync(join(process.cwd(), 'src/preload/index.ts'), 'utf8')

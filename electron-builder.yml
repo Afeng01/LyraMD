@@ -18,6 +18,10 @@ extraResources:
     to: templates
     filter:
       - "**/*"
+  - from: resources/demo
+    to: demo
+    filter:
+      - "**/*"
 
 npmArgs:
   - "--loglevel=error"

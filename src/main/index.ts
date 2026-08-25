@@ -1497,6 +1497,20 @@ async function openCheatsheet(): Promise<void> {
   }
 }
 
+// 帮助 > 新功能演示 打开的内置示例（内存副本，同语法速查）
+const demoDir = app.isPackaged
+  ? join(process.resourcesPath, 'demo')
+  : join(__dirname, '../../resources/demo')
+
+async function openDemo(fileName: string): Promise<void> {
+  try {
+    const content = await readFile(join(demoDir, fileName), 'utf-8')
+    createWindow(undefined, content)
+  } catch {
+    createWindow()
+  }
+}
+
 function buildSettingsWindowUrl(pane?: string): string {
   const params = new URLSearchParams({ settingsWindow: '1' })
   if (pane) params.set('pane', pane)
@@ -3173,6 +3187,27 @@ function buildMenu(): void {
           label: 'Markdown 语法速查',
           accelerator: 'CmdOrCtrl+Shift+/',
           click: () => openCheatsheet()
+        },
+        {
+          label: '新功能演示',
+          submenu: [
+            {
+              label: '功能总览',
+              click: () => openDemo('changelog.md')
+            },
+            {
+              label: '待办列表',
+              click: () => openDemo('tasks.md')
+            },
+            {
+              label: '格式速览',
+              click: () => openDemo('format.md')
+            },
+            {
+              label: 'Agent 同步',
+              click: () => openDemo('agent-sim.md')
+            }
+          ]
         },
         {
           label: '检查更新…',

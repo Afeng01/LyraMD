@@ -20,6 +20,7 @@ import {
   type SearchResult,
 } from 'prosemirror-search'
 import { htmlView } from './html-view'
+import { mermaidView } from './mermaid-view'
 import { highlight, remarkHighlight, highlightStringifyHandler } from './highlight'
 import { frontmatterSchema, frontmatterView } from './frontmatter-node'
 import { imageView } from './image-node'
@@ -489,6 +490,7 @@ export async function createEditor(
     .use(frontmatterView)
     .use(imageView)
     .use(htmlView)
+    .use(mermaidView)
     .create()
 
   setupCodeBlockCopy(root)

@@ -26,7 +26,11 @@ export default defineConfig({
     build: {
       outDir: resolve(__dirname, 'dist/renderer'),
       rollupOptions: {
-        input: resolve(__dirname, 'src/renderer/index.html')
+        // mermaid-sandbox 是独立入口：mermaid 只打进该 chunk，主包零加载
+        input: {
+          index: resolve(__dirname, 'src/renderer/index.html'),
+          'mermaid-sandbox': resolve(__dirname, 'src/renderer/mermaid-sandbox.html')
+        }
       }
     }
   }

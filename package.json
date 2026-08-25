@@ -22,14 +22,18 @@
   },
   "dependencies": {
     "@milkdown/kit": "^7.19.2",
+    "@milkdown/plugin-math": "^7.5.9",
     "docx": "^9.7.1",
     "electron-updater": "^6.8.3",
+    "katex": "^0.16.47",
+    "mermaid": "^11.17.2",
     "prosemirror-search": "^1.1.0",
     "remark-breaks": "^4.0.0",
     "remark-frontmatter": "^5.0.0",
     "unist-util-visit": "^5.0.0"
   },
   "devDependencies": {
+    "@types/katex": "^0.16.8",
     "electron": "^41.3.0",
     "electron-builder": "^26.0.0",
     "electron-vite": "^3.0.0",

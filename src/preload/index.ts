@@ -242,6 +242,7 @@ export interface ElectronAPI {
   saveFileAs: (content: string, mode?: SaveAsMode) => Promise<boolean>
   exportPDF: () => Promise<boolean>
   exportHTML: (html: string) => Promise<boolean>
+  exportDocx: (content: string) => Promise<boolean>
   loadCustomTheme: () => Promise<{ name: string; css: string } | null>
   loadThemeCSS: (fileName: string) => Promise<string | null>
   getSettings: () => Promise<AppSettings | null>
@@ -318,6 +319,7 @@ export interface ElectronAPI {
   onMenuToggleOutline: (callback: () => void) => void
   onMenuExportPDF: (callback: () => void) => void
   onMenuExportHTML: (callback: () => void) => void
+  onMenuExportDocx: (callback: () => void) => void
   onSetTheme: (callback: (theme: string) => void) => void
   onSetCustomCSS: (callback: (css: string) => void) => void
   onMenuImportTheme: (callback: () => void) => void
@@ -339,6 +341,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveFileAs: (content: string, mode?: SaveAsMode) => ipcRenderer.invoke('save-file-as', content, mode),
   exportPDF: () => ipcRenderer.invoke('export-pdf'),
   exportHTML: (html: string) => ipcRenderer.invoke('export-html', html),
+  exportDocx: (content: string) => ipcRenderer.invoke('export-docx', content),
   loadCustomTheme: () => ipcRenderer.invoke('load-custom-theme'),
   loadThemeCSS: (fileName: string) => ipcRenderer.invoke('load-theme-css', fileName),
   getSettings: () => ipcRenderer.invoke('get-settings'),
@@ -446,6 +449,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onMenuExportHTML: (callback: () => void) => {
     ipcRenderer.on('menu-export-html', () => callback())
+  },
+  onMenuExportDocx: (callback: () => void) => {
+    ipcRenderer.on('menu-export-docx', () => callback())
   },
   onSetTheme: (callback: (theme: string) => void) => {
     ipcRenderer.on('set-theme', (_event, theme) => callback(theme))

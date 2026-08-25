@@ -121,4 +121,26 @@ describe('application menu shortcut regression', () => {
     expect(html).toContain('data-windows-action="check-updates"')
     expect(renderer).toContain('api.checkForUpdates?.()')
   })
+
+  it('wires Word export through native menu, preload and renderer', () => {
+    const main = readFileSync(join(process.cwd(), 'src/main/index.ts'), 'utf8')
+    const preload = readFileSync(join(process.cwd(), 'src/preload/index.ts'), 'utf8')
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
+
+    expect(main).toContain("label: '导出 Word…'")
+    expect(main).toContain("sendToFocused('menu-export-docx')")
+    expect(main).toContain("ipcMain.handle('export-docx'")
+    // 默认路径走 batch1 的目录锚定闸： beside current document
+    expect(main).toContain('suggestSavePath(win, `${baseName}.docx`)')
+    // 动态加载：docx 不进启动包
+    expect(main).toContain("await import('./docx-export')")
+
+    expect(preload).toContain("exportDocx: (content: string) => ipcRenderer.invoke('export-docx', content)")
+    expect(preload).toContain('onMenuExportDocx')
+
+    expect(renderer).toContain('api.onMenuExportDocx')
+    expect(renderer).toContain('api.exportDocx(getMarkdown())')
+    expect(html).toContain('data-windows-action="export-docx"')
+  })
 })

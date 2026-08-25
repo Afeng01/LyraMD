@@ -2830,6 +2830,35 @@ ipcMain.handle('export-html', async (event, htmlContent: string) => {
   }
 })
 
+ipcMain.handle('export-docx', async (event, content: unknown) => {
+  const win = getWinFromEvent(event)
+  if (!win || typeof content !== 'string') return false
+  win.show()
+  win.focus()
+  const baseName = suggestFileName(win, content) ?? 'untitled'
+  const result = await dialog.showSaveDialog(win, {
+    defaultPath: suggestSavePath(win, `${baseName}.docx`),
+    filters: [{ name: 'Word Document', extensions: ['docx'] }]
+  })
+  if (result.canceled || !result.filePath) return false
+  try {
+    // Lazy-load so the docx bundle stays out of the startup package
+    const { markdownToDocx } = await import('./docx-export')
+    await writeFile(result.filePath, await markdownToDocx({ content, sourcePath: getState(win).filePath }))
+    shell.showItemInFolder(result.filePath)
+    return true
+  } catch (error) {
+    console.error('Word export failed', error)
+    await dialog.showMessageBox(win, {
+      type: 'error',
+      buttons: ['好'],
+      message: '无法导出 Word 文档',
+      detail: error instanceof Error ? error.message : String(error),
+    })
+    return false
+  }
+})
+
 ipcMain.handle('load-custom-theme', async (event) => {
   const win = getWinFromEvent(event)
   if (!win) return null
@@ -2991,6 +3020,10 @@ function buildMenu(): void {
         {
           label: '导出 HTML…',
           click: () => sendToFocused('menu-export-html')
+        },
+        {
+          label: '导出 Word…',
+          click: () => sendToFocused('menu-export-docx')
         },
         { type: 'separator' },
         isMac ? { role: 'close' } : { role: 'quit' }

@@ -3050,6 +3050,12 @@ async function init(): Promise<void> {
     })
   }
 
+  const exportCurrentDocx = (): void => {
+    void flushAutoSave().then(() => {
+      api.exportDocx(getMarkdown()).catch(() => {})
+    })
+  }
+
   const exportCurrentHTML = (): void => {
     const s = getComputedStyle(document.body)
     const v = (name: string) => s.getPropertyValue(name).trim()
@@ -3162,6 +3168,9 @@ img{max-width:100%}
       case 'export-html':
         exportCurrentHTML()
         break
+      case 'export-docx':
+        exportCurrentDocx()
+        break
       case 'undo':
       case 'redo':
       case 'cut':
@@ -3252,6 +3261,9 @@ img{max-width:100%}
   api.onMenuExportPDF(() => api.exportPDF())
   api.onMenuExportHTML(() => {
     exportCurrentHTML()
+  })
+  api.onMenuExportDocx(() => {
+    exportCurrentDocx()
   })
   api.onNewFile(() => {
     resetLocalEchoState()

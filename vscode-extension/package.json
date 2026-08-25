@@ -1,0 +1,71 @@
+{
+  "name": "lyramd-open-in-lyramd",
+  "displayName": "LyraMD: Open in LyraMD",
+  "description": "Open the current Markdown file in LyraMD. Unsaved changes are saved to disk first so LyraMD's file watcher can see them.",
+  "version": "0.1.0",
+  "publisher": "lyramd",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Afeng01/LyraMD.git",
+    "directory": "vscode-extension"
+  },
+  "files": [
+    "extension.js",
+    "package.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "lyramd",
+    "markdown",
+    "editor"
+  ],
+  "activationEvents": [
+    "onCommand:lyramd.openCurrentMarkdown"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "lyramd.openCurrentMarkdown",
+        "title": "LyraMD: Open Current Markdown in LyraMD"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "lyramd.openCurrentMarkdown",
+          "when": "editorLangId == markdown"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "lyramd.openCurrentMarkdown",
+          "when": "editorLangId == markdown",
+          "group": "navigation@1"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "LyraMD",
+      "properties": {
+        "lyramd.executablePath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Optional path or name of the LyraMD executable. When empty, the platform default is used: macOS `open -a LyraMD <file>`, Linux `lyramd <file>`, Windows `LyraMD.exe <file>`. Set this to a full path when LyraMD is not on PATH, e.g. `C:\\Program Files\\LyraMD\\LyraMD.exe`."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "check": "node --check extension.js",
+    "package": "npx --yes @vscode/vsce package"
+  }
+}

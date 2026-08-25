@@ -94,7 +94,16 @@ import {
 } from './codex-integration'
 import { createMcpBridgeController, type McpBridgeRequest } from './mcp-bridge'
 import { completeAiHelperPrompt, testAiHelperConnection } from './ai-provider'
-import { checkForUpdatesFromMenu, configureAutoUpdates } from './updater'
+import { checkForUpdatesFromMenu, configureAutoUpdates, installDownloadedUpdate, setUpdateVersionSkipChecker, startUpdateDownload } from './updater'
+import {
+  isUpdateVersionSkipped,
+  parseReleaseNoticeState,
+  serializeReleaseNoticeState,
+  shouldShowReleaseNoticeOnLaunch,
+  withReleaseNoticeShown,
+  withSkippedUpdateVersion,
+  type ReleaseNoticeState,
+} from './update-notice'
 import { shouldPromptForInstalledBundleRefresh } from './runtime-update-guard'
 import { LOCAL_MEDIA_PROTOCOL, localMediaUrlToAbsolutePath } from '../shared/local-media'
 
@@ -104,6 +113,7 @@ const themesDir = join(appDataDir, 'themes')
 const sidebarStatePath = join(appDataDir, 'sidebar-state.json')
 const sessionStatePath = join(appDataDir, 'session-state.json')
 const settingsPath = join(appDataDir, 'settings.json')
+const releaseNoticePath = join(appDataDir, 'release-notice.json')
 const revisionsDir = join(appDataDir, 'revisions')
 const crashRecoveryStatePath = join(appDataDir, 'crash-recovery.json')
 const externalChangeRecoveryStatePath = join(appDataDir, 'external-change-recovery.json')
@@ -328,6 +338,32 @@ async function loadSessionState(): Promise<void> {
 
 async function loadSettingsState(): Promise<void> {
   appSettings = await loadAppSettings(settingsPath)
+}
+
+let releaseNoticeState: ReleaseNoticeState = { skippedVersion: null, lastShownVersion: null }
+
+async function loadReleaseNoticeState(): Promise<void> {
+  try {
+    const raw = await readFile(releaseNoticePath, 'utf-8')
+    releaseNoticeState = parseReleaseNoticeState(JSON.parse(raw))
+  } catch {
+    releaseNoticeState = { skippedVersion: null, lastShownVersion: null }
+  }
+  setUpdateVersionSkipChecker((version) => isUpdateVersionSkipped(releaseNoticeState, version))
+}
+
+function persistReleaseNoticeState(): Promise<void> {
+  return writeFile(releaseNoticePath, serializeReleaseNoticeState(releaseNoticeState), 'utf-8').catch(() => {})
+}
+
+// 每个新版本安装后的首次启动，打开一次设置窗的「更新日志」面板。
+async function maybeOpenReleaseNotesOnce(): Promise<void> {
+  const currentVersion = app.getVersion()
+  if (!shouldShowReleaseNoticeOnLaunch(releaseNoticeState, currentVersion)) return
+
+  releaseNoticeState = withReleaseNoticeShown(releaseNoticeState, currentVersion)
+  await persistReleaseNoticeState()
+  openSettingsWindow('release-notes')
 }
 
 // Per-window state
@@ -1455,6 +1491,20 @@ const cheatsheetPath = app.isPackaged
 async function openCheatsheet(): Promise<void> {
   try {
     const content = await readFile(cheatsheetPath, 'utf-8')
+    createWindow(undefined, content)
+  } catch {
+    createWindow()
+  }
+}
+
+// 帮助 > 新功能演示 打开的内置示例（内存副本，同语法速查）
+const demoDir = app.isPackaged
+  ? join(process.resourcesPath, 'demo')
+  : join(__dirname, '../../resources/demo')
+
+async function openDemo(fileName: string): Promise<void> {
+  try {
+    const content = await readFile(join(demoDir, fileName), 'utf-8')
     createWindow(undefined, content)
   } catch {
     createWindow()
@@ -2731,6 +2781,22 @@ ipcMain.handle('check-for-updates', async () => {
   await checkForUpdatesFromMenu()
 })
 
+ipcMain.handle('update-download', async () => {
+  return startUpdateDownload()
+})
+
+ipcMain.handle('update-install', async () => {
+  return installDownloadedUpdate()
+})
+
+ipcMain.handle('update-skip-version', async (_event, version: string) => {
+  if (typeof version !== 'string') return false
+  releaseNoticeState = withSkippedUpdateVersion(releaseNoticeState, version)
+  setUpdateVersionSkipChecker((candidate) => isUpdateVersionSkipped(releaseNoticeState, candidate))
+  await persistReleaseNoticeState()
+  return true
+})
+
 ipcMain.handle('save-file', async (event, content: string) => {
   const win = getWinFromEvent(event)
   if (!win) return false
@@ -3128,6 +3194,27 @@ function buildMenu(): void {
           click: () => openCheatsheet()
         },
         {
+          label: '新功能演示',
+          submenu: [
+            {
+              label: '功能总览',
+              click: () => openDemo('changelog.md')
+            },
+            {
+              label: '待办列表',
+              click: () => openDemo('tasks.md')
+            },
+            {
+              label: '格式速览',
+              click: () => openDemo('format.md')
+            },
+            {
+              label: 'Agent 同步',
+              click: () => openDemo('agent-sim.md')
+            }
+          ]
+        },
+        {
           label: '检查更新…',
           click: () => {
             checkForUpdatesFromMenu().catch(() => {})
@@ -3150,7 +3237,7 @@ function buildMenu(): void {
 if (hasSingleInstanceLock) {
   app.whenReady().then(() => {
     Promise.all([ensureAppDataDir(), ensureThemesDir()])
-      .then(() => Promise.all([loadSidebarState(), loadSessionState(), loadSettingsState()]))
+      .then(() => Promise.all([loadSidebarState(), loadSessionState(), loadSettingsState(), loadReleaseNoticeState()]))
       .catch(() => {})
       .finally(() => {
         registerLocalMediaProtocol()
@@ -3179,6 +3266,11 @@ if (hasSingleInstanceLock) {
         }
 
         void mcpBridge.start().catch(() => {})
+
+        // 首启一次性打开更新日志（在主窗口之后创建，避免抢启动焦点顺序）
+        void maybeOpenReleaseNotesOnce().catch((error: Error) => {
+          console.error('[update-notice] failed to open release notes', error)
+        })
 
         app.on('activate', () => {
           void checkForInstalledBundleRefresh().catch(() => {})

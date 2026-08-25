@@ -1,0 +1,19 @@
+/* ===== LyraMD Theme: 浅色 Light =====
+   GitHub 风格的干净白色，LyraMD 的默认外观。
+
+   导入：菜单「主题 > Import Theme...」，或放入 ~/.lyramd/themes/
+   变量写在 :root 上，元素规则直接指向编辑器 DOM。 */
+
+:root {
+  --bg-color: #ffffff;
+  --text-color: #24292f;
+  --text-muted: #656d76;
+  --border-color: #d0d7de;
+  --link-color: #0969da;
+  --code-bg: rgba(175, 184, 193, 0.2);
+  --code-block-bg: #f6f8fa;
+  --blockquote-border: #d0d7de;
+  --table-header-bg: #f6f8fa;
+  --selection-bg: rgba(9, 105, 218, 0.15);
+  --highlight-bg: #fff3bf;
+}

@@ -4,9 +4,16 @@ Download any `.css` file and place it in `~/.lyramd/themes/`, or use **Theme > I
 
 ## Available Themes
 
+The four built-in themes ship as standalone CSS files in this directory — use them as starting points for your own:
+
 | Theme | Description |
 |-------|-------------|
+| [light.css](light.css) | GitHub-inspired clean white, the default look |
+| [dark.css](dark.css) | GitHub Dark style low-light theme |
 | [elegant.css](elegant.css) | Warm serif theme with terracotta accents and dark code blocks |
+| [newsprint.css](newsprint.css) | Cream paper texture with serif type |
+
+Semantic color tokens are contract-checked (`npm run check:themes`): text and link colors must keep WCAG AA contrast against each theme background, and standalone files must stay in sync with `src/renderer/themes/base.css`.
 
 ## Creating Your Own Theme
 

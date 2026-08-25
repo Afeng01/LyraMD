@@ -1,0 +1,23 @@
+/* ===== LyraMD Theme: 新闻纸 Newsprint =====
+   米黄纸面与衬线字体的印刷质感主题。
+
+   导入：菜单「主题 > Import Theme...」，或放入 ~/.lyramd/themes/
+   变量写在 :root 上，元素规则直接指向编辑器 DOM。 */
+
+:root {
+  --bg-color: #f5f2eb;
+  --text-color: #1a1a1a;
+  --text-muted: #666666;
+  --border-color: #d4d0c8;
+  --link-color: #2c5f8a;
+  --code-bg: rgba(0, 0, 0, 0.05);
+  --code-block-bg: #eae6de;
+  --blockquote-border: #999999;
+  --table-header-bg: #eae6de;
+  --selection-bg: rgba(44, 95, 138, 0.15);
+  --highlight-bg: #f3e3a3;
+}
+
+#editor .ProseMirror {
+  font-family: 'PT Serif', Georgia, serif;
+}

@@ -2038,6 +2038,106 @@ body.sidebar-resizing * {
   pointer-events: none;
 }
 
+/* 更新横幅：非模态浮层，悬在编辑区上方，不阻塞写作；
+   挂在 #app-shell 下（position: relative），避开 52px 标题栏。 */
+#update-banner {
+  position: absolute;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(640px, calc(100vw - 48px));
+  padding: 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 80%, transparent 20%);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--bg-color) 96%, var(--border-color) 4%);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.10), 0 2px 7px rgba(15, 23, 42, 0.06);
+}
+
+#update-banner[hidden] {
+  display: none;
+}
+
+#update-banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+#update-banner-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+#update-banner-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+#update-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.update-banner-button {
+  padding: 4px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-color);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.update-banner-button:hover {
+  border-color: color-mix(in srgb, var(--link-color) 36%, var(--border-color) 64%);
+  background: color-mix(in srgb, var(--selection-bg) 30%, transparent 70%);
+}
+
+.update-banner-button.primary {
+  border-color: var(--link-color);
+  background: var(--link-color);
+  color: #fff;
+  font-weight: 500;
+}
+
+.update-banner-button.primary:hover {
+  background: color-mix(in srgb, var(--link-color) 88%, black 12%);
+  border-color: color-mix(in srgb, var(--link-color) 88%, black 12%);
+}
+
+.update-banner-button.muted {
+  color: var(--text-muted);
+}
+
+#update-banner-close {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+#update-banner-close:hover {
+  color: var(--text-color);
+  background: color-mix(in srgb, var(--selection-bg) 30%, transparent 70%);
+}
+
 #agent-change-panel {
   position: relative;
   width: min(380px, calc(100% - 28px));

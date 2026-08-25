@@ -62,6 +62,7 @@ import {
   type ContextPanelMode,
 } from './phase-c-layout'
 import { createSettingsDialogController, type SettingsPaneId } from './settings-dialog'
+import { createUpdateBannerController } from './update-banner'
 import {
   resolvePinnedItems,
   resolvePinControl,
@@ -1019,6 +1020,7 @@ async function init(): Promise<void> {
   api.onSettingsOpenPane((pane) => {
     settingsDialog.openPane(pane as SettingsPaneId)
   })
+  createUpdateBannerController(api)
   if (settingsWindowMode) {
     if (initialSettingsPane) settingsDialog.openPane(initialSettingsPane)
     else settingsDialog.open()

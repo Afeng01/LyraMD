@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
+import type { UpdateBannerPayload } from '../main/update-notice'
 
 export interface WorkdirEntry {
   absolutePath: string
@@ -297,6 +298,11 @@ export interface ElectronAPI {
   removeRecentFile: (path: string) => Promise<boolean>
   removeWorkdirFile: (path: string) => Promise<SidebarState | null>
   checkForUpdates: () => Promise<void>
+  onUpdateAvailable: (callback: (payload: UpdateBannerPayload) => void) => void
+  onUpdateDownloaded: (callback: (payload: UpdateBannerPayload) => void) => void
+  downloadUpdate: () => Promise<boolean>
+  installUpdate: () => Promise<boolean>
+  skipUpdateVersion: (version: string) => Promise<boolean>
   createNewWindow: () => Promise<boolean>
   minimizeWindow: () => Promise<boolean>
   toggleMaximizeWindow: () => Promise<boolean>
@@ -396,6 +402,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removeRecentFile: (path: string) => ipcRenderer.invoke('remove-recent-file', path),
   removeWorkdirFile: (path: string) => ipcRenderer.invoke('remove-workdir-file', path),
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  onUpdateAvailable: (callback: (payload: UpdateBannerPayload) => void) => {
+    ipcRenderer.on('update-banner', (_event, payload: UpdateBannerPayload) => {
+      if (payload && payload.kind === 'available') callback(payload)
+    })
+  },
+  onUpdateDownloaded: (callback: (payload: UpdateBannerPayload) => void) => {
+    ipcRenderer.on('update-banner', (_event, payload: UpdateBannerPayload) => {
+      if (payload && payload.kind === 'downloaded') callback(payload)
+    })
+  },
+  downloadUpdate: () => ipcRenderer.invoke('update-download'),
+  installUpdate: () => ipcRenderer.invoke('update-install'),
+  skipUpdateVersion: (version: string) => ipcRenderer.invoke('update-skip-version', version),
   createNewWindow: () => ipcRenderer.invoke('create-new-window'),
   minimizeWindow: () => ipcRenderer.invoke('window-minimize'),
   toggleMaximizeWindow: () => ipcRenderer.invoke('window-toggle-maximize'),

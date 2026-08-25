@@ -140,6 +140,105 @@ async function handleEditorPaste(event: ClipboardEvent): Promise<void> {
   insertImage(imagePath)
 }
 
+async function copyText(text: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text)
+    return
+  } catch {
+    // 剪贴板 API 不可用时退回隐藏 textarea 方案
+    const textarea = document.createElement('textarea')
+    textarea.value = text
+    textarea.setAttribute('readonly', '')
+    textarea.style.position = 'fixed'
+    textarea.style.opacity = '0'
+    document.body.appendChild(textarea)
+    textarea.select()
+    document.execCommand('copy')
+    textarea.remove()
+  }
+}
+
+// 代码块复制按钮：单个 overlay 按钮挂在 ProseMirror 管辖 DOM 之外。
+// ProseMirror 会按文档状态重建自己管理的 DOM，往 <pre> 里插 UI 节点会被冲掉
+// （此前还触发过无限重建循环——任意围栏代码块导致 CPU 占满）。不使用
+// MutationObserver 以避免自触发循环；按钮跟随悬停的代码块，并在滚动时重新定位。
+let copyButton: HTMLButtonElement | null = null
+let copyButtonPre: HTMLPreElement | null = null
+let copyButtonResetTimer: ReturnType<typeof setTimeout> | null = null
+
+function positionCopyButton(root: HTMLElement, pre: HTMLPreElement): void {
+  if (!copyButton) return
+  const rect = pre.getBoundingClientRect()
+  const base = root.getBoundingClientRect()
+  copyButton.style.left = `${rect.left - base.left + rect.width - 8}px`
+  copyButton.style.top = `${rect.top - base.top + 8}px`
+}
+
+function createCopyButton(root: HTMLElement): HTMLButtonElement {
+  const button = document.createElement('button')
+  button.type = 'button'
+  button.className = 'code-copy-btn'
+  button.textContent = '复制'
+  button.title = '复制代码'
+  button.setAttribute('aria-label', '复制代码')
+  button.style.position = 'absolute'
+  button.addEventListener('mousedown', (event) => event.preventDefault())
+  button.addEventListener('click', async (event) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (!copyButtonPre) return
+    const code = copyButtonPre.querySelector('code')?.textContent ?? ''
+    try {
+      await copyText(code)
+      button.textContent = '已复制 ✓'
+      button.classList.add('copied')
+      if (copyButtonResetTimer) clearTimeout(copyButtonResetTimer)
+      copyButtonResetTimer = setTimeout(() => {
+        button.textContent = '复制'
+        button.classList.remove('copied')
+      }, 1500)
+    } catch {
+      button.textContent = '复制失败'
+      if (copyButtonResetTimer) clearTimeout(copyButtonResetTimer)
+      copyButtonResetTimer = setTimeout(() => { button.textContent = '复制' }, 1500)
+    }
+  })
+  root.appendChild(button)
+  return button
+}
+
+function setupCodeBlockCopy(root: HTMLElement): void {
+  copyButton = createCopyButton(root)
+
+  const sync = (event?: MouseEvent): void => {
+    if (!copyButton) return
+    const related = event?.relatedTarget
+    if (related === copyButton || related instanceof Node && copyButton.contains(related)) return
+
+    const pre = root.querySelector('pre:hover') as HTMLPreElement | null
+    if (pre && pre.querySelector('code')) {
+      copyButtonPre = pre
+      copyButton.classList.add('hovering')
+      positionCopyButton(root, pre)
+    } else if (copyButton.matches(':hover') && copyButtonPre) {
+      copyButton.classList.add('hovering')
+    } else {
+      copyButtonPre = null
+      copyButton.classList.remove('hovering')
+    }
+  }
+
+  // ProseMirror 在每次文档变更时都会触发 DOM mutation，因此改在其事务循环上
+  // 重新同步，而不是 MutationObserver（避免自触发循环）。
+  root.addEventListener('mouseover', sync)
+  root.addEventListener('mouseout', sync)
+  copyButton.addEventListener('mouseleave', sync)
+  window.addEventListener('scroll', () => sync(), { passive: true })
+  const resizeObserver = new ResizeObserver(() => sync())
+  resizeObserver.observe(root)
+  sync()
+}
+
 const defaultContent = ''
 const YAML_TAGS_HEADER_RE = /^\s*tags\s*:\s*$/iu
 
@@ -381,6 +480,8 @@ export async function createEditor(
     .use(imageView)
     .use(htmlView)
     .create()
+
+  setupCodeBlockCopy(root)
 
   // Enhance clipboard with inline styles for rich text paste (e.g. WeChat)
   root.addEventListener('copy', enhanceClipboard)

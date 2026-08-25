@@ -4044,3 +4044,34 @@ body.theme-newsprint {
 .lyra-image-node.selected .lyra-image-node-resize-handle {
   transform: scale(1.02);
 }
+
+/* 代码块复制按钮：挂在 ProseMirror DOM 之外的 overlay 组件，
+   因此从编辑器根（#editor）直接选择，绝不写进 .ProseMirror 内部。 */
+#editor > .code-copy-btn {
+  position: absolute;
+  z-index: 10;
+  padding: 3px 7px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-color);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+  cursor: pointer;
+  opacity: 0;
+  transform: translate(-100%, 0);
+  transition: opacity 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+#editor > .code-copy-btn.hovering,
+#editor > .code-copy-btn:focus-visible,
+#editor > .code-copy-btn.copied {
+  opacity: 1;
+}
+
+#editor > .code-copy-btn:hover,
+#editor > .code-copy-btn.copied {
+  background: rgba(127, 127, 127, 0.14);
+  color: var(--text-color);
+}

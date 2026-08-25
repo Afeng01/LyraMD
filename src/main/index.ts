@@ -1530,6 +1530,24 @@ function suggestFileName(win: BrowserWindow, content?: string): string | undefin
   return match[1].trim().replace(/[/\\:*?"<>|]/g, '').slice(0, 60) || undefined
 }
 
+// Directory the file in this window lives in. Drafts are excluded on purpose:
+// their side file sits in the drafts folder, so anchoring there would bury the
+// formal file / export next to the draft instead of beside real notes.
+function currentDocumentDirectory(win: BrowserWindow): string | undefined {
+  const state = getState(win)
+  if (state.documentKind !== 'file' || !state.filePath) return undefined
+  return dirname(state.filePath)
+}
+
+// Save dialogs should open beside the currently edited Markdown file (upstream
+// be065ea3). With no anchor directory, Electron keeps its platform default
+// (typically ~/Documents) and only uses the suggested name.
+function suggestSavePath(win: BrowserWindow, fileName?: string): string | undefined {
+  const name = fileName ?? suggestFileName(win)
+  if (!name) return undefined
+  return join(currentDocumentDirectory(win) ?? '', name)
+}
+
 function stopWatching(state: WindowState): void {
   if (state.watcher) {
     state.watcher.close()
@@ -2139,6 +2157,7 @@ ipcMain.handle('open-file', async (event) => {
   const win = getWinFromEvent(event)
   if (!win) return null
   const result = await dialog.showOpenDialog(win, {
+    defaultPath: currentDocumentDirectory(win),
     filters: EDITABLE_FILE_FILTERS,
     properties: ['openFile']
   })
@@ -2487,6 +2506,7 @@ ipcMain.handle('choose-workdir', async (event) => {
   const state = getState(win)
 
   const result = await dialog.showOpenDialog(win, {
+    defaultPath: currentDocumentDirectory(win),
     properties: ['openDirectory'],
   })
 
@@ -2612,6 +2632,7 @@ ipcMain.handle('choose-draft-directory', async (event) => {
   const win = getWinFromEvent(event)
   if (!win) return null
   const result = await dialog.showOpenDialog(win, {
+    defaultPath: currentDocumentDirectory(win),
     properties: ['openDirectory'],
   })
   if (result.canceled || result.filePaths.length === 0) return null
@@ -2700,7 +2721,7 @@ ipcMain.handle('save-file', async (event, content: string) => {
 
   if (shouldPromptForFormalSave(state.documentKind) || !state.filePath) {
     const result = await dialog.showSaveDialog(win, {
-      defaultPath: suggestFileName(win, content),
+      defaultPath: suggestSavePath(win, suggestFileName(win, content)),
       message: state.documentKind === 'draft'
         ? '保存后会成为正式文件，并从草稿中移出。草稿内容已自动保存。'
         : undefined,
@@ -2724,7 +2745,7 @@ ipcMain.handle('save-file-as', async (event, content: string, requestedMode?: Ap
     }
   }
   const result = await dialog.showSaveDialog(win, {
-    defaultPath: suggestFileName(win, content),
+    defaultPath: suggestSavePath(win, suggestFileName(win, content)),
     filters: EDITABLE_FILE_FILTERS
   })
   if (result.canceled || !result.filePath) return false
@@ -2742,7 +2763,7 @@ ipcMain.handle('export-pdf', async (event) => {
   const win = getWinFromEvent(event)
   if (!win) return false
   const result = await dialog.showSaveDialog(win, {
-    defaultPath: suggestFileName(win),
+    defaultPath: suggestSavePath(win),
     filters: [{ name: 'PDF', extensions: ['pdf'] }]
   })
   if (result.canceled || !result.filePath) return false
@@ -2779,7 +2800,7 @@ ipcMain.handle('export-html', async (event, htmlContent: string) => {
   const win = getWinFromEvent(event)
   if (!win) return false
   const result = await dialog.showSaveDialog(win, {
-    defaultPath: suggestFileName(win),
+    defaultPath: suggestSavePath(win),
     filters: [{ name: 'HTML', extensions: ['html'] }]
   })
   if (result.canceled || !result.filePath) return false
@@ -2796,6 +2817,7 @@ ipcMain.handle('load-custom-theme', async (event) => {
   const win = getWinFromEvent(event)
   if (!win) return null
   const result = await dialog.showOpenDialog(win, {
+    defaultPath: currentDocumentDirectory(win),
     filters: [{ name: 'CSS', extensions: ['css'] }],
     properties: ['openFile']
   })

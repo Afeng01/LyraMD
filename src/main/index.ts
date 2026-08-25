@@ -3087,6 +3087,11 @@ function buildMenu(): void {
           label: '清理中英排版',
           accelerator: shortcutFor('cleanCjkTypography'),
           click: () => sendToFocused('menu-clean-cjk-typography')
+        },
+        {
+          label: '插入公式',
+          accelerator: 'CmdOrCtrl+Shift+E',
+          click: () => sendToFocused('menu-insert-math')
         }
       ]
     },

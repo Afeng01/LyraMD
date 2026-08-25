@@ -4141,3 +4141,124 @@ body.theme-newsprint {
   color: var(--text-muted);
   font-size: 0.8em;
 }
+
+/* ======= 数学公式（remark-math + katex，点击公式打开编辑弹窗） ======= */
+/* 移植自 upstream base.css：行内/块级公式的悬停反馈与弹窗样式 */
+
+#editor .ProseMirror .math-inline {
+  padding: 0 2px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+#editor .ProseMirror .math-inline:hover {
+  background: var(--code-bg);
+}
+
+#editor .ProseMirror .math-block {
+  margin: 1em 0;
+  padding: 8px;
+  border-radius: 6px;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+#editor .ProseMirror .math-block:hover {
+  background: var(--code-bg);
+}
+
+/* 公式编辑弹窗（插入/编辑共用） */
+.math-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(2px);
+}
+
+.math-modal {
+  display: flex;
+  width: 480px;
+  max-width: 90vw;
+  padding: 20px;
+  flex-direction: column;
+  gap: 16px;
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+  -webkit-app-region: no-drag;
+}
+
+.math-modal h3 {
+  margin: 0;
+  color: var(--text-color);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.math-modal-input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-color);
+  color: var(--text-color);
+  font-family: 'SF Mono', 'Fira Code', Menlo, monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  outline: none;
+  resize: vertical;
+}
+
+.math-modal-input:focus {
+  border-color: var(--link-color);
+}
+
+.math-modal-options {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.math-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.math-modal-btn {
+  padding: 6px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.math-modal-btn.cancel {
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-color);
+}
+
+.math-modal-btn.cancel:hover {
+  background: var(--code-bg);
+}
+
+.math-modal-btn.save {
+  background: var(--link-color);
+  color: #fff;
+}
+
+.math-modal-btn.save:hover {
+  opacity: 0.9;
+}

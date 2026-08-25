@@ -3,6 +3,7 @@ import { DOMSerializer, type Node as ProseNode } from '@milkdown/kit/prose/model
 import { Plugin, PluginKey, TextSelection } from '@milkdown/kit/prose/state'
 import { Decoration, DecorationSet } from '@milkdown/kit/prose/view'
 import remarkBreaks from 'remark-breaks'
+import remarkMath from 'remark-math'
 import { commonmark } from '@milkdown/kit/preset/commonmark'
 import { gfm } from '@milkdown/kit/preset/gfm'
 import { history } from '@milkdown/kit/plugin/history'
@@ -21,6 +22,9 @@ import {
 } from 'prosemirror-search'
 import { htmlView } from './html-view'
 import { mermaidView } from './mermaid-view'
+import { math, setMathActivateHandler } from './math-node'
+import { mathBlockView, mathInlineView } from './math-view'
+import { openMathModal, type MathModalTarget } from './math-modal'
 import { highlight, remarkHighlight, highlightStringifyHandler } from './highlight'
 import { frontmatterSchema, frontmatterView } from './frontmatter-node'
 import { imageView } from './image-node'
@@ -446,6 +450,9 @@ export async function createEditor(
         { plugin: remarkFrontmatter, options: ['yaml'] },
         { plugin: remarkBreaks, options: undefined },
         { plugin: remarkHighlight, options: undefined },
+        // remarkMath 同时参与 parse 与 stringify：$...$ / $$...$$ 的解析和还原
+        // 都由它处理，schema 侧只需在 prose 节点与 mdast 节点间互转
+        { plugin: remarkMath, options: undefined },
       ])
       // 教会 remark-stringify 输出自定义的 ==高亮== 节点
       const stringifyOptions = ctx.get(remarkStringifyOptionsCtx)
@@ -491,7 +498,15 @@ export async function createEditor(
     .use(imageView)
     .use(htmlView)
     .use(mermaidView)
+    .use(math)
+    .use(mathInlineView)
+    .use(mathBlockView)
     .create()
+
+  // 点击公式节点时打开编辑弹窗（由 math-node 的 click 插件回调）
+  setMathActivateHandler(({ pos, kind }) => {
+    showMathModal({ pos, kind })
+  })
 
   setupCodeBlockCopy(root)
 
@@ -636,6 +651,14 @@ export function insertTextBelowSelection(text: string): boolean {
     const tr = view.state.tr.insertText(`${prefix}${text}`, to, to)
     view.dispatch(tr.scrollIntoView())
     rememberCurrentSelection()
+    return true
+  }) ?? false
+}
+
+// 打开公式弹窗：target 为空表示在光标处插入新公式，否则编辑指定位置的公式。
+export function showMathModal(target: MathModalTarget | null = null): boolean {
+  return withEditorView((view) => {
+    openMathModal(view, target)
     return true
   }) ?? false
 }
@@ -967,7 +990,7 @@ function withEditorView<T>(callback: (view: ReturnType<typeof getEditorView>) =>
   return callback(view)
 }
 
-function getEditorView() {
+export function getEditorView() {
   if (!editorInstance) return null
   let view: ReturnType<typeof editorViewCtx['slice']['type']> | null = null
   editorInstance.action((ctx) => {

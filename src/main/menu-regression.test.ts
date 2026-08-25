@@ -122,6 +122,21 @@ describe('application menu shortcut regression', () => {
     expect(renderer).toContain('api.checkForUpdates?.()')
   })
 
+  it('wires math insertion through native menu, preload, renderer and Windows menu', () => {
+    const main = readFileSync(join(process.cwd(), 'src/main/index.ts'), 'utf8')
+    const preload = readFileSync(join(process.cwd(), 'src/preload/index.ts'), 'utf8')
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
+
+    expect(main).toContain("label: '插入公式'")
+    expect(main).toContain("accelerator: 'CmdOrCtrl+Shift+E'")
+    expect(main).toContain("sendToFocused('menu-insert-math')")
+    expect(preload).toContain('onMenuInsertMath')
+    expect(html).toContain('data-windows-action="insert-math"')
+    expect(renderer).toContain('api.onMenuInsertMath')
+    expect(renderer).toContain("case 'insert-math'")
+  })
+
   it('wires Word export through native menu, preload and renderer', () => {
     const main = readFileSync(join(process.cwd(), 'src/main/index.ts'), 'utf8')
     const preload = readFileSync(join(process.cwd(), 'src/preload/index.ts'), 'utf8')

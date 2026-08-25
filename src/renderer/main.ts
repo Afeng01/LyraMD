@@ -25,6 +25,7 @@ import {
   setMarkdown,
   setPasteImageHandler,
   setSearchQuery,
+  showMathModal,
 } from './editor/editor'
 import { resolveSearchPanelPreview, type SearchState } from './editor/search'
 import { formatCjkTypography } from './editor/cjk-format'
@@ -3187,6 +3188,9 @@ img{max-width:100%}
       case 'clean-cjk':
         cleanCurrentCjkTypography()
         break
+      case 'insert-math':
+        showMathModal(null)
+        break
       case 'toggle-sidebar':
         clearDrawerHoverTimers()
         drawerOpenedByHover = false
@@ -3250,6 +3254,9 @@ img{max-width:100%}
   })
   api.onMenuCleanCjkTypography(() => {
     cleanCurrentCjkTypography()
+  })
+  api.onMenuInsertMath(() => {
+    showMathModal(null)
   })
   api.onMenuOpenAiPalette(() => {
     openAiPalette()

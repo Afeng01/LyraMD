@@ -312,6 +312,7 @@ export interface ElectronAPI {
   onMenuSaveAs: (callback: () => void) => void
   onMenuSearch: (callback: () => void) => void
   onMenuCleanCjkTypography: (callback: () => void) => void
+  onMenuInsertMath: (callback: () => void) => void
   onMenuOpenAiPalette: (callback: () => void) => void
   onMenuSettings: (callback: () => void) => void
   onSettingsChanged: (callback: (settings: AppSettings) => void) => void
@@ -428,6 +429,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onMenuCleanCjkTypography: (callback: () => void) => {
     ipcRenderer.on('menu-clean-cjk-typography', () => callback())
+  },
+  onMenuInsertMath: (callback: () => void) => {
+    ipcRenderer.on('menu-insert-math', () => callback())
   },
   onMenuOpenAiPalette: (callback: () => void) => {
     ipcRenderer.on('menu-open-ai-palette', () => callback())

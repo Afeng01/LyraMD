@@ -7,6 +7,10 @@ import { promisify } from 'util'
 
 const execFileAsync = promisify(execFile)
 
+// 兼容锚（刻意保留 colamd 命名，不要改）：
+// 用户机器上的 `~/.codex/config.toml` 里已经写冥 `[mcp_servers.colamd]`，
+// 而 sidecar 脚本的磁盘文件名也与该 id 绑定。改名会让老用户的 Codex 配置
+// 指向不存在的 server，而产物命名属于 AGENTS.md 允许保留 `ColaMD` 的兼容位。
 export const CODEX_MCP_SERVER_NAME = 'colamd'
 
 export interface CodexIntegrationPaths {

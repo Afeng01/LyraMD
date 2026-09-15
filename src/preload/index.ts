@@ -316,6 +316,7 @@ export interface ElectronAPI {
   onNewFile: (callback: () => void) => void
   onNewFileInWindow: (callback: () => void) => void
   onFileOpened: (callback: (data: { path: string; content: string }) => void) => void
+  signalRendererReady: () => void
   onMenuOpen: (callback: () => void) => void
   onMenuSave: (callback: () => void) => void
   onMenuSaveAs: (callback: () => void) => void
@@ -438,6 +439,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onFileOpened: (callback: (data: { path: string; content: string }) => void) => {
     ipcRenderer.on('file-opened', (_event, data) => callback(data))
   },
+  signalRendererReady: () => ipcRenderer.send('renderer-ready'),
   onMenuOpen: (callback: () => void) => {
     ipcRenderer.on('menu-open', () => callback())
   },

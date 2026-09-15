@@ -71,8 +71,8 @@ describe('application menu shortcut regression', () => {
     expect(main).toContain("label: 'Markdown 语法速查'")
     expect(main).toContain("accelerator: 'CmdOrCtrl+Shift+/'")
     expect(main).toContain('click: () => openCheatsheet()')
-    // 速查窗口用内存内容打开：无文件、无 watcher、不进最近列表
-    expect(main).toContain("win.webContents.send('file-opened', { path: null, content: initialContent })")
+    // 速查窗口用内存内容打开：无文件、无 watcher、不进最近列表；经 renderer-ready 握手补投
+    expect(main).toContain('deliverFileOpenedPayload(win, { path: null, content: initialContent })')
   })
 
   it('wires AI palette through shortcutFor openAiPalette and sends menu-open-ai-palette event', () => {
@@ -151,6 +151,20 @@ describe('application menu shortcut regression', () => {
     expect(main).toContain("join(__dirname, '../../resources/demo')")
     expect(builder).toMatch(/from:\s*resources\/demo/)
     expect(builder).toMatch(/to:\s*demo/)
+  })
+
+  it('delivers demo/cheatsheet content only after the renderer signals readiness', () => {
+    const main = readFileSync(join(process.cwd(), 'src/main/index.ts'), 'utf8')
+    const preload = readFileSync(join(process.cwd(), 'src/preload/index.ts'), 'utf8')
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+
+    // 握手机制：did-finish-load 时渲染层可能还没注册监听器，直接推送会丢消息（弹出空白窗口）
+    expect(main).toContain("ipcMain.on('renderer-ready'")
+    expect(main).toContain('deliverFileOpenedPayload(win, { path: null, content: initialContent })')
+    expect(main).toContain('deliverFileOpenedPayload(win, { path: filePath, content: data })')
+    expect(main).toContain('state.pendingFileOpened = null')
+    expect(preload).toContain("signalRendererReady: () => ipcRenderer.send('renderer-ready')")
+    expect(renderer).toContain('api.signalRendererReady()')
   })
 
   it('wires Word export through native menu, preload and renderer', () => {

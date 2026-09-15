@@ -402,6 +402,9 @@ interface WindowState {
   workdirPath: string | null
   workdirEntries: WorkdirEntry[]
   workdirTree: WorkdirTreeNode[]
+  // 渲染层监听器就绪前到达的初始内容，先暂存，握手后再投递
+  rendererReady: boolean
+  pendingFileOpened: { path: string | null; content: string } | null
 }
 
 const windowStates = new Map<number, WindowState>()
@@ -611,6 +614,29 @@ if (!hasSingleInstanceLock) {
   })
 }
 
+// 渲染层就绪握手：demo/速查等新窗口在 did-finish-load 推送 file-opened 时，
+// 渲染层可能还没注册监听器，消息会丢（表现为弹出一个空白新窗口）。
+// 渲染层完成监听注册后发 renderer-ready，主进程再补投暂存的初始内容。
+function deliverFileOpenedPayload(win: BrowserWindow, payload: { path: string | null; content: string }): void {
+  const state = getState(win)
+  if (state.rendererReady && !win.isDestroyed()) {
+    win.webContents.send('file-opened', payload)
+    return
+  }
+  state.pendingFileOpened = payload
+}
+
+ipcMain.on('renderer-ready', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender)
+  if (!win) return
+  const state = getState(win)
+  state.rendererReady = true
+  if (state.pendingFileOpened && !win.isDestroyed()) {
+    win.webContents.send('file-opened', state.pendingFileOpened)
+    state.pendingFileOpened = null
+  }
+})
+
 function getState(win: BrowserWindow): WindowState {
   let state = windowStates.get(win.id)
   if (!state) {
@@ -635,6 +661,8 @@ function getState(win: BrowserWindow): WindowState {
       workdirPath: sidebarViewState.workdirPath,
       workdirEntries: [],
       workdirTree: [],
+      rendererReady: false,
+      pendingFileOpened: null,
     }
     windowStates.set(win.id, state)
   }
@@ -1503,8 +1531,8 @@ function createWindow(initialDocument?: { filePath: string; documentKind?: Exclu
         recordRecent: initialDocument.documentKind !== 'draft',
       })
     } else if (initialContent) {
-      // 内存内容（如语法速查）——无文件、无 watcher、不进最近列表
-      win.webContents.send('file-opened', { path: null, content: initialContent })
+      // 内存内容（如语法速查、新功能演示）——无文件、无 watcher、不进最近列表
+      deliverFileOpenedPayload(win, { path: null, content: initialContent })
     }
   })
 
@@ -1816,7 +1844,7 @@ async function loadFileInWindow(
     if (options.recordRecent !== false && documentKind === 'file') {
       recordRecentFile(filePath)
     }
-    win.webContents.send('file-opened', { path: filePath, content: data })
+    deliverFileOpenedPayload(win, { path: filePath, content: data })
     broadcastSidebarState()
     return true
   } catch {

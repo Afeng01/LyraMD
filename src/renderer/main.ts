@@ -3264,6 +3264,8 @@ async function init(): Promise<void> {
   api.onFileOpened((data) => {
     applyOpenedDocument(data)
   })
+  // 监听器就绪后握手，让主进程补投早于注册到达的初始内容（新功能演示/语法速查等）
+  api.signalRendererReady()
   const startupDocument = typeof api.getCurrentDocument === 'function'
     ? await api.getCurrentDocument().catch(() => null)
     : null

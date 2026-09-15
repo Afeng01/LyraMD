@@ -105,12 +105,23 @@
 
 ## C. 疑似冗余/坏味道（6）
 
+### C 表复核（2026-09-14 实测，Proma 侧）
+
+- **C4：原描述错了一半。** 本地 renderer 自 v1.3.1（`a44b3132`*themed HTML export*）起就已经生成完整的、带主题内联样式的 HTML，导出件**不是**「无主题样式」。但确实有真实缺口：那份样式是**手写子集**，只覆盖 `h1-h3/strong/a/code/pre/blockquote/table/hr/img/::selection`，`mark`（`==高亮==`）和 GFM 任务列表的样式漏在外面，而且会随编辑器新增功能继续漂移。2026-09-14 已改为从已加载样式表按选择器筛选：只保留主题 token 块（`:root` / `body` / `body.theme-*`）与所有 `.ProseMirror` 内容规则，再用外壳样式还原普通网页排版（base.css 把 html/body 锁成 `height:100%` + `overflow:hidden` 的桌面应用布局）。新增 `src/renderer/export-html.ts` 与 13 项测试，已用 elegant / light / dark 三主题生成样张实测。同一批次顺手修了一个只有测试能抓到的健壮性问题：跨源样式表的 `cssRules` 访问会抛 `SecurityError`。
+- **C5：已解（2026-09-14）**。改动三处：① `renderer/index.html` 里写进产品 UI 的 fork 叙事已改写——更新日志那三条不再把 LyraMD 说成 fork、不再在条目里报 `ColaMD` 这个名字，但保留了「上游历史 tag 不计入 LyraMD 更新日志」这个真有用的技术事实；上游署名仍在 `NOTICE.md` / `README*` 里（那才是署名该在的位置）。② `renderer/main.ts` 内部拖拽用的 MIME 从 `application/x-colamd-workspace` 改为 `application/x-lyramd-workspace`（全仓只在 renderer 内部三处使用，无外部监听方）。③ 保留的兼容锚已就地注明原因：`CODEX_MCP_SERVER_NAME = 'colamd'` 和 `colamd-mcp-server.mjs` 与用户机器上已有的 `~/.codex/config.toml` 里的 `[mcp_servers.colamd]` 绑定，改名会让老配置指向不存在的 server（`codex-integration.test.ts` 的 `/repo/ColaMD` 只是历史目录名 fixture）。验证：`grep ColaMD src/renderer/index.html src/renderer/main.ts` 已零命中。
+- **C6：已解（2026-09-14）**。主进程入口包从 **730 kB 降到 180 kB**，降低部分（552 kB）拆成 `chunks/main.js`，只在真正检查/下载更新时才 `require`。做法是把 `src/main/updater.ts` 对上 `electron-updater` 的静态引入换成 `loadAutoUpdater()` 按需加载；类型导入在编译期擦除，不在启动路径上。`configureAutoUpdates()` 保持同步签名，内部改为异步初始化；macOS 的 GitHub Releases 手动流程压根不需要 autoUpdater，因此该平台完全不加载 electron-updater。`updater-regression.test.ts` 已改为断言按需加载（并保留对 `autoDownload` / `checkForUpdates` / `process.platform === 'darwin'` 的覆盖）。验证：`npm test` 494 通过；`npm run build` 产物结构如上述；冷启动重跑 dev 无错误、窗口正常渲染。
+- **C1：已解，且是有意设计，不是坏味道。** batch3（`9dbc80aa`）把四个主题抽成 `themes/*.css` 独立文件，并加了 `scripts/check-theme-colors.mjs` 契约守卫：它强制 `base.css` 内置块与 `themes/*.css` 的四个语义 token 值**完全一致**，并断言 `themes/` 只允许存在 light/dark/elegant/newsprint 四个文件；`themes/README.md` 也把她们写成用户自定义主题的起点。所以现在是「运行期内置 + 可分发模板」，由自动化守卫同步，不是「两份真相没人管」。残留成本只有一条：改主题色要改两处，忘了守卫会直接报错。另：`base.css` 里 `body.theme-elegant` 确实出现两次（`:4260` 颜色 token、`:4339` 编辑器字体），但声明属性不重叠，不是覆盖。
+- **C2：已解（2026-09-14）**。巨型单行从 `:4029` 拆成 305 行（7411 字符，原文 7291/4046 行是拆分前旧值），最长行降到 281 字符，文件 4663 行。拆分只改动块外空白，带 token 流等价性校验；`npm test` 480 通过、`check:themes` 通过。
+- **C3：原描述基本是误报，已用规则级解析更正。** `grep` 计数把「逗号分组选择器」当成了重复定义。实测 642 条规则里**没有任何完全重复的规则**：`.ai-helper-preview` 的 1413/1429 属于 `.ai-helper-field select, .ai-helper-field textarea, .ai-helper-preview` 这类分组，各自声明不同属性；1437 带 `#agent-drawer` 前缀（不同选择器）；1447 是 `.empty` 状态。`.outline-item.level-6` 1835/1840/1845 同理（padding-left / color / font-size 三组不同声明）。`.window-control`、`body.platform-win32 #outline-toggle`、`.settings-integration-error` 也都是分组或不同属性。**真正的冗余只有一处**：`#onboarding-directory-preview` 在 `:2685` 的整条规则（`font-size: 11px; color: var(--text-muted)`）被 `:2955` 的同选择器规则完全覆盖，已删除。
+
+以下为 2026-08-25 原始记录（C1/C2/C3 见上方复核）：
+
 - **C1** `themes/elegant.css`(426行)与`lo:renderer/themes/base.css:3940`的`body.theme-elegant`两份真相；`git grep "themes/elegant" src`0引用、builder不打包、运行时只读`~/.lyramd/themes`⇒不加载不分发；随A7变真目录或删。
 - **C2** `base.css:3929`单行7291字符（文件4046行）：整段样式压成一行，diff不可读且放大与上游同文件的冲突面积。
 - **C3** 重复定义：`.ai-helper-preview`1413/1429/1441（前两份被覆盖）、`.outline-item.level-6`1835/1840/1845；`body.platform-win32 #outline-toggle`、`.window-control`、`.settings-integration-error`各两处。
-- **C4** `lo:main/index.ts:2768`把`renderer/main.ts:3100`传来的裸`htmlContent`原样写盘（无styles/bodyClass）⇒导出件无主题样式。上游v1.6.2以"和编辑器重复"删掉（`970229db`），v1.7.4带快照重做（`up:main/index.ts:776-790`）；本地停在被删前语义。
-- **C5** `colamd`残留：`mcp/colamd-mcp-server.mjs`、`codex-integration.ts:10`、`agent-cli.ts:126`、`renderer/main.ts:3708,3715,3736`。前两条是与既有Codex配置的兼容锚（改名有代价，建议保留+注明）；后两条可改。`renderer/index.html:814,817,827`还把fork叙事写进产品UI。
-- **C6** `lo:main/index.ts:1-100`静态引入52个main模块（含只在菜单用的updater），上游1.9.0已按需import（`d269e9f3 47e94ffb`）。与A1同批最省。
+- **C4** `lo:main/index.ts:2768`把`renderer/main.ts:3100`传来的裸`htmlContent`原样写盘（无styles/bodyClass）⇒导出件无主题样式。上游v1.6.2以"和编辑器重复"删掉（`970229db`），v1.7.4带快照重做（`up:main/index.ts:776-790`）；本地停在被删前语义。（**见上方复核：此条前提错误，本地自 v1.3.1 起导出件已带主题样式；真实缺口是手写样式子集漂移，已于 2026-09-14 改为按选择器筛选。**）
+- **C5** `colamd`残留：`mcp/colamd-mcp-server.mjs`、`codex-integration.ts:10`、`agent-cli.ts:126`、`renderer/main.ts:3708,3715,3736`。前两条是与既有Codex配置的兼容锚（改名有代价，建议保留+注明）；后两条可改。`renderer/index.html:814,817,827`还把fork叙事写进产品UI。（**见上方复核：已于 2026-09-14 处理完毕，兼容锚保留并注明原因。**）
+- **C6** `lo:main/index.ts:1-100`静态引入52个main模块（含只在菜单用的updater），上游1.9.0已按需import（`d269e9f3 47e94ffb`）。与A1同批最省。（**见上方复核：已于 2026-09-14 把 electron-updater 改为按需加载，入口包 730 kB → 180 kB。**）
 
 未发现重复的顶层功能对（搜索、大纲、更新检测、workdir各一套）；`src/renderer`无孤儿模块（`env.d.ts`是类型声明）。
 

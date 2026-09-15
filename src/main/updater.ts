@@ -1,10 +1,29 @@
 import { app, BrowserWindow, dialog, shell } from 'electron'
-import electronUpdater, { type AppUpdater } from 'electron-updater'
-import type { ProgressInfo, UpdateDownloadedEvent, UpdateInfo } from 'electron-updater'
+import type {
+  AppUpdater,
+  ProgressInfo,
+  UpdateDownloadedEvent,
+  UpdateInfo,
+} from 'electron-updater'
 import { fetchLatestMacManualUpdate, type MacManualUpdateInfo } from './update-release'
 import type { UpdateBannerPayload } from './update-notice'
 
-const { autoUpdater } = electronUpdater as { autoUpdater: AppUpdater }
+// electron-updater 只在真正检查/下载更新时才需要，因此在启动路径上按需加载。
+// 它是主进程包里最大的一块，静态引入会让每次启动都付这笔解析与执行成本。
+// 上面的类型导入在编译期被擦除，不会把依赖带回运行时。
+let autoUpdaterPromise: Promise<AppUpdater> | null = null
+
+function loadAutoUpdater(): Promise<AppUpdater> {
+  if (!autoUpdaterPromise) {
+    autoUpdaterPromise = import('electron-updater').then((module) => {
+      const resolvedModule = (module as { default?: unknown }).default ?? module
+      const updater = (resolvedModule as { autoUpdater?: AppUpdater }).autoUpdater
+      if (!updater) throw new Error('electron-updater 未导出 autoUpdater')
+      return updater
+    })
+  }
+  return autoUpdaterPromise
+}
 
 let configured = false
 let checking = false
@@ -91,6 +110,7 @@ async function promptInstallDownloadedUpdate(version: string | null): Promise<vo
   })
 
   if (result.response === 0) {
+    const autoUpdater = await loadAutoUpdater()
     autoUpdater.quitAndInstall()
   }
 }
@@ -173,6 +193,7 @@ export async function startUpdateDownload(): Promise<boolean> {
 
   if (!autoDownloadStarted || process.platform !== 'darwin') {
     try {
+      const autoUpdater = await loadAutoUpdater()
       await autoUpdater.downloadUpdate()
       autoDownloadStarted = true
       return true
@@ -185,13 +206,14 @@ export async function startUpdateDownload(): Promise<boolean> {
 }
 
 // 渲染进程点「重启并安装」。没有已完成的更新时返回 false，让横幅保持原状。
-export function installDownloadedUpdate(): boolean {
+export async function installDownloadedUpdate(): Promise<boolean> {
   if (!downloaded) return false
+  const autoUpdater = await loadAutoUpdater()
   autoUpdater.quitAndInstall()
   return true
 }
 
-function attachUpdaterEvents(): void {
+function attachUpdaterEvents(autoUpdater: AppUpdater): void {
   autoUpdater.on('checking-for-update', () => {
     checking = true
   })
@@ -247,6 +269,13 @@ export function configureAutoUpdates(): void {
   if (configured) return
   configured = true
 
+  // 保持同步签名（调用方在启动流程里同步调用），但依赖加载是异步的：
+  // macOS 走 GitHub Releases 手动流程，压根不需要 autoUpdater，
+  // 因此这条路径完全不加载 electron-updater。
+  void initializeAutoUpdates()
+}
+
+async function initializeAutoUpdates(): Promise<void> {
   if (process.platform === 'darwin') {
     if (app.isPackaged) {
       setTimeout(() => {
@@ -259,11 +288,13 @@ export function configureAutoUpdates(): void {
     return
   }
 
+  const autoUpdater = await loadAutoUpdater()
+
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = false
   autoUpdater.allowPrerelease = false
 
-  attachUpdaterEvents()
+  attachUpdaterEvents(autoUpdater)
 
   if (app.isPackaged) {
     setTimeout(() => {
@@ -300,5 +331,6 @@ export async function checkForUpdatesFromMenu(): Promise<void> {
   }
 
   manualCheckRequested = true
+  const autoUpdater = await loadAutoUpdater()
   await autoUpdater.checkForUpdates()
 }

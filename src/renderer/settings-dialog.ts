@@ -1,5 +1,6 @@
 import type { AiHelperProviderSettings, AiHelperSettings, AiPromptTemplate, AppSettings, BackgroundMode, BackgroundScope, BackgroundSettings, CodexIntegrationStatus, DocumentSafetySettings, EditorFontPreset, ElectronAPI, FontSettings, SaveAsMode, ShortcutAction, SidebarState, TitleSyncMode } from '../preload/index'
 import { applyTheme } from './themes/theme-manager'
+import { changelogReleases, splitLeadingBold, type ChangelogRelease } from './changelog'
 
 const BUILT_IN_THEMES = [
   { id: 'elegant', label: 'Elegant' },
@@ -7,6 +8,66 @@ const BUILT_IN_THEMES = [
   { id: 'light', label: 'Light' },
   { id: 'dark', label: 'Dark' },
 ] as const
+
+function renderReleaseNotesPane(): void {
+  const list = document.getElementById('settings-release-notes-list')
+  if (!list) return
+  list.replaceChildren(...changelogReleases.map((release, index) => createReleaseCard(release, index)))
+}
+
+function releaseBadge(release: ChangelogRelease, index: number): { text: string; muted: boolean } {
+  if (release.version === '未发布') return { text: '开发中', muted: true }
+  if (index === 1) return { text: '最新发布版', muted: false }
+  return { text: release.note || '历史版本', muted: true }
+}
+
+function createReleaseCard(release: ChangelogRelease, index: number): HTMLElement {
+  const article = document.createElement('article')
+  article.className = 'settings-release-card'
+
+  const header = document.createElement('div')
+  header.className = 'settings-release-header'
+  const version = document.createElement('span')
+  version.className = 'settings-release-version'
+  version.textContent = release.version === '未发布' ? 'LyraMD 未发布' : `LyraMD ${release.version}`
+  header.appendChild(version)
+  const badge = releaseBadge(release, index)
+  const badgeSpan = document.createElement('span')
+  badgeSpan.className = badge.muted ? 'settings-release-badge muted' : 'settings-release-badge'
+  badgeSpan.textContent = badge.text
+  header.appendChild(badgeSpan)
+  article.appendChild(header)
+
+  for (const block of release.blocks) {
+    if (block.title) {
+      const heading = document.createElement('h5')
+      heading.textContent = block.title
+      article.appendChild(heading)
+    }
+    if (block.kind === 'group') {
+      const listEl = document.createElement('ul')
+      for (const line of block.lines) {
+        const li = document.createElement('li')
+        const item = splitLeadingBold(line)
+        if (item.bold) {
+          const strong = document.createElement('strong')
+          strong.textContent = `${item.bold}：`
+          li.appendChild(strong)
+        }
+        li.appendChild(document.createTextNode(item.rest))
+        listEl.appendChild(li)
+      }
+      article.appendChild(listEl)
+    } else {
+      for (const line of block.lines) {
+        const paragraph = document.createElement('p')
+        paragraph.textContent = line
+        article.appendChild(paragraph)
+      }
+    }
+  }
+  return article
+}
 
 const DEFAULT_BACKGROUND_SETTINGS: BackgroundSettings = {
   mode: 'default',
@@ -301,6 +362,7 @@ export function createSettingsDialogController({
   const paneTabs = Array.from(
     document.querySelectorAll<HTMLButtonElement>('[data-settings-pane]'),
   )
+  renderReleaseNotesPane()
   const themeSummary = document.getElementById('settings-theme-summary') as HTMLDivElement | null
   const importThemeButton = document.getElementById('settings-theme-import') as HTMLButtonElement | null
   const themeButtons = Array.from(

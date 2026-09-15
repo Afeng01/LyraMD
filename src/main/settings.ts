@@ -16,6 +16,8 @@ export type ShortcutAction =
   | 'toggleOutline'
   | 'cleanCjkTypography'
   | 'openAiPalette'
+  | 'insertFormula'
+  | 'openCheatsheet'
 
 export type ShortcutMap = Record<ShortcutAction, string>
 
@@ -81,6 +83,8 @@ export const DEFAULT_SHORTCUTS: ShortcutMap = {
   toggleOutline: 'CmdOrCtrl+Shift+O',
   cleanCjkTypography: 'CmdOrCtrl+Shift+F',
   openAiPalette: 'CmdOrCtrl+J',
+  insertFormula: 'CmdOrCtrl+Shift+E',
+  openCheatsheet: 'CmdOrCtrl+Shift+/',
 }
 
 export const DEFAULT_AI_PROMPT_TEMPLATES: AiPromptTemplate[] = [

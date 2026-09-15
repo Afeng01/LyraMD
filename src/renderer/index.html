@@ -555,7 +555,8 @@
                     <li>列表会显示自动保存、手动保存、重命名、插图前检查点和异常恢复点；点“恢复为草稿”会新建一份草稿，不覆盖当前文稿。</li>
                     <li>最近备份会优先显示这一版相对上一版的具体修改摘要，而不是从头把整篇文稿重新展开。</li>
                     <li>如果上次是异常退出，右上方还会额外出现“异常恢复”提示；点“恢复为新草稿”即可把崩溃前最后一次快照找回来。</li>
-                    <li>如果外部更新提示“已阻止覆盖”，先点“恢复覆盖前正文”确认快照；恢复会写成新草稿，不会改写现在打开的文件。</li>
+                    <li>如果外部更新提示“已阻止覆盖”，可以先点“查看 diff”看清这次改了什么：确认合理就点“接受外部版本”；想回退就点“恢复覆盖前正文”，会写成新草稿复核，不会改写现在打开的文件。</li>
+                    <li>这里还保留了一份 append-only 事件日志（~/.lyramd/document-journal.jsonl），记录每次保存与外部写入的前后状态，出问题时可用来回放时间线。</li>
                     <li>这里的保留条数只影响每篇文稿单独保留多少个本地版本，不会动你的正式 Markdown 文件。</li>
                   </ol>
                 </div>
@@ -571,8 +572,29 @@
                   <ol>
                     <li>先看外部更新提示的新增、删除和修改行数，再决定是否保留这次改动。</li>
                     <li>普通但不合适的更新，直接点“撤回这次更新”，会回到本轮外部写入之前。</li>
-                    <li>若提示“已阻止覆盖”，说明本次更新疑似清空或大幅删改；当前正文会保持不动，点“恢复覆盖前正文”可另存为新草稿复核。</li>
+                    <li>若提示“已阻止覆盖”，说明本次更新疑似清空或大幅删改；可以点“查看 diff”逐行看清改动，再在“接受外部版本”（知情接受）和“撤回这次更新”之间做决定。</li>
                     <li>如果要找更早的版本，再去“文稿安全”里从最近备份恢复成新草稿。</li>
+                  </ol>
+                </div>
+              </section>
+              <section class="settings-group">
+                <div class="settings-group-heading">
+                  <h4 class="settings-group-title">编辑与导出</h4>
+                  <p class="settings-group-copy">数学公式、图表、高亮、任务列表与主题化导出的入口和写法。</p>
+                </div>
+                <div class="settings-integration-help settings-usage-guide">
+                  <h5>正文里直接写</h5>
+                  <ol>
+                    <li>数学公式：直接打 $$…$$，或按 Cmd/Ctrl+Shift+E 打开插入公式面板；公式用 KaTeX 渲染。</li>
+                    <li>流程图 / 架构图：打 ```mermaid 围栏代码块，图表会直接渲染在编辑器里。</li>
+                    <li>高亮：用 ==文字== 包住；任务列表：打 - [ ] 或 - [x]，方框可以直接点。</li>
+                    <li>代码块：悬停在围栏代码块右上角会出现复制按钮；不确定语法时按 Cmd/Ctrl+Shift+/ 打开 Markdown 语法速查。</li>
+                  </ol>
+                  <h5>导出与主题</h5>
+                  <ol>
+                    <li>文件菜单：导出 Word (docx)、导出 PDF（跟随当前主题、无白边）、导出 HTML（内联完整主题样式）。</li>
+                    <li>主题菜单：Light / Dark / Elegant / Newsprint 可切换，也可点 Import Theme… 导入自定义主题文件（需满足对比度守卫）。</li>
+                    <li>想系统看一遍新能力：帮助 → 新功能演示，四个内置样例文稿可直接点开。</li>
                   </ol>
                 </div>
               </section>
@@ -955,6 +977,14 @@
                   <div class="settings-shortcut-item">
                     <span class="settings-shortcut-label">打开 AI 精灵</span>
                     <kbd class="settings-shortcut-key" data-shortcut-action="openAiPalette">Cmd/Ctrl+J</kbd>
+                  </div>
+                  <div class="settings-shortcut-item">
+                    <span class="settings-shortcut-label">插入公式</span>
+                    <kbd class="settings-shortcut-key" data-shortcut-action="insertFormula">Cmd/Ctrl+Shift+E</kbd>
+                  </div>
+                  <div class="settings-shortcut-item">
+                    <span class="settings-shortcut-label">Markdown 语法速查</span>
+                    <kbd class="settings-shortcut-key" data-shortcut-action="openCheatsheet">Cmd/Ctrl+Shift+/</kbd>
                   </div>
                 </div>
               </section>

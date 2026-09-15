@@ -3306,7 +3306,7 @@ function buildMenu(): void {
         },
         {
           label: '插入公式',
-          accelerator: 'CmdOrCtrl+Shift+E',
+          accelerator: shortcutFor('insertFormula'),
           click: () => sendToFocused('menu-insert-math')
         }
       ]
@@ -3340,7 +3340,7 @@ function buildMenu(): void {
       submenu: [
         {
           label: 'Markdown 语法速查',
-          accelerator: 'CmdOrCtrl+Shift+/',
+          accelerator: shortcutFor('openCheatsheet'),
           click: () => openCheatsheet()
         },
         {

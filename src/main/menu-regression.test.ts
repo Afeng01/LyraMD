@@ -69,7 +69,7 @@ describe('application menu shortcut regression', () => {
     const main = readFileSync(join(process.cwd(), 'src/main/index.ts'), 'utf8')
 
     expect(main).toContain("label: 'Markdown 语法速查'")
-    expect(main).toContain("accelerator: 'CmdOrCtrl+Shift+/'")
+    expect(main).toContain("accelerator: shortcutFor('openCheatsheet')")
     expect(main).toContain('click: () => openCheatsheet()')
     // 速查窗口用内存内容打开：无文件、无 watcher、不进最近列表；经 renderer-ready 握手补投
     expect(main).toContain('deliverFileOpenedPayload(win, { path: null, content: initialContent })')
@@ -129,7 +129,7 @@ describe('application menu shortcut regression', () => {
     const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
 
     expect(main).toContain("label: '插入公式'")
-    expect(main).toContain("accelerator: 'CmdOrCtrl+Shift+E'")
+    expect(main).toContain("accelerator: shortcutFor('insertFormula')")
     expect(main).toContain("sendToFocused('menu-insert-math')")
     expect(preload).toContain('onMenuInsertMath')
     expect(html).toContain('data-windows-action="insert-math"')

@@ -48,6 +48,7 @@ import { resolveNewWorkdirFolderPath, resolveNewWorkdirMarkdownPath, scanWorkdir
 import { moveFileToTrashAndVerify } from './file-removal'
 import { summarizeAgentChange } from './agent-change-summary'
 import { assessExternalChangeRisk } from './external-change-risk'
+import { createDocumentJournal, describeJournalContent } from './document-journal'
 import {
   clearCrashRecoveryState,
   clearExternalChangeRecoveryState,
@@ -111,6 +112,18 @@ import { LOCAL_MEDIA_PROTOCOL, localMediaUrlToAbsolutePath } from '../shared/loc
 const appDataDir = join(app.getPath('home'), '.lyramd')
 // 被拦下的高风险外部变更，决策面「查看 diff」可展示的最大预览行数
 const BLOCKED_DIFF_PREVIEW_LINES = 200
+const documentJournalPath = join(appDataDir, 'document-journal.jsonl')
+const documentJournal = createDocumentJournal(documentJournalPath, {
+  appVersion: app.getVersion ? app.getVersion() : undefined,
+})
+
+function journalSaveEventType(reason: RevisionReason): 'autosave' | 'manual-save' | 'save-as' | 'rename' | 'image-checkpoint' {
+  if (reason === 'autosave') return 'autosave'
+  if (reason === 'save-as') return 'save-as'
+  if (reason === 'rename') return 'rename'
+  if (reason === 'image-checkpoint') return 'image-checkpoint'
+  return 'manual-save'
+}
 const themesDir = join(appDataDir, 'themes')
 const sidebarStatePath = join(appDataDir, 'sidebar-state.json')
 const sessionStatePath = join(appDataDir, 'session-state.json')
@@ -525,6 +538,15 @@ async function persistCrashRecoveryForWindowState(
     updatedAt: Date.now(),
   }
   await writeCrashRecoveryState(crashRecoveryStatePath, recoveryState).catch(() => {})
+  void documentJournal.record({
+    type: 'crash-recovery-generated',
+    docPath: snapshot.filePath,
+    draftId: snapshot.draftId,
+    displayTitle: snapshot.displayTitle,
+    source: 'internal',
+    next: describeJournalContent(snapshot.content),
+    detail: reason,
+  })
 }
 
 async function persistExternalChangeRecoveryForWindowState(
@@ -1124,6 +1146,14 @@ async function restoreCrashRecoveryToDraft(triggerWin: BrowserWindow): Promise<b
   const restored = await restoreRevisionSnapshotToDraft(triggerWin, recoveryState.snapshot, 'crash')
   if (restored) {
     await clearCrashRecoveryState(crashRecoveryStatePath).catch(() => {})
+    void documentJournal.record({
+      type: 'crash-recovery-restored',
+      docPath: recoveryState.snapshot.filePath,
+      draftId: recoveryState.snapshot.draftId,
+      displayTitle: recoveryState.snapshot.displayTitle,
+      source: 'user',
+      next: describeJournalContent(recoveryState.snapshot.content),
+    })
   }
   return restored
 }
@@ -1135,6 +1165,14 @@ async function restoreExternalChangeRecoveryToDraft(triggerWin: BrowserWindow): 
   const restored = await restoreRevisionSnapshotToDraft(triggerWin, recoveryState.snapshot, 'restore')
   if (restored) {
     await clearExternalChangeRecoveryState(externalChangeRecoveryStatePath).catch(() => {})
+    void documentJournal.record({
+      type: 'external-change-restored',
+      docPath: recoveryState.snapshot.filePath,
+      draftId: recoveryState.snapshot.draftId,
+      displayTitle: recoveryState.snapshot.displayTitle,
+      source: 'user',
+      next: describeJournalContent(recoveryState.snapshot.content),
+    })
   }
   return restored
 }
@@ -1162,7 +1200,19 @@ async function restoreDocumentRevisionToDraft(triggerWin: BrowserWindow, revisio
 
   const snapshot = await readRevisionSnapshotById(revisionsDir, documentKey, revisionId).catch(() => null)
   if (!snapshot) return false
-  return restoreRevisionSnapshotToDraft(triggerWin, snapshot, 'restore')
+  const restored = await restoreRevisionSnapshotToDraft(triggerWin, snapshot, 'restore')
+  if (restored) {
+    void documentJournal.record({
+      type: 'revision-restored',
+      docPath: state.filePath,
+      draftId: state.draftId,
+      displayTitle: snapshot.displayTitle,
+      source: 'user',
+      next: describeJournalContent(snapshot.content),
+      detail: revisionId,
+    })
+  }
+  return restored
 }
 
 async function openRevisionsDirectoryForWindow(win: BrowserWindow): Promise<boolean> {
@@ -1683,6 +1733,18 @@ function watchFile(win: BrowserWindow, state: WindowState): void {
           const changeSummary = summarizeAgentChange(previousContent, data)
           const changeRisk = assessExternalChangeRisk(previousContent, data, changeSummary)
           const blockedDestructiveApply = changeRisk.isDestructive && previousContent.length > 0
+          if (previousContent !== data) {
+            void documentJournal.record({
+              type: blockedDestructiveApply ? 'external-change-blocked' : 'external-change-detected',
+              docPath: state.filePath,
+              draftId: state.draftId,
+              displayTitle: state.displayTitle,
+              source: 'external',
+              risk: { isDestructive: changeRisk.isDestructive, reason: changeRisk.reason },
+              previous: describeJournalContent(previousContent),
+              next: describeJournalContent(data),
+            })
+          }
           if (blockedDestructiveApply) {
             void persistExternalChangeRecoveryForWindowState({
               ...state,
@@ -1821,6 +1883,7 @@ async function saveToPath(
   try {
     const previousFilePath = state.filePath
     const previousDisplayTitle = state.displayTitle
+    const previousContentForJournal = state.lastSyncedContent
     state.isInternalSave = true
     await writeFile(filePath, content, 'utf-8')
     recordIgnoredWatchedContent(state.ignoredWatchedContents, content)
@@ -1864,6 +1927,15 @@ async function saveToPath(
       await refreshWorkdirEntries()
     }
     await recordRevisionForWindowState(state, content, reason)
+    void documentJournal.record({
+      type: journalSaveEventType(reason),
+      docPath: filePath,
+      draftId: state.draftId,
+      displayTitle: state.displayTitle,
+      source: 'internal',
+      previous: previousContentForJournal === null ? null : describeJournalContent(previousContentForJournal),
+      next: describeJournalContent(content),
+    })
     broadcastSidebarState()
     return true
   } catch {
@@ -2335,6 +2407,7 @@ ipcMain.handle('accept-external-change', async (event) => {
     return null
   }
 
+  const previousContentForJournal = state.lastSyncedContent
   state.lastSyncedContent = content
   recordIgnoredWatchedContent(state.ignoredWatchedContents, content)
   state.displayTitle = state.documentKind === 'draft' && state.draftId
@@ -2351,6 +2424,15 @@ ipcMain.handle('accept-external-change', async (event) => {
       })
     }
   }
+  void documentJournal.record({
+    type: 'external-change-accepted',
+    docPath: state.filePath,
+    draftId: state.draftId,
+    displayTitle: state.displayTitle,
+    source: 'user',
+    previous: previousContentForJournal === null ? null : describeJournalContent(previousContentForJournal),
+    next: describeJournalContent(content),
+  })
   return { content, title: state.displayTitle }
 })
 

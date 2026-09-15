@@ -28,6 +28,23 @@ describe('agent change panel regression', () => {
     expect(main).toContain('restoreAgentChangeSession()')
   })
 
+  it('ships accept-external-version and view-diff actions for blocked updates', () => {
+    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
+    const main = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+    const preload = readFileSync(join(process.cwd(), 'src/preload/index.ts'), 'utf8')
+    const mainProcess = readFileSync(join(process.cwd(), 'src/main/index.ts'), 'utf8')
+
+    expect(html).toContain('id="agent-change-accept"')
+    expect(html).toContain('id="agent-change-diff"')
+    expect(main).toContain("agentChangeAccept?.addEventListener('click'")
+    expect(main).toContain('api.acceptExternalChange?.()')
+    expect(main).toContain("agentChangeDiff?.addEventListener('click'")
+    expect(preload).toContain("acceptExternalChange: () => ipcRenderer.invoke('accept-external-change')")
+    expect(mainProcess).toContain("ipcMain.handle('accept-external-change'")
+    // 被拦下时主进程要额外携带完整 diff 预览
+    expect(mainProcess).toContain('BLOCKED_DIFF_PREVIEW_LINES')
+  })
+
   it('keeps the crash recovery panel wired for renderer restart fallout', () => {
     const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
     const main = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')

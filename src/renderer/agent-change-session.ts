@@ -3,6 +3,7 @@ export interface AgentChangeSession {
   previousContent: string
   updateCount: number
   summary: AgentChangeSummary
+  fullSummary: AgentChangeSummary | null
   risk: ExternalChangeRisk
 }
 
@@ -46,6 +47,7 @@ export function createAgentChangeSession(payload: AgentChangePayload): AgentChan
     previousContent: payload.previousContent,
     updateCount: 1,
     summary: payload.summary,
+    fullSummary: payload.fullSummary ?? null,
     risk: payload.risk,
   }
 }
@@ -59,6 +61,7 @@ export function mergeAgentChangeSession(
     previousContent: session.previousContent,
     updateCount: session.updateCount + 1,
     risk: payload.risk.isDestructive ? payload.risk : session.risk,
+    fullSummary: payload.fullSummary ?? session.fullSummary,
     summary: {
       addedLines: session.summary.addedLines + payload.summary.addedLines,
       removedLines: session.summary.removedLines + payload.summary.removedLines,

@@ -109,6 +109,8 @@ import { LOCAL_MEDIA_PROTOCOL, localMediaUrlToAbsolutePath } from '../shared/loc
 
 // Custom themes directory
 const appDataDir = join(app.getPath('home'), '.lyramd')
+// 被拦下的高风险外部变更，决策面「查看 diff」可展示的最大预览行数
+const BLOCKED_DIFF_PREVIEW_LINES = 200
 const themesDir = join(appDataDir, 'themes')
 const sidebarStatePath = join(appDataDir, 'sidebar-state.json')
 const sessionStatePath = join(appDataDir, 'session-state.json')
@@ -1720,6 +1722,10 @@ function watchFile(win: BrowserWindow, state: WindowState): void {
               previousContent,
               summary: changeSummary,
               risk: changeRisk,
+              // 被拦下时额外带一份更完整的 diff 预览，供「查看 diff」决策面使用
+              ...(blockedDestructiveApply
+                ? { fullSummary: summarizeAgentChange(previousContent, data, { maxPreviewLines: BLOCKED_DIFF_PREVIEW_LINES }) }
+                : {}),
             })
           }
           if (!win.isDestroyed()) win.webContents.send('file-changed', blockedDestructiveApply ? previousContent : data)
@@ -2312,6 +2318,40 @@ ipcMain.handle('restore-external-change-recovery', async (event) => {
 ipcMain.handle('dismiss-external-change-recovery', async () => {
   await clearExternalChangeRecoveryState(externalChangeRecoveryStatePath).catch(() => {})
   return true
+})
+
+// 决策面：用户知情接受被拦下的外部版本。
+// 外部内容始终在磁盘上，这里只是重新读盘并推进同步基线，避免 watcher 再次拦同一次内容。
+ipcMain.handle('accept-external-change', async (event) => {
+  const win = getWinFromEvent(event)
+  if (!win) return null
+  const state = getState(win)
+  if (!state.filePath || state.documentKind === 'blank' || state.lastSyncedContent === null) return null
+
+  let content: string
+  try {
+    content = await readFile(state.filePath, 'utf-8')
+  } catch {
+    return null
+  }
+
+  state.lastSyncedContent = content
+  recordIgnoredWatchedContent(state.ignoredWatchedContents, content)
+  state.displayTitle = state.documentKind === 'draft' && state.draftId
+    ? resolveDraftDisplayTitle(state.draftId, content)
+    : resolveFileDisplayTitle(state.filePath, content)
+  updateTitle(win)
+  if (state.documentKind === 'draft' && state.draftId) {
+    const entry = findDraftEntryById(state.draftId)
+    if (entry) {
+      updateDraftEntry({
+        ...entry,
+        updatedAt: Date.now(),
+        displayTitle: deriveDraftDisplayTitle(content, entry.manualTitle),
+      })
+    }
+  }
+  return { content, title: state.displayTitle }
 })
 
 ipcMain.handle('list-document-revisions', async (event) => {

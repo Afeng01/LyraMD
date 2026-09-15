@@ -2229,6 +2229,10 @@ body.sidebar-resizing * {
   padding: 8px 10px;
 }
 
+#agent-change-list.diff-mode {
+  max-height: 320px;
+}
+
 .agent-change-line {
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr);

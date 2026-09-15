@@ -54,6 +54,7 @@ describe('agent change session', () => {
       applyBlocked: false,
       updateCount: 1,
       summary: firstSummary,
+      fullSummary: null,
       risk: safeRisk,
     })
   })
@@ -74,6 +75,7 @@ describe('agent change session', () => {
       applyBlocked: false,
       updateCount: 2,
       risk: destructiveRisk,
+      fullSummary: null,
       summary: {
         addedLines: 1,
         removedLines: 1,
@@ -82,5 +84,25 @@ describe('agent change session', () => {
         truncated: true,
       },
     })
+  })
+
+  it('carries the blocked full diff for the accept/diff decision surface', () => {
+    const session = createAgentChangeSession({
+      previousContent: 'before block',
+      summary: firstSummary,
+      fullSummary: secondSummary,
+      applyBlocked: true,
+      risk: destructiveRisk,
+    })
+
+    expect(session.applyBlocked).toBe(true)
+    expect(session.fullSummary).toEqual(secondSummary)
+
+    const merged = mergeAgentChangeSession(session, {
+      previousContent: 'before block',
+      summary: firstSummary,
+      risk: safeRisk,
+    })
+    expect(merged.fullSummary).toEqual(secondSummary)
   })
 })

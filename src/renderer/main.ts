@@ -736,6 +736,8 @@ async function init(): Promise<void> {
   const agentChangeDetails = document.getElementById('agent-change-details') as HTMLDivElement | null
   const agentChangeList = document.getElementById('agent-change-list') as HTMLDivElement | null
   const agentChangeRestore = document.getElementById('agent-change-restore') as HTMLButtonElement | null
+  const agentChangeAccept = document.getElementById('agent-change-accept') as HTMLButtonElement | null
+  const agentChangeDiff = document.getElementById('agent-change-diff') as HTMLButtonElement | null
   const agentChangeDismiss = document.getElementById('agent-change-dismiss') as HTMLButtonElement | null
   const crashRecoveryPanel = document.getElementById('crash-recovery-panel') as HTMLDivElement | null
   const crashRecoveryTitle = document.getElementById('crash-recovery-title') as HTMLSpanElement | null
@@ -1575,6 +1577,7 @@ async function init(): Promise<void> {
   let searchQueryMemory: SearchMemoryState = {}
   let agentChangeSession: AgentChangeSession | null = null
   let agentChangeExpanded = false
+  let agentChangeDiffExpanded = false
   let hasShownAgentChangeHint = false
   let crashRecoverySummary: CrashRecoverySummary | null = null
   let externalChangeRecoverySummary: ExternalChangeRecoverySummary | null = null
@@ -1652,7 +1655,19 @@ async function init(): Promise<void> {
     agentChangeDetails.hidden = !agentChangeExpanded
     clearElement(agentChangeList)
 
-    for (const previewLine of agentChangeSession.summary.preview) {
+    // 决策面：被拦下时才允许「知情接受」与「查看 diff」
+    const showBlockedActions = agentChangeSession.applyBlocked && !!agentChangeSession.fullSummary
+    if (agentChangeAccept) agentChangeAccept.hidden = !showBlockedActions
+    if (agentChangeDiff) {
+      agentChangeDiff.hidden = !showBlockedActions
+      agentChangeDiff.textContent = agentChangeDiffExpanded ? '收起 diff' : '查看 diff'
+    }
+    const shownSummary = agentChangeDiffExpanded && agentChangeSession.fullSummary
+      ? agentChangeSession.fullSummary
+      : agentChangeSession.summary
+    agentChangeList.classList.toggle('diff-mode', agentChangeDiffExpanded && !!agentChangeSession.fullSummary)
+
+    for (const previewLine of shownSummary.preview) {
       const row = document.createElement('div')
       row.className = `agent-change-line ${previewLine.type}`
 
@@ -1670,7 +1685,7 @@ async function init(): Promise<void> {
       agentChangeList.appendChild(row)
     }
 
-    if (agentChangeSession.summary.truncated) {
+    if (shownSummary.truncated) {
       agentChangeList.appendChild(createTextBlock('agent-change-truncated', '还有更多变更'))
     }
   }
@@ -1685,6 +1700,7 @@ async function init(): Promise<void> {
     agentChangeAutoDismiss.clear()
     agentChangeSession = null
     agentChangeExpanded = false
+    agentChangeDiffExpanded = false
     renderAgentChangePanel()
   }
 
@@ -3519,6 +3535,22 @@ async function init(): Promise<void> {
 
   agentChangeDismiss?.addEventListener('click', () => {
     clearAgentChangePanel()
+  })
+
+  agentChangeDiff?.addEventListener('click', () => {
+    agentChangeDiffExpanded = !agentChangeDiffExpanded
+    renderAgentChangePanel()
+  })
+
+  // 决策面：知情接受被拦下的外部版本（外部内容在磁盘上，重新读盘应用）
+  agentChangeAccept?.addEventListener('click', () => {
+    if (!agentChangeSession?.applyBlocked) return
+    void api.acceptExternalChange?.().then((result) => {
+      if (!result) return
+      applyProgrammaticDocumentContent(result.content, editorShell?.scrollTop ?? 0, { preserveHistory: true })
+      clearAgentChangePanel()
+      syncSidebarState()
+    }).catch(() => {})
   })
 
   crashRecoveryRestore?.addEventListener('click', () => {

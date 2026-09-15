@@ -205,6 +205,8 @@ export interface AgentChangePayload {
   applyBlocked?: boolean
   previousContent: string
   summary: AgentChangeSummary
+  // 仅 applyBlocked 时携带：更完整的 diff 预览，供「查看 diff」使用
+  fullSummary?: AgentChangeSummary | null
   risk: ExternalChangeRisk
 }
 
@@ -258,6 +260,7 @@ export interface ElectronAPI {
   getExternalChangeRecoveryState: () => Promise<ExternalChangeRecoverySummary | null>
   restoreExternalChangeRecovery: () => Promise<boolean>
   dismissExternalChangeRecovery: () => Promise<boolean>
+  acceptExternalChange: () => Promise<{ content: string; title: string } | null>
   listDocumentRevisions: () => Promise<DocumentRevisionSummary[]>
   openRevisionsDirectory: () => Promise<boolean>
   restoreDocumentRevision: (revisionId: string) => Promise<boolean>
@@ -363,6 +366,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getExternalChangeRecoveryState: () => ipcRenderer.invoke('get-external-change-recovery-state'),
   restoreExternalChangeRecovery: () => ipcRenderer.invoke('restore-external-change-recovery'),
   dismissExternalChangeRecovery: () => ipcRenderer.invoke('dismiss-external-change-recovery'),
+  acceptExternalChange: () => ipcRenderer.invoke('accept-external-change'),
   listDocumentRevisions: () => ipcRenderer.invoke('list-document-revisions'),
   openRevisionsDirectory: () => ipcRenderer.invoke('open-revisions-directory'),
   restoreDocumentRevision: (revisionId: string) => ipcRenderer.invoke('restore-document-revision', revisionId),

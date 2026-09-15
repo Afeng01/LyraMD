@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LyraMD Agent CLI Terminal Prototype</title>
+  <style>
+    :root {
+      --bg: #fbfbfa;
+      --panel: #f4f4f2;
+      --panel-strong: #ececea;
+      --line: #dfdfdc;
+      --line-strong: #cfcfca;
+      --text: #202124;
+      --muted: #777a80;
+      --soft: #a2a6ad;
+      --green: #1fa463;
+      --blue: #2f6fdb;
+      --term: #191b1f;
+      --term-2: #22252b;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: #e9e9e6;
+      color: var(--text);
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
+    }
+
+    .board {
+      width: min(1440px, 96vw);
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+
+    .frame {
+      height: 860px;
+      overflow: hidden;
+      border: 1px solid #d8d8d5;
+      border-radius: 18px;
+      background: var(--bg);
+      box-shadow: 0 24px 80px rgba(24, 25, 27, .14);
+      position: relative;
+    }
+
+    .traffic {
+      height: 36px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-left: 14px;
+      -webkit-app-region: drag;
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+    }
+
+    .red { background: #ff5f57; }
+    .yellow { background: #febc2e; }
+    .green { background: #28c840; }
+
+    .app {
+      height: calc(100% - 36px);
+      display: grid;
+      grid-template-columns: 254px 1fr;
+    }
+
+    .sidebar {
+      min-width: 0;
+      background: var(--panel);
+      border-right: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .side-head {
+      height: 42px;
+      display: grid;
+      grid-template-columns: 28px 1fr repeat(4, 28px);
+      align-items: center;
+      gap: 8px;
+      padding: 0 10px;
+      color: #5f646b;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .icon {
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      border: 1px solid transparent;
+      border-radius: 7px;
+      color: #62676e;
+      font-size: 15px;
+    }
+
+    .icon.active {
+      border-color: #bfc4cc;
+      background: #fff;
+    }
+
+    .tree {
+      padding: 8px 10px;
+      overflow: hidden;
+      font-size: 13px;
+      color: #323438;
+    }
+
+    .tree-row {
+      height: 28px;
+      display: grid;
+      grid-template-columns: 18px 1fr;
+      align-items: center;
+      gap: 7px;
+      padding: 0 8px;
+      border-radius: 7px;
+      white-space: nowrap;
+    }
+
+    .tree-row.selected { background: #e8e8e5; }
+    .folder { color: #5e6369; }
+    .file { color: #7a7d83; }
+    .indent { margin-left: 16px; }
+
+    .editor-shell {
+      min-width: 0;
+      display: grid;
+      grid-template-rows: 1fr 34px;
+      background: var(--bg);
+      position: relative;
+    }
+
+    .doc {
+      overflow: hidden;
+      padding: 42px 76px 36px;
+    }
+
+    .doc-inner {
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: 32px;
+      letter-spacing: 0;
+      line-height: 1.16;
+    }
+
+    .rule {
+      height: 1px;
+      background: var(--line);
+      margin-bottom: 24px;
+    }
+
+    .callout {
+      margin: 0 0 34px;
+      padding: 12px 18px;
+      border-left: 4px solid #e5e5e0;
+      color: #777a80;
+      line-height: 1.75;
+      background: linear-gradient(90deg, #f7f7f4 0, rgba(247, 247, 244, 0) 100%);
+    }
+
+    h2 {
+      margin: 32px 0 18px;
+      font-size: 25px;
+      letter-spacing: 0;
+    }
+
+    p, li {
+      font-size: 16px;
+      line-height: 1.85;
+    }
+
+    code {
+      padding: 2px 6px;
+      border-radius: 5px;
+      background: #f0f0ed;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: .92em;
+    }
+
+    .bottom {
+      height: 34px;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 12px;
+      padding: 0 10px;
+      border-top: 1px solid rgba(0,0,0,.03);
+      background: rgba(251,251,250,.92);
+      color: #666a70;
+      font-size: 12px;
+    }
+
+    .tabs {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .tab {
+      height: 26px;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 12px;
+      border-radius: 999px;
+      background: #f1f1ee;
+      color: #575b61;
+      max-width: 132px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      white-space: nowrap;
+    }
+
+    .agent-pill {
+      height: 26px;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 0 8px;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      color: var(--green);
+    }
+
+    .terminal-button {
+      height: 26px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 10px;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      color: #4d5157;
+    }
+
+    .terminal-button.active {
+      border-color: #cfd3d8;
+      background: #fff;
+      box-shadow: 0 1px 6px rgba(0,0,0,.06);
+    }
+
+    .terminal {
+      position: absolute;
+      left: 254px;
+      right: 0;
+      bottom: 34px;
+      height: 276px;
+      border-top: 1px solid #101216;
+      background: var(--term);
+      color: #e8e9eb;
+      display: grid;
+      grid-template-rows: 34px 1fr;
+      box-shadow: 0 -18px 50px rgba(0,0,0,.22);
+    }
+
+    .term-head {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 12px;
+      padding: 0 12px;
+      background: var(--term-2);
+      border-bottom: 1px solid #2f333a;
+    }
+
+    .term-tabs {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      font-size: 12px;
+    }
+
+    .term-tab {
+      height: 23px;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 9px;
+      border-radius: 6px;
+      background: #30343c;
+      color: #f1f2f4;
+    }
+
+    .term-tab.secondary {
+      background: transparent;
+      color: #9da3ad;
+    }
+
+    .provider {
+      color: #9da3ad;
+      font-size: 12px;
+    }
+
+    .term-actions {
+      display: flex;
+      gap: 6px;
+      color: #9da3ad;
+      font-size: 13px;
+    }
+
+    .term-body {
+      padding: 13px 16px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12.5px;
+      line-height: 1.7;
+    }
+
+    .prompt { color: #7fd69f; }
+    .path { color: #93b7ff; }
+    .dim { color: #8b929e; }
+    .cursor {
+      display: inline-block;
+      width: 7px;
+      height: 15px;
+      margin-left: 3px;
+      vertical-align: -2px;
+      background: #e8e9eb;
+    }
+
+    .label {
+      position: absolute;
+      top: 12px;
+      right: 14px;
+      padding: 5px 9px;
+      border-radius: 999px;
+      background: rgba(0,0,0,.62);
+      color: #fff;
+      font-size: 12px;
+    }
+
+    .caption {
+      grid-column: 1 / -1;
+      color: #4a4d52;
+      font-size: 14px;
+      line-height: 1.65;
+    }
+
+    .caption strong { color: #191b1f; }
+  </style>
+</head>
+<body>
+  <main class="board">
+    <section class="frame">
+      <div class="label">状态 A：主界面，终端收起</div>
+      <div class="traffic"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></div>
+      <div class="app">
+        <aside class="sidebar">
+          <div class="side-head">
+            <span class="icon">▧</span>
+            <span>文件</span>
+            <span class="icon">⌄</span>
+            <span class="icon">⌃</span>
+            <span class="icon">◴</span>
+            <span class="icon active">⊞</span>
+          </div>
+          <div class="tree">
+            <div class="tree-row"><span class="folder">▣</span><span>模型树整合素材</span></div>
+            <div class="tree-row"><span>›</span><span>00-总索引</span></div>
+            <div class="tree-row"><span>›</span><span>01-外部文章与课题</span></div>
+            <div class="tree-row"><span>›</span><span>02-OCI与目标事件系统</span></div>
+            <div class="tree-row"><span>›</span><span>03-读书会素材</span></div>
+            <div class="tree-row"><span>›</span><span>04-个人实操与作业</span></div>
+            <div class="tree-row"><span>›</span><span>90-关键词命中摘录</span></div>
+            <div class="tree-row selected"><span class="file">▤</span><span>README</span></div>
+          </div>
+        </aside>
+        <section class="editor-shell">
+          <article class="doc">
+            <div class="doc-inner">
+              <h1>模型树整合素材</h1>
+              <div class="rule"></div>
+              <p class="callout">生成时间：2026-05-06 16:39:49<br>来源：<code>/Users/cherry_xiao/Documents/GitHub/obsidian-notes</code><br>目标：把 Obsidian 主库中关于“模型树”的素材集中放到文稿迭代目录下。</p>
+              <h2>使用方式</h2>
+              <ol>
+                <li>先看 <code>00-总索引/source-manifest.tsv</code>。</li>
+                <li>若要从课程/读书会体系开始整合，优先看 <code>03-读书会素材</code>。</li>
+                <li>若要提炼 Cherry 自己的实践线索，优先看 <code>04-个人实操与作业</code>。</li>
+              </ol>
+              <h2>分类结果</h2>
+              <ul>
+                <li><code>01-外部文章与课题</code>：2 个专题文件</li>
+                <li><code>02-OCI与目标事件系统</code>：5 个专题文件</li>
+              </ul>
+            </div>
+          </article>
+          <footer class="bottom">
+            <div class="tabs"><span>＋</span><span class="tab">Untitled-1</span><span class="tab">README</span></div>
+            <div></div>
+            <div class="status"><span>363 词</span><span>445 字符</span><span class="agent-pill">⌁ CLI</span><span class="terminal-button">›_</span><span>T</span><span>▢</span></div>
+          </footer>
+        </section>
+      </div>
+    </section>
+
+    <section class="frame">
+      <div class="label">状态 B：点击 ›_ 后，打开 Agent Terminal</div>
+      <div class="traffic"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></div>
+      <div class="app">
+        <aside class="sidebar">
+          <div class="side-head">
+            <span class="icon">▧</span>
+            <span>文件</span>
+            <span class="icon">⌄</span>
+            <span class="icon">⌃</span>
+            <span class="icon">◴</span>
+            <span class="icon active">⊞</span>
+          </div>
+          <div class="tree">
+            <div class="tree-row"><span class="folder">▣</span><span>模型树整合素材</span></div>
+            <div class="tree-row"><span>›</span><span>00-总索引</span></div>
+            <div class="tree-row"><span>›</span><span>01-外部文章与课题</span></div>
+            <div class="tree-row"><span>›</span><span>02-OCI与目标事件系统</span></div>
+            <div class="tree-row"><span>›</span><span>03-读书会素材</span></div>
+            <div class="tree-row"><span>›</span><span>04-个人实操与作业</span></div>
+            <div class="tree-row"><span>›</span><span>90-关键词命中摘录</span></div>
+            <div class="tree-row selected"><span class="file">▤</span><span>README</span></div>
+          </div>
+        </aside>
+        <section class="editor-shell">
+          <article class="doc">
+            <div class="doc-inner">
+              <h1>模型树整合素材</h1>
+              <div class="rule"></div>
+              <p class="callout">生成时间：2026-05-06 16:39:49<br>来源：<code>/Users/cherry_xiao/Documents/GitHub/obsidian-notes</code><br>目标：把 Obsidian 主库中关于“模型树”的素材集中放到文稿迭代目录下。</p>
+              <h2>使用方式</h2>
+              <ol>
+                <li>先看 <code>00-总索引/source-manifest.tsv</code>。</li>
+                <li>若要从课程/读书会体系开始整合，优先看 <code>03-读书会素材</code>。</li>
+              </ol>
+            </div>
+          </article>
+          <section class="terminal">
+            <header class="term-head">
+              <div class="term-tabs"><span class="term-tab">Agent Terminal</span><span class="term-tab secondary">Prompts</span></div>
+              <div class="provider">默认目录：当前文档所在文件夹 · CLI：Codex</div>
+              <div class="term-actions"><span>＋</span><span>⌄</span><span>×</span></div>
+            </header>
+            <div class="term-body">
+              <div><span class="prompt">lyramd</span> <span class="path">~/Documents/模型树整合素材</span> % codex</div>
+              <div class="dim">Codex CLI 已启动。你可以粘贴自定义提示词，或在设置里维护默认模板。</div>
+              <br>
+              <div><span class="prompt">codex</span> 当前文件：README.md</div>
+              <div><span class="dim">› </span><span class="cursor"></span></div>
+            </div>
+          </section>
+          <footer class="bottom">
+            <div class="tabs"><span>＋</span><span class="tab">Untitled-1</span><span class="tab">README</span></div>
+            <div></div>
+            <div class="status"><span>363 词</span><span>445 字符</span><span class="agent-pill">⌁ Codex</span><span class="terminal-button active">›_</span><span>T</span><span>▢</span></div>
+          </footer>
+        </section>
+      </div>
+    </section>
+
+    <p class="caption">
+      <strong>设计草案 v0：</strong>保留你喜欢的“文件工具区 + 底部标签栏 + 右下角终端入口”。MCP 从主路径移除，右下角 <strong>›_</strong> 只负责打开内置终端；提示词不自动塞入，由用户在终端中输入或从 Prompts 标签复制自定义模板。
+    </p>
+  </main>
+</body>
+</html>

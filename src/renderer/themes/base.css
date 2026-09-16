@@ -599,6 +599,10 @@ body.platform-win32 #outline-toggle {
 .sidebar-item-content {
   min-width: 0;
   flex: 1;
+  /* 星标标记与标题同行：content 是 flex 容器，标题出列时星标不换行到下一行 */
+  display: flex;
+  align-items: center;
+  gap: 5px;
 }
 
 .sidebar-item-icon {

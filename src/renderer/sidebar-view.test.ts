@@ -214,6 +214,8 @@ describe('pinned view helpers', () => {
     expect(renderer).toContain("'sidebar-pinned-mark'")
     expect(css).toContain('.sidebar-pinned-mark')
     expect(css).toMatch(/\.sidebar-pinned-mark\s*\{[\s\S]*?color:\s*var\(--link-color\)/)
+    // 星标与标题同行：content 必须是 flex 容器，否则块级标题把星标挤到下一行
+    expect(css).toMatch(/\.sidebar-item-content\s*\{[^}]*display:\s*flex[^}]*align-items:\s*center/)
   })
 })
 

@@ -23,4 +23,13 @@ describe('sidebar persistence regression', () => {
     expect(file).toContain('let sidebarQuitFlushStarted = false')
     expect(file).toMatch(/app\.on\('before-quit', async \(event\) => \{[\s\S]*event\.preventDefault\(\)[\s\S]*await persistSidebarState\(\)[\s\S]*app\.quit\(\)/)
   })
+
+  it('does not block first-window creation on the workdir scan (startup perf)', () => {
+    // loadSidebarState 不再在启动链路里等待工作目录扫描
+    const loadSidebarStateBody = file.match(/async function loadSidebarState\(\): Promise<void> \{[\s\S]*?\n\}/)?.[0] ?? ''
+    expect(loadSidebarStateBody).toContain('await persistSidebarState()')
+    expect(loadSidebarStateBody).not.toContain('await refreshWorkdirEntries()')
+    // 扫描改为首窗创建后的后台任务，完成后广播侧边栏刷新
+    expect(file).toMatch(/void refreshWorkdirEntries\(\)\n\s*\.then\(\(\) => broadcastSidebarState\(\)\)/)
+  })
 })

@@ -2,6 +2,14 @@ import { readdir } from 'fs/promises'
 import { basename, join, relative } from 'path'
 import { isMarkdownFile } from './file-extensions'
 
+// 启动性能：扫描工作区时跳过重目录（依赖/版本库/隐藏目录），
+// 否则第一次递归遍历可能要走过成千上万个 node_modules 文件。
+const IGNORED_DIRECTORY_NAMES = new Set(['node_modules'])
+
+function shouldEnterWorkdirDirectory(name: string): boolean {
+  return !name.startsWith('.') && !IGNORED_DIRECTORY_NAMES.has(name)
+}
+
 export interface WorkdirEntry {
   absolutePath: string
   relativePath: string
@@ -67,29 +75,21 @@ export function createWorkspaceRootTreeNode(
 }
 
 export async function scanWorkdir(rootPath: string): Promise<WorkdirEntry[]> {
+  // 扁平列表直接从树扫描拍平，避免对同一工作区做两次完整递归遍历。
+  const tree = await scanWorkdirTree(rootPath)
   const entries: WorkdirEntry[] = []
-
-  async function walk(currentPath: string): Promise<void> {
-    const dirEntries = await readdir(currentPath, { withFileTypes: true })
-
-    await Promise.all(dirEntries.map(async (entry) => {
-      const absolutePath = join(currentPath, entry.name)
-
-      if (entry.isDirectory()) {
-        await walk(absolutePath)
-        return
-      }
-
-      if (!entry.isFile() || !isMarkdownFile(entry.name)) return
-
+  const stack = [...tree]
+  while (stack.length > 0) {
+    const node = stack.pop()!
+    if (node.kind === 'file') {
       entries.push({
-        absolutePath,
-        relativePath: relative(rootPath, absolutePath).replaceAll('\\', '/'),
+        absolutePath: node.absolutePath,
+        relativePath: node.relativePath,
       })
-    }))
+    } else {
+      stack.push(...node.children)
+    }
   }
-
-  await walk(rootPath)
   entries.sort((a, b) => a.relativePath.localeCompare(b.relativePath))
   return entries
 }
@@ -107,6 +107,7 @@ export async function scanWorkdirTree(rootPath: string): Promise<WorkdirTreeNode
       const relativePath = relative(rootPath, absolutePath).replaceAll('\\', '/')
 
       if (entry.isDirectory()) {
+        if (!shouldEnterWorkdirDirectory(entry.name)) return null
         return {
           absolutePath,
           children: await walk(absolutePath),

@@ -25,9 +25,16 @@ describe('scanWorkdir', () => {
     await writeFile(join(root, 'ignore.txt'), 'ignore')
     await writeFile(join(root, 'config.json'), '{}')
     await writeFile(join(root, 'skip.bin'), 'bin')
+    // 启动性能：重目录（node_modules/隐藏目录）及其内部内容不进扫描结果
+    await mkdir(join(root, 'node_modules', 'some-pkg'), { recursive: true })
+    await writeFile(join(root, 'node_modules', 'some-pkg', 'readme.md'), '# pkg')
+    await mkdir(join(root, '.git'), { recursive: true })
+    await writeFile(join(root, '.git', 'hidden.md'), '# hidden')
 
     const entries = await scanWorkdir(root)
 
+    expect(entries.map((entry) => entry.relativePath)).not.toContain('node_modules/some-pkg/readme.md')
+    expect(entries.map((entry) => entry.relativePath)).not.toContain('.git/hidden.md')
     expect(entries).toEqual([
       {
         absolutePath: join(root, 'daily', 'entry.md'),
@@ -64,9 +71,16 @@ describe('scanWorkdirTree', () => {
     await writeFile(join(root, 'notes', 'nested', 'c.markdown'), '# c')
     await writeFile(join(root, 'notes', 'nested', 'script.ts'), 'export {}')
     await writeFile(join(root, 'notes', 'image.png'), 'ignore')
+    // 启动性能：重目录（node_modules/隐藏目录）不进树
+    await mkdir(join(root, 'node_modules'), { recursive: true })
+    await writeFile(join(root, 'node_modules', 'pkg.md'), '# pkg')
+    await mkdir(join(root, '.hidden'), { recursive: true })
+    await writeFile(join(root, '.hidden', 'h.md'), '# h')
 
     const tree = await scanWorkdirTree(root)
 
+    expect(tree.map((node) => node.name)).not.toContain('node_modules')
+    expect(tree.map((node) => node.name)).not.toContain('.hidden')
     expect(tree).toEqual([
       {
         absolutePath: join(root, 'a.md'),

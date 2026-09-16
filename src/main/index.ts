@@ -320,7 +320,8 @@ async function loadSidebarState(): Promise<void> {
   sidebarState.draftEntries = sidebarState.draftEntries.filter((entry) => existsSync(entry.path))
   sidebarState.workspacePaths = sidebarState.workspacePaths.filter((workspacePath) => existsSync(workspacePath))
   await persistSidebarState()
-  await refreshWorkdirEntries()
+  // 工作目录扫描不再阻塞启动链路：它是最重的启动 IO（递归遍历整个工作区），
+  // 改由 app.whenReady 在首窗创建后后台执行（见 whenReady 内注释）。
 }
 
 async function loadSessionState(): Promise<void> {
@@ -3416,6 +3417,12 @@ if (hasSingleInstanceLock) {
         }
 
         void mcpBridge.start().catch(() => {})
+
+        // 启动提速：首窗先创建（草稿/最近文件立即可用），工作目录扫描与
+        // 递归 watcher 挂载改为后台执行，完成后广播刷新侧边栏。
+        void refreshWorkdirEntries()
+          .then(() => broadcastSidebarState())
+          .catch(() => {})
 
         // 首启一次性打开更新日志（在主窗口之后创建，避免抢启动焦点顺序）
         void maybeOpenReleaseNotesOnce().catch((error: Error) => {

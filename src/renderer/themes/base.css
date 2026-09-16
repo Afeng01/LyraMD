@@ -550,30 +550,22 @@ body.platform-win32 #outline-toggle {
   gap: 4px;
 }
 
-#pinned-list {
-  max-height: calc((34px + 4px) * 3 - 4px);
-  overflow-y: auto;
-  overflow-x: hidden;
-  overscroll-behavior: contain;
-  padding-right: 2px;
-}
-
-#sidebar :is(#workspaces-list, #pinned-list, #library-scroll-region) {
+#sidebar :is(#workspaces-list, #library-scroll-region) {
   scrollbar-color: transparent transparent;
 }
 
-#sidebar :is(#workspaces-list, #pinned-list, #library-scroll-region)::-webkit-scrollbar-thumb {
+#sidebar :is(#workspaces-list, #library-scroll-region)::-webkit-scrollbar-thumb {
   background: transparent;
   border-radius: 3px;
 }
 
-#sidebar :is(#workspaces-list, #pinned-list, #library-scroll-region):hover,
-#sidebar :is(#workspaces-list, #pinned-list, #library-scroll-region):focus-within {
+#sidebar :is(#workspaces-list, #library-scroll-region):hover,
+#sidebar :is(#workspaces-list, #library-scroll-region):focus-within {
   scrollbar-color: color-mix(in srgb, var(--border-color) 72%, transparent 28%) transparent;
 }
 
-#sidebar :is(#workspaces-list, #pinned-list, #library-scroll-region):hover::-webkit-scrollbar-thumb,
-#sidebar :is(#workspaces-list, #pinned-list, #library-scroll-region):focus-within::-webkit-scrollbar-thumb {
+#sidebar :is(#workspaces-list, #library-scroll-region):hover::-webkit-scrollbar-thumb,
+#sidebar :is(#workspaces-list, #library-scroll-region):focus-within::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, var(--border-color) 72%, transparent 28%);
 }
 
@@ -1052,10 +1044,6 @@ body.platform-win32 #outline-toggle {
   color: #c62828;
   background: color-mix(in srgb, #c62828 14%, transparent 86%);
   border-color: color-mix(in srgb, #c62828 30%, transparent 70%);
-}
-
-#pinned-section.collapsed #pinned-list {
-  display: none;
 }
 
 #library-section {

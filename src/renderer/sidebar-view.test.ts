@@ -7,7 +7,6 @@ import {
   createWorkspaceRootTreeNode,
   isPinnedDraft,
   isPinnedFile,
-  resolvePinnedItems,
   resolvePinControl,
   resolveRemoveActionKey,
   resolveRemoveControl,
@@ -170,45 +169,40 @@ describe('pinned view helpers', () => {
     })
   })
 
-  it('resolves pinned drafts and files to visible sidebar items', () => {
+  it('marks pinned items inside the normal tab lists instead of a separate pinned section', () => {
     const state = createSidebarState({
       currentDraftId: 'd1',
-      fileTitleOverrides: { '/a.md': '正式文稿' },
       pinnedItems: [
         { kind: 'draft', draftId: 'd1' },
         { kind: 'file', filePath: '/a.md' },
       ],
+      recentFiles: ['/a.md'],
       draftEntries: [
         { id: 'd1', path: '/drafts/d1.md', createdAt: 1, updatedAt: 2, displayTitle: '草稿一' },
       ],
     })
 
-    expect(resolvePinnedItems(state)).toEqual([
-      {
-        kind: 'draft',
-        id: 'd1',
-        title: '草稿一',
-        active: true,
-        pinned: true,
-      },
+    const tabItems = resolveVisibleTabItems(state, 'recent')
+    expect(tabItems).toEqual([
       {
         kind: 'file',
         filePath: '/a.md',
-        title: '正式文稿',
+        title: 'a.md',
         active: false,
         pinned: true,
-        source: 'pinned',
+        source: 'recent',
       },
     ])
-  })
 
-  it('caps pinned rows at three items before vertical scrolling', () => {
+    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
 
-    const pinnedRule = css.match(/#pinned-list\s*\{[\s\S]*?\}/)?.[0] ?? ''
-    expect(pinnedRule).toContain('max-height: calc((34px + 4px) * 3 - 4px)')
-    expect(pinnedRule).toContain('overflow-y: auto')
-    expect(pinnedRule).toContain('overscroll-behavior: contain')
+    expect(html).not.toContain('id="pinned-section"')
+    expect(html).not.toContain('id="pinned-list"')
+    expect(css).not.toContain('#pinned-list')
+    expect(renderer).not.toContain('resolvePinnedItems')
+    expect(renderer).toContain("source: 'recent' | 'workdir'")
   })
 })
 
@@ -461,21 +455,20 @@ describe('sidebar polish regression', () => {
     expect(libraryRule).toContain('background: color-mix(in srgb, var(--bg-color) 96%, var(--border-color) 4%)')
   })
 
-  it('keeps pinned rows in a compact three-item scroll area', () => {
+  it('no longer keeps a compact pinned scroll area after sidebar convergence', () => {
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
-    const pinnedRule = css.match(/#pinned-list\s*\{[\s\S]*?\}/)?.[0] ?? ''
 
-    expect(pinnedRule).toContain('max-height: calc((34px + 4px) * 3 - 4px)')
-    expect(pinnedRule).toContain('overflow-y: auto')
+    expect(css).not.toContain('#pinned-section')
+    expect(css).not.toContain('#pinned-list')
   })
 
   it('hides sidebar scroll thumbs until the scroll region is active', () => {
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
 
-    expect(css).toContain('#sidebar :is(#workspaces-list, #pinned-list, #library-scroll-region)::-webkit-scrollbar-thumb')
+    expect(css).toContain('#sidebar :is(#workspaces-list, #library-scroll-region)::-webkit-scrollbar-thumb')
     expect(css).toContain('background: transparent')
-    expect(css).toContain('#sidebar :is(#workspaces-list, #pinned-list, #library-scroll-region):hover::-webkit-scrollbar-thumb')
-    expect(css).toContain('#sidebar :is(#workspaces-list, #pinned-list, #library-scroll-region):focus-within::-webkit-scrollbar-thumb')
+    expect(css).toContain('#sidebar :is(#workspaces-list, #library-scroll-region):hover::-webkit-scrollbar-thumb')
+    expect(css).toContain('#sidebar :is(#workspaces-list, #library-scroll-region):focus-within::-webkit-scrollbar-thumb')
   })
 
   it('adds left breathing room inside the sidebar without shifting the drawer shell', () => {

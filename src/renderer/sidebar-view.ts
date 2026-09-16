@@ -14,7 +14,7 @@ export interface FileSidebarItem {
   title: string
   active: boolean
   pinned: boolean
-  source: 'recent' | 'pinned' | 'workdir'
+  source: 'recent' | 'workdir'
 }
 
 export type SidebarItem = DraftSidebarItem | FileSidebarItem
@@ -124,18 +124,6 @@ export function resolveSidebarInlineTitleCommitAction(
   }
 
   return { kind: 'rename-file-title', filePath: target.filePath }
-}
-
-export function resolvePinnedItems(state: SidebarState): SidebarItem[] {
-  return state.pinnedItems.flatMap((item): SidebarItem[] => {
-    if (item.kind === 'draft') {
-      const draft = state.draftEntries.find((entry) => entry.id === item.draftId)
-      if (!draft) return []
-      return [createDraftItem(state, draft.id, draft.displayTitle)]
-    }
-
-    return [createFileItem(state, item.filePath, 'pinned')]
-  })
 }
 
 export function resolveVisibleTabItems(state: SidebarState, tab: SidebarTab = state.activeSidebarTab): SidebarItem[] {

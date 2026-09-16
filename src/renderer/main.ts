@@ -66,7 +66,6 @@ import {
 import { createSettingsDialogController, type SettingsPaneId } from './settings-dialog'
 import { createUpdateBannerController } from './update-banner'
 import {
-  resolvePinnedItems,
   resolvePinControl,
   resolveRemoveActionKey,
   resolveRemoveActionPlan,
@@ -420,7 +419,7 @@ function createFileItem(
   meta: string | null,
   currentFilePath: string | null,
   extraClass = '',
-  source: 'recent' | 'workdir' | 'pinned' = 'recent',
+  source: 'recent' | 'workdir' = 'recent',
 ): HTMLButtonElement {
   const item = document.createElement('button')
   item.type = 'button'
@@ -521,7 +520,7 @@ async function init(): Promise<void> {
     | null = null
   let sidebarInlineTitleEdit:
     | { kind: 'draft'; draftId: string; value: string }
-    | { kind: 'file'; filePath: string; source: 'recent' | 'workdir' | 'pinned'; value: string }
+    | { kind: 'file'; filePath: string; source: 'recent' | 'workdir'; value: string }
     | null = null
   let pendingTitleEditRequest:
     | {
@@ -678,9 +677,6 @@ async function init(): Promise<void> {
   const workdirChange = document.getElementById('workdir-change') as HTMLButtonElement | null
   const workspaceAdd = document.getElementById('workspace-add') as HTMLButtonElement | null
   const workspacesList = document.getElementById('workspaces-list') as HTMLDivElement | null
-  const pinnedSection = document.getElementById('pinned-section') as HTMLElement | null
-  const pinnedToggle = document.getElementById('pinned-toggle') as HTMLButtonElement | null
-  const pinnedList = document.getElementById('pinned-list') as HTMLDivElement | null
   const draftsTab = document.getElementById('drafts-tab') as HTMLButtonElement | null
   const recentTab = document.getElementById('recent-tab') as HTMLButtonElement | null
   const workdirTab = document.getElementById('workdir-tab') as HTMLButtonElement | null
@@ -2887,7 +2883,7 @@ async function init(): Promise<void> {
   }
 
   const renderSidebar = (): void => {
-    if (!appShell || !workspacesList || !pinnedList || !libraryList || !sidebarState) return
+    if (!appShell || !workspacesList || !libraryList || !sidebarState) return
 
     appShell.classList.toggle('sidebar-open', sidebarState.sidebarOpen)
     appShell.classList.toggle('drawer-mode', sidebarState.isDrawerMode)
@@ -2955,22 +2951,6 @@ async function init(): Promise<void> {
         row.appendChild(item)
         row.appendChild(actions)
         workspacesList.appendChild(row)
-      }
-    }
-
-    pinnedSection?.classList.toggle('collapsed', !sidebarState.pinnedExpanded)
-    if (pinnedToggle) {
-      pinnedToggle.setAttribute('aria-expanded', sidebarState.pinnedExpanded ? 'true' : 'false')
-    }
-    clearElement(pinnedList)
-    if (sidebarState.pinnedExpanded) {
-      const pinnedItems = resolvePinnedItems(sidebarState)
-      if (pinnedItems.length === 0) {
-        pinnedList.appendChild(createTextBlock('sidebar-empty', '还没有置顶文稿'))
-      } else {
-        for (const item of pinnedItems) {
-          appendWorkbenchRow(pinnedList, item, { allowInlineEdit: false, showRemove: false })
-        }
       }
     }
 
@@ -3686,10 +3666,6 @@ async function init(): Promise<void> {
     api.toggleWorkdirExpanded().catch(() => {})
   })
 
-  pinnedToggle?.addEventListener('click', () => {
-    api.togglePinnedExpanded().catch(() => {})
-  })
-
   workdirChange?.addEventListener('click', () => {
     api.chooseWorkdir().catch(() => {})
   })
@@ -4109,9 +4085,7 @@ async function init(): Promise<void> {
       const filePath = fileButton.dataset.filePath
       const source = fileButton.dataset.sidebarSource === 'workdir'
         ? 'workdir'
-        : fileButton.dataset.sidebarSource === 'pinned'
-          ? 'pinned'
-          : 'recent'
+        : 'recent'
       if (!filePath) return
       event.preventDefault()
       sidebarInlineTitleEdit = {

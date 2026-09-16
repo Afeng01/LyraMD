@@ -204,6 +204,17 @@ describe('pinned view helpers', () => {
     expect(renderer).not.toContain('resolvePinnedItems')
     expect(renderer).toContain("source: 'recent' | 'workdir'")
   })
+
+  it('renders an inline star mark on pinned rows in the tab lists', () => {
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+
+    expect(renderer).toContain("if (item.pinned) appendPinnedMark(draftRow)")
+    expect(renderer).toContain("if (item.pinned) appendPinnedMark(fileRow)")
+    expect(renderer).toContain("'sidebar-pinned-mark'")
+    expect(css).toContain('.sidebar-pinned-mark')
+    expect(css).toMatch(/\.sidebar-pinned-mark\s*\{[\s\S]*?color:\s*var\(--link-color\)/)
+  })
 })
 
 describe('tab view helpers', () => {

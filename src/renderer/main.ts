@@ -2702,6 +2702,18 @@ async function init(): Promise<void> {
     return button
   }
 
+  const appendPinnedMark = (row: HTMLButtonElement): void => {
+    const content = row.querySelector('.sidebar-item-content')
+    if (!content) return
+    const mark = document.createElement('span')
+    mark.className = 'sidebar-pinned-mark'
+    mark.appendChild(createIconSvg(
+      ['M9 2.6l1.9 3.9 4.3.6-3.1 3 .7 4.3L9 12.4l-3.8 2 .7-4.3-3.1-3 4.3-.6Z'],
+      { filled: true },
+    ))
+    content.appendChild(mark)
+  }
+
   const clearPendingRemoveConfirmation = (): void => {
     if (pendingRemoveActionTimer) {
       clearTimeout(pendingRemoveActionTimer)
@@ -2774,7 +2786,9 @@ async function init(): Promise<void> {
           },
         )
       }
-      return createDraftItem(item.id, item.title, sidebarState?.currentDraftId ?? null)
+      const draftRow = createDraftItem(item.id, item.title, sidebarState?.currentDraftId ?? null)
+      if (item.pinned) appendPinnedMark(draftRow)
+      return draftRow
     }
 
     if (allowInlineEdit && sidebarInlineTitleEdit?.kind === 'file'
@@ -2797,7 +2811,7 @@ async function init(): Promise<void> {
       )
     }
 
-    return createFileItem(
+    const fileRow = createFileItem(
       item.filePath,
       item.title,
       null,
@@ -2805,6 +2819,8 @@ async function init(): Promise<void> {
       item.source === 'workdir' ? 'workdir-item' : '',
       item.source,
     )
+    if (item.pinned) appendPinnedMark(fileRow)
+    return fileRow
   }
 
   const appendWorkbenchRow = (

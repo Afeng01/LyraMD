@@ -606,6 +606,17 @@ body.platform-win32 #outline-toggle {
   color: color-mix(in srgb, var(--text-muted) 82%, transparent 18%);
 }
 
+.sidebar-pinned-mark {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  color: var(--link-color);
+}
+
+.sidebar-pinned-mark svg {
+  display: block;
+}
+
 .sidebar-file-icon {
   opacity: 0.82;
 }

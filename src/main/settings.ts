@@ -40,6 +40,11 @@ export interface DocumentSafetySettings {
   maxRevisionsPerDocument: number
 }
 
+export interface TabSettings {
+  /** 标签页阶段 A 开关：开启后 ⌘T 新建 tab、新开文档落新 tab（默认关闭，行为与单文档一致） */
+  enabled: boolean
+}
+
 export interface AiPromptTemplate {
   id: string
   title: string
@@ -71,6 +76,7 @@ export interface AppSettings {
   background: BackgroundSettings
   font: FontSettings
   documentSafety: DocumentSafetySettings
+  tabs: TabSettings
   aiHelper: AiHelperSettings
 }
 
@@ -163,6 +169,9 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   },
   documentSafety: {
     maxRevisionsPerDocument: 40,
+  },
+  tabs: {
+    enabled: false,
   },
   aiHelper: {
     provider: {
@@ -296,6 +305,15 @@ function normalizeDocumentSafetySettings(input: unknown): DocumentSafetySettings
 
   return {
     maxRevisionsPerDocument,
+  }
+}
+
+function normalizeTabSettings(input: unknown): TabSettings {
+  const candidate = input && typeof input === 'object'
+    ? input as Partial<Record<keyof TabSettings, unknown>>
+    : {}
+  return {
+    enabled: candidate.enabled === true,
   }
 }
 
@@ -457,6 +475,7 @@ export function normalizeAppSettings(input: PersistedAppSettings | null | undefi
     background: normalizeBackgroundSettings(input?.background),
     font: normalizeFontSettings(input?.font),
     documentSafety: normalizeDocumentSafetySettings(input?.documentSafety),
+    tabs: normalizeTabSettings(input?.tabs),
     aiHelper: normalizeAiHelperSettings(input?.aiHelper),
   }
 }
@@ -514,6 +533,9 @@ export async function updateAppSettings(
     documentSafety: patch.documentSafety === undefined
       ? normalizeDocumentSafetySettings(currentSettings.documentSafety)
       : normalizeDocumentSafetySettings(patch.documentSafety),
+    tabs: patch.tabs === undefined
+      ? normalizeTabSettings(currentSettings.tabs)
+      : normalizeTabSettings(patch.tabs),
     aiHelper: patch.aiHelper === undefined
       ? normalizeAiHelperSettings(currentSettings.aiHelper)
       : normalizeAiHelperSettings(patch.aiHelper),

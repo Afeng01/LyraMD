@@ -8,6 +8,20 @@ directories:
 
 files:
   - dist/**/*
+  # 运行时 JS 已全部由 electron-vite 打进 dist（dist 内只有 Node 内置与 electron 的 require），
+  # 不要把整棵生产依赖树（mermaid/katex/docx 等）拷进 app.asar——纯死重，拖慢安装与启动 IO。
+  # 参考：ColaMD 同样处理将 asar 从 169MB 降到 10.7MB（docs/packaging.md）。
+  - '!node_modules/**/*'
+
+asar:
+  smartUnpack: false
+
+# 只保留 en/zh 语言包：全套 Electron locale 多占数十 MB
+electronLanguages:
+  - en-US
+  - en_US
+  - zh-CN
+  - zh_CN
 
 extraResources:
   - from: mcp

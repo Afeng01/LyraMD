@@ -179,6 +179,17 @@ describe('settings dialog regression', () => {
     expect(file).toContain('api.updateSettings({ showDocumentStats')
   })
 
+  it('exposes the opt-in open-in-tabs toggle in the general pane', () => {
+    const file = readFileSync(join(process.cwd(), 'src/renderer/settings-dialog.ts'), 'utf8')
+    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
+
+    expect(html).toContain('id="settings-open-files-in-tabs"')
+    expect(html).toContain('在新标签页中打开文件')
+    expect(file).toContain('updateOpenFilesInTabs')
+    expect(file).toContain('api.updateSettings({ tabs: { enabled }')
+    expect(file).toMatch(/openInTabsInput\.checked = appSettings\.tabs\?\.enabled === true/)
+  })
+
   it('opens settings from buttons and shortcuts instead of toggling an already open dialog closed', () => {
     const file = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
 

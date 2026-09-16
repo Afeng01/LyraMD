@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { UpdateBannerPayload } from '../main/update-notice'
+import type { TabSettings } from '../main/settings'
 
 export interface WorkdirEntry {
   absolutePath: string
@@ -135,6 +136,7 @@ export interface AppSettings {
   font: FontSettings
   documentSafety: DocumentSafetySettings
   aiHelper: AiHelperSettings
+  tabs: TabSettings
 }
 
 export interface CodexIntegrationStatus {

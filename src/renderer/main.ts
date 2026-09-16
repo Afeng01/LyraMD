@@ -318,6 +318,9 @@ function createDefaultSettings(): AppSettings {
         },
       ],
     },
+    tabs: {
+      enabled: false,
+    },
   }
 }
 

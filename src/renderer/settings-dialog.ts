@@ -375,6 +375,7 @@ export function createSettingsDialogController({
     document.querySelectorAll<HTMLInputElement>('input[name="settings-save-as-mode"]'),
   )
   const showDocumentStatsInput = document.getElementById('settings-show-document-stats') as HTMLInputElement | null
+  const openInTabsInput = document.getElementById('settings-open-files-in-tabs') as HTMLInputElement | null
   const embedLocalImagesOnCopyInput = document.getElementById('settings-embed-local-images-on-copy') as HTMLInputElement | null
   const documentSafetyMaxRevisionsInput = document.getElementById('settings-document-safety-max-revisions') as HTMLInputElement | null
   const openRevisionsDirectoryButton = document.getElementById('settings-open-revisions-directory') as HTMLButtonElement | null
@@ -569,6 +570,10 @@ export function createSettingsDialogController({
 
     if (embedLocalImagesOnCopyInput) {
       embedLocalImagesOnCopyInput.checked = appSettings.embedLocalImagesOnCopy === true
+    }
+
+    if (openInTabsInput) {
+      openInTabsInput.checked = appSettings.tabs?.enabled === true
     }
 
     if (documentSafetyMaxRevisionsInput) {
@@ -879,6 +884,16 @@ export function createSettingsDialogController({
     render()
   }
 
+  const updateOpenFilesInTabs = async (enabled: boolean): Promise<void> => {
+    const current = getAppSettings()
+    const next = (await api.updateSettings({ tabs: { enabled } }).catch(() => null)) ?? {
+      ...current,
+      tabs: { enabled },
+    }
+    onAppSettingsChange(next)
+    render()
+  }
+
   const updateDocumentSafetySettings = async (patch: Partial<DocumentSafetySettings>): Promise<void> => {
     const current = getAppSettings()
     const documentSafety = {
@@ -1175,6 +1190,10 @@ export function createSettingsDialogController({
 
   embedLocalImagesOnCopyInput?.addEventListener('change', () => {
     void updateEmbedLocalImagesOnCopy(embedLocalImagesOnCopyInput.checked)
+  })
+
+  openInTabsInput?.addEventListener('change', () => {
+    void updateOpenFilesInTabs(openInTabsInput.checked)
   })
 
   documentSafetyMaxRevisionsInput?.addEventListener('change', () => {

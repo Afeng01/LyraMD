@@ -68,6 +68,22 @@ import {
   type RevisionSnapshotInput,
   type StoredRevisionSnapshot,
 } from './revision-store'
+import {
+  addTab,
+  closeAllTabs,
+  createInitialTabCollection,
+  detachTabWatch,
+  findTabById,
+  findTabByFilePath,
+  getActiveTab,
+  resolveTabForSave,
+  serializeTabsForRenderer,
+  setActiveTab,
+  snapshotTabUnsavedContent,
+  tabContentForActivation,
+  type TabCollection,
+  type WindowTabState,
+} from './window-tabs'
 import { createSettingsWindowOptions, createWindowOptions } from './window-platform'
 import { EDITABLE_FILE_FILTERS } from './file-extensions'
 import { decideSecondInstanceAction, extractEditableLaunchPaths } from './windows-launch'
@@ -399,17 +415,29 @@ async function maybeOpenReleaseNotesOnce(): Promise<void> {
 }
 
 // Per-window state
+//
+// 标签页阶段 A：单文档状态（documentKind/filePath/draftId/displayTitle/lastSyncedContent/
+// ignoredWatchedContents/watcher/isInternalSave/debounceTimer）迁入 per-window 的 tab 集合
+// （WindowTabState + activeTabId，见 window-tabs.ts）。窗口级状态（侧边栏、agent 活动灯、
+// 工作目录缓存、渲染层握手）仍留在窗口上。
+//
+// 下方 documentKind 等 getter/setter 把既有代码的 state.filePath 读写全部委托给活动 tab：
+// 默认关闭（集合恒为单个 tab）时与旧的单文档 WindowState 行为逐字节等价；
+// 开启 opt-in 后，新开文档通过 addTab 落新 tab，旧代码无需改动。
 interface WindowState {
   activeSidebarTab: PersistedSidebarState['activeSidebarTab']
   drawerSidebarOpen: boolean
   desktopSidebarOpen: boolean
   isDrawerMode: boolean
+  tabs: TabCollection
+  // 以下字段由 WindowStateImpl 的 getter/setter 委托给活动 tab（见上注释）
+  readonly activeTab: WindowTabState
   documentKind: DocumentKind
   filePath: string | null
   draftId: string | null
   displayTitle: string
   lastSyncedContent: string | null
-  ignoredWatchedContents: Map<string, number>
+  readonly ignoredWatchedContents: Map<string, number>
   watcher: FSWatcher | null
   isInternalSave: boolean
   debounceTimer: ReturnType<typeof setTimeout> | null
@@ -422,6 +450,101 @@ interface WindowState {
   // 渲染层监听器就绪前到达的初始内容，先暂存，握手后再投递
   rendererReady: boolean
   pendingFileOpened: { path: string | null; content: string } | null
+}
+
+class WindowStateImpl implements WindowState {
+  activeSidebarTab: PersistedSidebarState['activeSidebarTab']
+  drawerSidebarOpen = false
+  desktopSidebarOpen: boolean
+  isDrawerMode = false
+  tabs: TabCollection
+  agentState: 'idle' | 'active' | 'cooldown' = 'idle'
+  lastExternalChange = 0
+  agentCooldownTimer: ReturnType<typeof setTimeout> | null = null
+  workdirPath: string | null
+  workdirEntries: WorkdirEntry[] = []
+  workdirTree: WorkdirTreeNode[] = []
+  rendererReady = false
+  pendingFileOpened: { path: string | null; content: string } | null = null
+
+  constructor(sidebarViewState: { activeSidebarTab: PersistedSidebarState['activeSidebarTab']; workdirPath: string | null; desktopSidebarOpen: boolean }) {
+    this.activeSidebarTab = sidebarViewState.activeSidebarTab
+    this.desktopSidebarOpen = sidebarViewState.desktopSidebarOpen
+    this.workdirPath = sidebarViewState.workdirPath
+    this.tabs = createInitialTabCollection()
+  }
+
+  get activeTab(): WindowTabState {
+    return getActiveTab(this.tabs)
+  }
+
+  get documentKind(): DocumentKind {
+    return this.activeTab.documentKind
+  }
+
+  set documentKind(value: DocumentKind) {
+    this.activeTab.documentKind = value
+  }
+
+  get filePath(): string | null {
+    return this.activeTab.filePath
+  }
+
+  set filePath(value: string | null) {
+    this.activeTab.filePath = value
+  }
+
+  get draftId(): string | null {
+    return this.activeTab.draftId
+  }
+
+  set draftId(value: string | null) {
+    this.activeTab.draftId = value
+  }
+
+  get displayTitle(): string {
+    return this.activeTab.displayTitle
+  }
+
+  set displayTitle(value: string) {
+    this.activeTab.displayTitle = value
+  }
+
+  get lastSyncedContent(): string | null {
+    return this.activeTab.lastSyncedContent
+  }
+
+  set lastSyncedContent(value: string | null) {
+    this.activeTab.lastSyncedContent = value
+  }
+
+  get ignoredWatchedContents(): Map<string, number> {
+    return this.activeTab.ignoredWatchedContents
+  }
+
+  get watcher(): FSWatcher | null {
+    return this.activeTab.watcher
+  }
+
+  set watcher(value: FSWatcher | null) {
+    this.activeTab.watcher = value
+  }
+
+  get isInternalSave(): boolean {
+    return this.activeTab.isInternalSave
+  }
+
+  set isInternalSave(value: boolean) {
+    this.activeTab.isInternalSave = value
+  }
+
+  get debounceTimer(): ReturnType<typeof setTimeout> | null {
+    return this.activeTab.debounceTimer
+  }
+
+  set debounceTimer(value: ReturnType<typeof setTimeout> | null) {
+    this.activeTab.debounceTimer = value
+  }
 }
 
 const windowStates = new Map<number, WindowState>()
@@ -572,11 +695,13 @@ async function persistCrashRecoveryForWindowState(
 async function persistExternalChangeRecoveryForWindowState(
   state: WindowState,
   reason: string,
+  contentOverride: string | null = null,
 ): Promise<void> {
-  if (state.documentKind === 'blank' || !state.filePath || state.lastSyncedContent === null) return
+  const syncedContent = contentOverride ?? state.lastSyncedContent
+  if (state.documentKind === 'blank' || !state.filePath || syncedContent === null) return
 
   const snapshot = await recordManagedRevisionSnapshot({
-    content: state.lastSyncedContent,
+    content: syncedContent,
     displayTitle: state.displayTitle,
     documentKind: state.documentKind,
     draftId: state.draftId,
@@ -658,29 +783,11 @@ function getState(win: BrowserWindow): WindowState {
   let state = windowStates.get(win.id)
   if (!state) {
     const sidebarViewState = createWindowSidebarViewState(sidebarState)
-    state = {
+    state = new WindowStateImpl({
       activeSidebarTab: sidebarViewState.activeSidebarTab,
-      drawerSidebarOpen: false,
-      desktopSidebarOpen: sidebarState.sidebarOpen,
-      isDrawerMode: false,
-      documentKind: 'blank',
-      filePath: null,
-      draftId: null,
-      displayTitle: '未命名文档',
-      lastSyncedContent: null,
-      ignoredWatchedContents: new Map<string, number>(),
-      watcher: null,
-      isInternalSave: false,
-      debounceTimer: null,
-      agentState: 'idle',
-      lastExternalChange: 0,
-      agentCooldownTimer: null,
       workdirPath: sidebarViewState.workdirPath,
-      workdirEntries: [],
-      workdirTree: [],
-      rendererReady: false,
-      pendingFileOpened: null,
-    }
+      desktopSidebarOpen: sidebarState.sidebarOpen,
+    })
     windowStates.set(win.id, state)
   }
   return state
@@ -1559,7 +1666,13 @@ function createWindow(initialDocument?: { filePath: string; documentKind?: Exclu
   })
 
   win.on('closed', () => {
-    stopWatching(state)
+    // 门槛六：窗口关闭时每个 tab 都走 watcher/debounce 清理，不止活动 tab。
+    closeAllTabs(state.tabs)
+    if (state.agentCooldownTimer) {
+      clearTimeout(state.agentCooldownTimer)
+      state.agentCooldownTimer = null
+    }
+    state.agentState = 'idle'
     windowStates.delete(win.id)
   })
 
@@ -1674,9 +1787,25 @@ function getEffectiveDraftDirectoryPath(): string {
   return sidebarState.draftDirectoryPath ?? defaultDraftDirectoryPath()
 }
 
+// 标签页阶段 A 开关：默认关闭时所有多 tab 分支都不会走到。
+function areTabsEnabled(): boolean {
+  return appSettings.tabs?.enabled === true
+}
+
+function sendTabsState(win: BrowserWindow): void {
+  if (win.isDestroyed()) return
+  const state = getState(win)
+  win.webContents.send('tabs-state', {
+    enabled: areTabsEnabled(),
+    tabs: areTabsEnabled() ? serializeTabsForRenderer(state.tabs) : [],
+  })
+}
+
 function updateTitle(win: BrowserWindow): void {
   const state = getState(win)
   win.setTitle(`${state.displayTitle} — LyraMD`)
+  // 标签条视图跟随文档状态（标题/未保存/集合）变化刷新
+  sendTabsState(win)
 }
 
 function suggestFileName(win: BrowserWindow, content?: string): string | undefined {
@@ -1760,6 +1889,9 @@ function watchFile(win: BrowserWindow, state: WindowState): void {
   if (!state.filePath) return
   stopWatching(state)
   const filePath = state.filePath
+  // watcher 只挂在活动 tab 上；捕获发起 watch 的 tab，
+  // debounce 回调发现活动 tab 已切走时直接作废本次事件（门槛二/三的隔离保证）。
+  const watchedTab = state.activeTab
   state.watcher = watchTargetFile(filePath, (eventType) => {
     const watchDecision = decideWatchEvent(eventType)
     if (!watchDecision.shouldReadFile) return
@@ -1768,6 +1900,7 @@ function watchFile(win: BrowserWindow, state: WindowState): void {
     state.debounceTimer = setTimeout(() => {
       readFile(filePath, 'utf-8')
         .then((data) => {
+          if (state.activeTab !== watchedTab) return
           if (consumeIgnoredWatchedContent(state.ignoredWatchedContents, data)) return
           const previousContent = state.lastSyncedContent ?? ''
           const syncDecision = reconcileWatchedContent(state.lastSyncedContent, data)
@@ -1791,10 +1924,9 @@ function watchFile(win: BrowserWindow, state: WindowState): void {
             })
           }
           if (blockedDestructiveApply) {
-            void persistExternalChangeRecoveryForWindowState({
-              ...state,
-              lastSyncedContent: previousContent,
-            }, changeRisk.reason ?? 'external-change')
+            // 被拦时快照的是外部变更前的本地基线；传参而非展开 state——
+            // WindowState 是带原型 getter 的类实例，对象展开会丢失按 tab 委托的字段。
+            void persistExternalChangeRecoveryForWindowState(state, changeRisk.reason ?? 'external-change', previousContent)
           } else {
             state.lastSyncedContent = syncDecision.nextSyncedContent
           }
@@ -1885,18 +2017,85 @@ function findWindowForFile(filePath: string): BrowserWindow | null {
   return null
 }
 
+// 激活窗口内的某个 tab（阶段 A 的 tab 切换入口）。
+// editorContentSnapshot 来自渲染层切走前的编辑器内容，用于把未保存编辑快照回原 tab。
+function activateTabInWindow(win: BrowserWindow, tabId: string, editorContentSnapshot?: string): boolean {
+  const state = getState(win)
+  const tab = findTabById(state.tabs, tabId)
+  if (!tab) return false
+  const previousTab = state.activeTab
+  if (previousTab.id === tabId) return true
+
+  if (typeof editorContentSnapshot === 'string') {
+    snapshotTabUnsavedContent(previousTab, editorContentSnapshot)
+  }
+  detachTabWatch(previousTab)
+  setActiveTab(state.tabs, tabId)
+  // state 现在委托到新活动 tab；watchFile 会为它挂 watcher
+  watchFile(win, state)
+  updateTitle(win)
+  deliverFileOpenedPayload(win, { path: tab.filePath, content: tabContentForActivation(tab) })
+  persistLastActiveDocument(state)
+  sendSidebarState(win)
+  sendTabsState(win)
+  return true
+}
+
+// ⌘T / 新开文档落新 tab：在当前窗口追加一个空白 tab 并激活。
+function createTabInWindow(win: BrowserWindow, editorContentSnapshot?: string): boolean {
+  if (!areTabsEnabled()) return false
+  const state = getState(win)
+  const previousTab = state.activeTab
+  if (typeof editorContentSnapshot === 'string') {
+    snapshotTabUnsavedContent(previousTab, editorContentSnapshot)
+  }
+  // 原活动 tab 转为非活动：先卸 watcher/debounce，避免旧事件落到新活动 tab（门槛二/三）
+  detachTabWatch(previousTab)
+  addTab(state.tabs)
+  updateTitle(win)
+  deliverFileOpenedPayload(win, { path: null, content: '' })
+  persistLastActiveDocument(state)
+  sendSidebarState(win)
+  return true
+}
+
 // Open file: reuse existing window or create new one
-function openFile(filePath: string): void {
-  // If already open, focus that window
-  const existing = findWindowForFile(filePath)
-  if (existing) {
+function openFile(filePath: string, targetWin?: BrowserWindow | null): void {
+  // 已在某窗口（含非活动 tab）打开：聚焦并切到对应 tab
+  for (const [id, state] of windowStates) {
+    const tab = findTabByFilePath(state.tabs, filePath)
+    if (!tab) continue
+    const win = BrowserWindow.fromId(id)
+    if (!win) continue
     recordRecentFile(filePath)
     broadcastSidebarState()
-    existing.focus()
+    if (state.tabs.activeTabId === tab.id) {
+      win.focus()
+      return
+    }
+    if (areTabsEnabled() && state.rendererReady) {
+      // 让渲染层先 flush 未保存编辑，再带快照回来切换，避免丢编辑
+      win.webContents.send('tab-activate-request', tab.id)
+    } else {
+      activateTabInWindow(win, tab.id)
+    }
+    win.focus()
     return
   }
 
-  // Find an untitled empty window to reuse
+  if (areTabsEnabled()) {
+    const hostWin = targetWin && !targetWin.isDestroyed()
+      ? targetWin
+      : getFocusedWindow() ?? BrowserWindow.getAllWindows().find((candidate) => !candidate.isDestroyed()) ?? null
+    if (hostWin && getState(hostWin).rendererReady) {
+      // 开启标签页且宿主窗口就绪：渲染层 flush 后通过 tabs-open-document 落新 tab
+      hostWin.webContents.send('tab-open-request', { filePath, documentKind: null, draftId: null })
+      hostWin.focus()
+      return
+    }
+  }
+
+  // 未开启标签页（或宿主窗口渲染层未就绪）：保持既有行为——空窗复用 / 新窗口
   const emptyWin = findEmptyWindow()
   if (emptyWin) {
     loadFileInWindow(emptyWin, filePath)
@@ -1925,12 +2124,23 @@ async function saveToPath(
   reason: RevisionReason = 'save',
 ): Promise<boolean> {
   const state = getState(win)
+  // 保存目标 tab 在进入时锁定：写盘期间用户切走 tab，结果只写回发起保存的 tab，
+  // 绝不触碰新活动 tab（门槛二/三：不把 A 文档内容写进 B 的路径）。
+  const saveTabId = state.tabs.activeTabId
   try {
     const previousFilePath = state.filePath
     const previousDisplayTitle = state.displayTitle
     const previousContentForJournal = state.lastSyncedContent
     state.isInternalSave = true
     await writeFile(filePath, content, 'utf-8')
+    const saveTab = resolveTabForSave(state.tabs, saveTabId)
+    if (!saveTab || state.tabs.activeTabId !== saveTabId) {
+      if (saveTab) {
+        saveTab.lastSyncedContent = content
+        recordIgnoredWatchedContent(saveTab.ignoredWatchedContents, content)
+      }
+      return true
+    }
     recordIgnoredWatchedContent(state.ignoredWatchedContents, content)
     state.lastSyncedContent = content
     setFileDocumentState(win, filePath, state.documentKind === 'draft' ? 'draft' : 'file', state.draftId)
@@ -2357,11 +2567,16 @@ ipcMain.handle('open-file', async (event) => {
 
   // If this window has no file, load here; otherwise open in new window
   const state = getState(win)
+  if (areTabsEnabled() && state.rendererReady) {
+    // 开启标签页：渲染层 flush 后落新 tab（或激活已打开该文档的 tab）
+    win.webContents.send('tab-open-request', { filePath, documentKind: null, draftId: null })
+    return null
+  }
   if (state.documentKind === 'blank') {
     loadFileInWindow(win, filePath)
     return null
   } else {
-    openFile(filePath)
+    openFile(filePath, win)
     return null
   }
 })
@@ -2371,14 +2586,69 @@ ipcMain.handle('open-file-path', async (event, filePath: string) => {
   if (!win) return null
   const state = getState(win)
 
+  if (areTabsEnabled() && state.rendererReady) {
+    win.webContents.send('tab-open-request', { filePath, documentKind: null, draftId: null })
+    return null
+  }
+
   // If this window has no file, load here
   if (state.documentKind === 'blank') {
     loadFileInWindow(win, filePath)
     return null
   } else {
-    openFile(filePath)
+    openFile(filePath, win)
     return null
   }
+})
+
+// 标签页阶段 A 的渲染层协同入口：渲染层 flush 未保存编辑后回调，
+// 主进程在这里完成切 tab / 新建 tab / 新开文档落 tab。
+ipcMain.handle('tabs-switch', async (event, tabId: string, content: string) => {
+  const win = getWinFromEvent(event)
+  if (!win || typeof tabId !== 'string') return false
+  return activateTabInWindow(win, tabId, typeof content === 'string' ? content : undefined)
+})
+
+ipcMain.handle('tabs-new', async (event, content: string) => {
+  const win = getWinFromEvent(event)
+  if (!win) return false
+  return createTabInWindow(win, typeof content === 'string' ? content : undefined)
+})
+
+ipcMain.handle('tabs-open-document', async (event, payload: {
+  filePath: string
+  documentKind?: 'draft' | 'file'
+  draftId?: string | null
+  content?: string
+}) => {
+  const win = getWinFromEvent(event)
+  if (!win || !payload || typeof payload.filePath !== 'string' || !existsSync(payload.filePath)) return false
+  const state = getState(win)
+  if (!areTabsEnabled()) return false
+
+  if (typeof payload.content === 'string') {
+    snapshotTabUnsavedContent(state.activeTab, payload.content)
+  }
+
+  const existing = findTabByFilePath(state.tabs, payload.filePath)
+  if (existing) {
+    return activateTabInWindow(win, existing.id)
+  }
+
+  const documentKind = payload.documentKind === 'draft' ? 'draft' as const : 'file' as const
+  const draftId = typeof payload.draftId === 'string' ? payload.draftId : null
+  if (state.activeTab.filePath) {
+    // 原活动 tab 转为非活动：先卸 watcher/debounce，再落新 tab
+    detachTabWatch(state.activeTab)
+    addTab(state.tabs)
+  }
+  const loaded = await loadFileInWindow(win, payload.filePath, {
+    documentKind,
+    draftId,
+    recordRecent: documentKind === 'file',
+  })
+  sendTabsState(win)
+  return loaded
 })
 
 ipcMain.handle('get-sidebar-state', async (event) => {
@@ -2910,6 +3180,10 @@ ipcMain.handle('open-sidebar-file', async (event, filePath: string) => {
     broadcastSidebarState()
     return false
   }
+  if (areTabsEnabled() && getState(win).rendererReady) {
+    win.webContents.send('tab-open-request', { filePath, documentKind: 'file', draftId: null })
+    return true
+  }
   return loadFileInWindow(win, filePath)
 })
 
@@ -2921,6 +3195,10 @@ ipcMain.handle('open-draft', async (event, draftId: string) => {
     removeDraftEntry({ draftId })
     broadcastSidebarState()
     return false
+  }
+  if (areTabsEnabled() && getState(win).rendererReady) {
+    win.webContents.send('tab-open-request', { filePath: draftEntry.path, documentKind: 'draft', draftId: draftEntry.id })
+    return true
   }
   return loadFileInWindow(win, draftEntry.path, {
     documentKind: 'draft',
@@ -3228,6 +3506,21 @@ function buildMenu(): void {
           label: '新建窗口',
           accelerator: 'CmdOrCtrl+Shift+N',
           click: () => { createWindowMatchingSize(getFocusedWindow()) }
+        },
+        {
+          label: '新建标签页',
+          accelerator: 'CmdOrCtrl+T',
+          click: () => {
+            const focused = getFocusedWindow()
+            if (!focused) return
+            if (areTabsEnabled() && getState(focused).rendererReady) {
+              // 开启标签页：渲染层 flush 后在当前窗口开新 tab
+              focused.webContents.send('tab-new-request')
+            } else {
+              // 未开启标签页：保持现状行为（新窗口）
+              createWindowMatchingSize(focused)
+            }
+          }
         },
         {
           label: '打开…',

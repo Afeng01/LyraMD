@@ -1,3 +1,15 @@
+---
+document_contract: agent-document/v1
+title: "LyraMD 发版检查清单"
+created: 2026-05-31
+updated: 2026-09-16T16:32+08:00
+created_by: mixed-or-unknown
+status: active
+provenance: agent-derived
+source_refs: []
+visual_refs: []
+---
+
 # LyraMD Release Checklist
 
 Use this checklist before publishing a LyraMD release tag.

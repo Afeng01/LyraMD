@@ -1,3 +1,19 @@
+---
+document_contract: agent-document/v1
+title: "ColaMD Agent Diff View 调研"
+created: 2026-03-30
+updated: 2026-09-16T16:32+08:00
+created_by: Cola
+status: historical
+provenance: external-reference
+source_refs:
+  - title: "ColaMD agent diff view 的行为观察与源码"
+    path: "https://github.com/marswaveai/ColaMD"
+    snapshot_at: "2026-03-30"
+    use: "需求描述的参照；快照日期较旧，引用前先核对现状"
+visual_refs: []
+---
+
 # ColaMD — Agent Diff View
 
 ## 需求

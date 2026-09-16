@@ -1,3 +1,19 @@
+---
+document_contract: agent-document/v1
+title: "对比清单：LyraMD vs ColaMD（1.3.8 / 1.9.0）"
+created: 2026-08-25
+updated: 2026-09-16T16:32+08:00
+created_by: Cola
+status: historical
+provenance: agent-derived
+source_refs:
+  - title: "LyraMD 仓库 main 分支与 ColaMD upstream/main 1.9.0 的 git 历史"
+    path: "/Users/cherry_xiao/Developer/PROJECT/LyraMD"
+    snapshot_at: "2026-08-25"
+    use: "对比数据来源；后续版本演进见 2026-09-15 竞品调研"
+visual_refs: []
+---
+
 # LyraMD(main 1.3.8) × ColaMD(upstream/main 1.9.0)
 
 `up:`=upstream/main，`lo:`=main。merge-base `8458049d`（ColaMD 1.3.1）；本地137 commit（04-26→07-10）、上游77 commit（05-07→08-19）；全程只读，未checkout/merge。

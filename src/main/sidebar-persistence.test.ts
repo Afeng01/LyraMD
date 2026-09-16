@@ -13,10 +13,16 @@ describe('sidebar persistence regression', () => {
   })
 
   it('scans only the active workdir instead of merging all workspace trees', () => {
-    expect(file).toContain('workdirEntries = await scanWorkdir(activeWorkdirPath)')
-    expect(file).toContain('workdirTree = await scanWorkdirTree(activeWorkdirPath)')
+    expect(file).toContain('const tree = await scanWorkdirTree(activeWorkdirPath)')
+    expect(file).toContain('state.workdirEntries = flattenWorkdirTree(tree)')
     expect(file).not.toContain('existingWorkspacePaths.map(async (rootPath)')
     expect(file).not.toContain('createWorkspaceRootTreeNode(workspace.rootPath, workspace.tree)')
+  })
+
+  it('dedupes concurrent per-window workdir refreshes (startup perf)', () => {
+    // 启动期全局刷新与 did-finish-load 各触发一次，同一窗口必须复用 in-flight Promise
+    expect(file).toContain('const workdirRefreshInFlight = new Map<number, Promise<void>>()')
+    expect(file).toMatch(/function refreshWorkdirEntriesForWindow\(win: BrowserWindow\): Promise<void> \{[\s\S]*?workdirRefreshInFlight\.get\(win\.id\)[\s\S]*?doRefreshWorkdirEntriesForWindow\(win\)/)
   })
 
   it('flushes queued sidebar persistence before quitting', () => {

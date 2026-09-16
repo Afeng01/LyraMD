@@ -3,7 +3,29 @@ import { mkdtemp, mkdir, rm, writeFile } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
 
-import { createWorkspaceRootTreeNode, resolveNewWorkdirFolderPath, resolveNewWorkdirMarkdownPath, scanWorkdir, scanWorkdirTree, shouldRefreshWorkdirForWatchEvent } from './workdir'
+import { createWorkspaceRootTreeNode, flattenWorkdirTree, resolveNewWorkdirFolderPath, resolveNewWorkdirMarkdownPath, scanWorkdir, scanWorkdirTree, shouldRefreshWorkdirForWatchEvent } from './workdir'
+
+describe('flattenWorkdirTree', () => {
+  it('flattens a scanned tree into sorted entries without a second walk', () => {
+    const entries = flattenWorkdirTree([
+      {
+        absolutePath: '/ws/notes',
+        children: [
+          { absolutePath: '/ws/notes/b.md', kind: 'file', name: 'b.md', relativePath: 'notes/b.md' },
+        ],
+        kind: 'directory',
+        name: 'notes',
+        relativePath: 'notes',
+      },
+      { absolutePath: '/ws/a.md', kind: 'file', name: 'a.md', relativePath: 'a.md' },
+    ])
+
+    expect(entries).toEqual([
+      { absolutePath: '/ws/a.md', relativePath: 'a.md' },
+      { absolutePath: '/ws/notes/b.md', relativePath: 'notes/b.md' },
+    ])
+  })
+})
 
 describe('scanWorkdir', () => {
   const tempDirs: string[] = []

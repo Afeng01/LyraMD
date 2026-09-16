@@ -44,7 +44,7 @@ import {
   resolveDocumentAssetDirectoryPath,
 } from './image-assets'
 import { buildTitleSyncPath, decideTitleSync } from './title-sync'
-import { resolveNewWorkdirFolderPath, resolveNewWorkdirMarkdownPath, scanWorkdir, scanWorkdirTree, shouldRefreshWorkdirForWatchEvent, type WorkdirEntry, type WorkdirTreeNode } from './workdir'
+import { flattenWorkdirTree, resolveNewWorkdirFolderPath, resolveNewWorkdirMarkdownPath, scanWorkdirTree, shouldRefreshWorkdirForWatchEvent, type WorkdirEntry, type WorkdirTreeNode } from './workdir'
 import { moveFileToTrashAndVerify } from './file-removal'
 import { summarizeAgentChange } from './agent-change-summary'
 import { assessExternalChangeRisk } from './external-change-risk'
@@ -266,7 +266,21 @@ async function refreshWorkdirEntries(): Promise<void> {
   await Promise.all(windows.map((win) => refreshWorkdirEntriesForWindow(win)))
 }
 
-async function refreshWorkdirEntriesForWindow(win: BrowserWindow): Promise<void> {
+const workdirRefreshInFlight = new Map<number, Promise<void>>()
+
+function refreshWorkdirEntriesForWindow(win: BrowserWindow): Promise<void> {
+  // 同一窗口的并发刷新去重：启动期全局刷新与 did-finish-load 各触发一次，
+  // 复用同一个 in-flight Promise，避免对同一工作区重复全量扫描。
+  const inFlight = workdirRefreshInFlight.get(win.id)
+  if (inFlight) return inFlight
+  const task = doRefreshWorkdirEntriesForWindow(win).finally(() => {
+    workdirRefreshInFlight.delete(win.id)
+  })
+  workdirRefreshInFlight.set(win.id, task)
+  return task
+}
+
+async function doRefreshWorkdirEntriesForWindow(win: BrowserWindow): Promise<void> {
   const state = getState(win)
   const existingWorkspacePaths = sidebarState.workspacePaths.filter((workspacePath) => existsSync(workspacePath))
   const activeWorkdirPath = state.workdirPath && existingWorkspacePaths.includes(state.workdirPath)
@@ -284,8 +298,10 @@ async function refreshWorkdirEntriesForWindow(win: BrowserWindow): Promise<void>
   }
 
   try {
-    state.workdirEntries = await scanWorkdir(activeWorkdirPath)
-    state.workdirTree = await scanWorkdirTree(activeWorkdirPath)
+    // 树只扫一次，扁平列表从树摊平，不再对同一工作区做第二遍递归遍历。
+    const tree = await scanWorkdirTree(activeWorkdirPath)
+    state.workdirEntries = flattenWorkdirTree(tree)
+    state.workdirTree = tree
   } catch {
     state.workdirEntries = []
     state.workdirTree = []

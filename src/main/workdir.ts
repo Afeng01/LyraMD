@@ -74,11 +74,9 @@ export function createWorkspaceRootTreeNode(
   }
 }
 
-export async function scanWorkdir(rootPath: string): Promise<WorkdirEntry[]> {
-  // 扁平列表直接从树扫描拍平，避免对同一工作区做两次完整递归遍历。
-  const tree = await scanWorkdirTree(rootPath)
+export function flattenWorkdirTree(nodes: WorkdirTreeNode[]): WorkdirEntry[] {
   const entries: WorkdirEntry[] = []
-  const stack = [...tree]
+  const stack = [...nodes]
   while (stack.length > 0) {
     const node = stack.pop()!
     if (node.kind === 'file') {
@@ -92,6 +90,11 @@ export async function scanWorkdir(rootPath: string): Promise<WorkdirEntry[]> {
   }
   entries.sort((a, b) => a.relativePath.localeCompare(b.relativePath))
   return entries
+}
+
+export async function scanWorkdir(rootPath: string): Promise<WorkdirEntry[]> {
+  // 扁平列表直接从树扫描拍平，避免对同一工作区做两次完整递归遍历。
+  return flattenWorkdirTree(await scanWorkdirTree(rootPath))
 }
 
 function sortWorkdirTreeNodes(a: WorkdirTreeNode, b: WorkdirTreeNode): number {

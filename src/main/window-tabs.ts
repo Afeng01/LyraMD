@@ -20,7 +20,6 @@ export interface WindowTabState {
   ignoredWatchedContents: Map<string, number>
   /** 只有活动 tab 允许持有挂载中的 watcher；切走时由 detachTabWatch 关闭 */
   watcher: FSWatcher | null
-  isInternalSave: boolean
   debounceTimer: ReturnType<typeof setTimeout> | null
 }
 
@@ -55,7 +54,6 @@ export function createWindowTabState(): WindowTabState {
     unsavedContent: null,
     ignoredWatchedContents: new Map<string, number>(),
     watcher: null,
-    isInternalSave: false,
     debounceTimer: null,
   }
 }

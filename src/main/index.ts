@@ -29,6 +29,7 @@ import {
 } from './drafts'
 import {
   consumeIgnoredWatchedContent,
+  decideReactivatedTabSync,
   decideWatchEvent,
   reconcileWatchedContent,
   recordIgnoredWatchedContent,
@@ -70,6 +71,7 @@ import {
 } from './revision-store'
 import {
   addTab,
+  canWriteTabToPath,
   closeAllTabs,
   createInitialTabCollection,
   detachTabWatch,
@@ -417,7 +419,7 @@ async function maybeOpenReleaseNotesOnce(): Promise<void> {
 // Per-window state
 //
 // 标签页阶段 A：单文档状态（documentKind/filePath/draftId/displayTitle/lastSyncedContent/
-// ignoredWatchedContents/watcher/isInternalSave/debounceTimer）迁入 per-window 的 tab 集合
+// ignoredWatchedContents/watcher/debounceTimer）迁入 per-window 的 tab 集合
 // （WindowTabState + activeTabId，见 window-tabs.ts）。窗口级状态（侧边栏、agent 活动灯、
 // 工作目录缓存、渲染层握手）仍留在窗口上。
 //
@@ -439,7 +441,6 @@ interface WindowState {
   lastSyncedContent: string | null
   readonly ignoredWatchedContents: Map<string, number>
   watcher: FSWatcher | null
-  isInternalSave: boolean
   debounceTimer: ReturnType<typeof setTimeout> | null
   agentState: 'idle' | 'active' | 'cooldown'
   lastExternalChange: number
@@ -530,14 +531,6 @@ class WindowStateImpl implements WindowState {
     this.activeTab.watcher = value
   }
 
-  get isInternalSave(): boolean {
-    return this.activeTab.isInternalSave
-  }
-
-  set isInternalSave(value: boolean) {
-    this.activeTab.isInternalSave = value
-  }
-
   get debounceTimer(): ReturnType<typeof setTimeout> | null {
     return this.activeTab.debounceTimer
   }
@@ -580,6 +573,26 @@ async function recordRevisionForWindowState(
   const snapshot = buildRevisionSnapshotFromWindowState(state, content, reason)
   if (!snapshot) return
   await recordManagedRevisionSnapshot(snapshot).catch(() => {})
+}
+
+// 版本快照按 tab 取字段而非 state 活动委托：saveToPath 早退分支里发起保存的 tab
+// 可能已不是活动 tab，快照的 docPath 必须归属发起保存的那个 tab。
+function buildRevisionSnapshotFromTab(
+  tab: WindowTabState,
+  content: string,
+  reason: RevisionReason,
+): RevisionSnapshotInput | null {
+  if (tab.documentKind === 'blank' || !tab.filePath) return null
+
+  return {
+    content,
+    displayTitle: tab.displayTitle,
+    documentKind: tab.documentKind,
+    draftId: tab.draftId,
+    filePath: tab.filePath,
+    reason,
+    updatedAt: Date.now(),
+  }
 }
 
 function getMaxRevisionsPerDocument(): number {
@@ -1801,11 +1814,19 @@ function sendTabsState(win: BrowserWindow): void {
   })
 }
 
+// 全窗口广播 tabs-state；只发给已建立过 WindowState 的主窗口（不绌始化设置窗等无状态窗口）。
+function broadcastTabsState(): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed() && windowStates.has(win.id)) sendTabsState(win)
+  }
+}
+
 function updateTitle(win: BrowserWindow): void {
   const state = getState(win)
   win.setTitle(`${state.displayTitle} — LyraMD`)
-  // 标签条视图跟随文档状态（标题/未保存/集合）变化刷新
-  sendTabsState(win)
+  // 标签条视图跟随文档状态（标题/未保存/集合）变化刷新；开关关闭时不打扰，
+  // 卸载通知由 update-settings 的 broadcastTabsState 负责（问题 4）。
+  if (areTabsEnabled()) sendTabsState(win)
 }
 
 function suggestFileName(win: BrowserWindow, content?: string): string | undefined {
@@ -1900,79 +1921,87 @@ function watchFile(win: BrowserWindow, state: WindowState): void {
     state.debounceTimer = setTimeout(() => {
       readFile(filePath, 'utf-8')
         .then((data) => {
-          if (state.activeTab !== watchedTab) return
-          if (consumeIgnoredWatchedContent(state.ignoredWatchedContents, data)) return
-          const previousContent = state.lastSyncedContent ?? ''
-          const syncDecision = reconcileWatchedContent(state.lastSyncedContent, data)
-          if (!syncDecision.shouldPropagate) return
-          if (previousContent !== data && previousContent.length > 0) {
-            void recordRevisionForWindowState(state, previousContent, 'external-change')
-          }
-          const changeSummary = summarizeAgentChange(previousContent, data)
-          const changeRisk = assessExternalChangeRisk(previousContent, data, changeSummary)
-          const blockedDestructiveApply = changeRisk.isDestructive && previousContent.length > 0
-          if (previousContent !== data) {
-            void documentJournal.record({
-              type: blockedDestructiveApply ? 'external-change-blocked' : 'external-change-detected',
-              docPath: state.filePath,
-              draftId: state.draftId,
-              displayTitle: state.displayTitle,
-              source: 'external',
-              risk: { isDestructive: changeRisk.isDestructive, reason: changeRisk.reason },
-              previous: describeJournalContent(previousContent),
-              next: describeJournalContent(data),
-            })
-          }
-          if (blockedDestructiveApply) {
-            // 被拦时快照的是外部变更前的本地基线；传参而非展开 state——
-            // WindowState 是带原型 getter 的类实例，对象展开会丢失按 tab 委托的字段。
-            void persistExternalChangeRecoveryForWindowState(state, changeRisk.reason ?? 'external-change', previousContent)
-          } else {
-            state.lastSyncedContent = syncDecision.nextSyncedContent
-          }
-
-          // Agent activity detection
-          const now = Date.now()
-          const gap = now - state.lastExternalChange
-          state.lastExternalChange = now
-          if (gap > 0 && gap < 2000) {
-            transitionAgentState(win, state, 'active')
-          } else if (state.agentState === 'active') {
-            transitionAgentState(win, state, 'active')
-          }
-          if (!blockedDestructiveApply && state.documentKind === 'draft' && state.draftId) {
-            const nextEntry = findDraftEntryById(state.draftId)
-            if (nextEntry) {
-              updateDraftEntry({
-                ...nextEntry,
-                updatedAt: Date.now(),
-                displayTitle: deriveDraftDisplayTitle(data, nextEntry.manualTitle),
-              })
-              state.displayTitle = resolveDraftDisplayTitle(state.draftId, data)
-              updateTitle(win)
-            }
-          } else if (!blockedDestructiveApply && state.documentKind === 'file' && state.filePath) {
-            state.displayTitle = resolveFileDisplayTitle(state.filePath, data)
-            updateTitle(win)
-          }
-          if (!win.isDestroyed()) {
-            win.webContents.send('agent-change-summary', {
-              applyBlocked: blockedDestructiveApply,
-              previousContent,
-              summary: changeSummary,
-              risk: changeRisk,
-              // 被拦下时额外带一份更完整的 diff 预览，供「查看 diff」决策面使用
-              ...(blockedDestructiveApply
-                ? { fullSummary: summarizeAgentChange(previousContent, data, { maxPreviewLines: BLOCKED_DIFF_PREVIEW_LINES }) }
-                : {}),
-            })
-          }
-          if (!win.isDestroyed()) win.webContents.send('file-changed', blockedDestructiveApply ? previousContent : data)
-          if (!win.isDestroyed()) sendSidebarState(win)
+          handleExternalFileContent(win, state, watchedTab, data)
         })
         .catch(() => {})
     }, 100)
   })
+}
+
+// 外部变更对账的唯一决策路径：watcher 事件与 tab 重新激活后的磁盘补读都收敛到这里，
+// 保证「低风险自动采纳 / 高风险 blockedDestructiveApply 决策面」语义一致（门槛四/五）。
+// 目标 tab 显式传参而非读 state 活动委托字段：补读是异步的，期间活动 tab 可能再次切走，
+// 字段必须归属发起读取的那个 tab。
+function handleExternalFileContent(win: BrowserWindow, state: WindowState, tab: WindowTabState, data: string): void {
+  if (state.activeTab !== tab) return
+  if (consumeIgnoredWatchedContent(tab.ignoredWatchedContents, data)) return
+  const previousContent = tab.lastSyncedContent ?? ''
+  const syncDecision = reconcileWatchedContent(tab.lastSyncedContent, data)
+  if (!syncDecision.shouldPropagate) return
+  if (previousContent !== data && previousContent.length > 0) {
+    void recordRevisionForWindowState(state, previousContent, 'external-change')
+  }
+  const changeSummary = summarizeAgentChange(previousContent, data)
+  const changeRisk = assessExternalChangeRisk(previousContent, data, changeSummary)
+  const blockedDestructiveApply = changeRisk.isDestructive && previousContent.length > 0
+  if (previousContent !== data) {
+    void documentJournal.record({
+      type: blockedDestructiveApply ? 'external-change-blocked' : 'external-change-detected',
+      docPath: tab.filePath,
+      draftId: tab.draftId,
+      displayTitle: tab.displayTitle,
+      source: 'external',
+      risk: { isDestructive: changeRisk.isDestructive, reason: changeRisk.reason },
+      previous: describeJournalContent(previousContent),
+      next: describeJournalContent(data),
+    })
+  }
+  if (blockedDestructiveApply) {
+    // 被拦时快照的是外部变更前的本地基线；传参而非展开 state——
+    // WindowState 是带原型 getter 的类实例，对象展开会丢失按 tab 委托的字段。
+    void persistExternalChangeRecoveryForWindowState(state, changeRisk.reason ?? 'external-change', previousContent)
+  } else {
+    tab.lastSyncedContent = syncDecision.nextSyncedContent
+  }
+
+  // Agent activity detection
+  const now = Date.now()
+  const gap = now - state.lastExternalChange
+  state.lastExternalChange = now
+  if (gap > 0 && gap < 2000) {
+    transitionAgentState(win, state, 'active')
+  } else if (state.agentState === 'active') {
+    transitionAgentState(win, state, 'active')
+  }
+  if (!blockedDestructiveApply && tab.documentKind === 'draft' && tab.draftId) {
+    const nextEntry = findDraftEntryById(tab.draftId)
+    if (nextEntry) {
+      updateDraftEntry({
+        ...nextEntry,
+        updatedAt: Date.now(),
+        displayTitle: deriveDraftDisplayTitle(data, nextEntry.manualTitle),
+      })
+      tab.displayTitle = resolveDraftDisplayTitle(tab.draftId, data)
+      updateTitle(win)
+    }
+  } else if (!blockedDestructiveApply && tab.documentKind === 'file' && tab.filePath) {
+    tab.displayTitle = resolveFileDisplayTitle(tab.filePath, data)
+    updateTitle(win)
+  }
+  if (!win.isDestroyed()) {
+    win.webContents.send('agent-change-summary', {
+      applyBlocked: blockedDestructiveApply,
+      previousContent,
+      summary: changeSummary,
+      risk: changeRisk,
+      // 被拦下时额外带一份更完整的 diff 预览，供「查看 diff」决策面使用
+      ...(blockedDestructiveApply
+        ? { fullSummary: summarizeAgentChange(previousContent, data, { maxPreviewLines: BLOCKED_DIFF_PREVIEW_LINES }) }
+        : {}),
+    })
+  }
+  if (!win.isDestroyed()) win.webContents.send('file-changed', blockedDestructiveApply ? previousContent : data)
+  if (!win.isDestroyed()) sendSidebarState(win)
 }
 
 async function loadFileInWindow(
@@ -2033,6 +2062,24 @@ function activateTabInWindow(win: BrowserWindow, tabId: string, editorContentSna
   setActiveTab(state.tabs, tabId)
   // state 现在委托到新活动 tab；watchFile 会为它挂 watcher
   watchFile(win, state)
+  // 门槛五：watcher 在 tab 切走期间被卸载，fs.watch 重挂不会回放历史事件。
+  // 重新激活后补读一次磁盘：内容与该 tab 基线一致则无事；不一致则走与 watcher
+  // 事件完全相同的外部变更对账路径（低风险自动采纳 / 高风险 blocked 决策面），
+  // 杜绝「切走期间外部修改永久漏检 → 切回 stale → autosave 静默覆盖外部修改」。
+  if (tab.filePath) {
+    const reactivatedTab = tab
+    readFile(tab.filePath, 'utf-8')
+      .then((data) => {
+        const reactivationDecision = decideReactivatedTabSync(
+          reactivatedTab.lastSyncedContent,
+          reactivatedTab.ignoredWatchedContents,
+          data,
+        )
+        if (!reactivationDecision.shouldHandleExternalChange) return
+        handleExternalFileContent(win, state, reactivatedTab, data)
+      })
+      .catch(() => {})
+  }
   updateTitle(win)
   deliverFileOpenedPayload(win, { path: tab.filePath, content: tabContentForActivation(tab) })
   persistLastActiveDocument(state)
@@ -2127,17 +2174,36 @@ async function saveToPath(
   // 保存目标 tab 在进入时锁定：写盘期间用户切走 tab，结果只写回发起保存的 tab，
   // 绝不触碰新活动 tab（门槛二/三：不把 A 文档内容写进 B 的路径）。
   const saveTabId = state.tabs.activeTabId
+  const saveTabAtEntry = resolveTabForSave(state.tabs, saveTabId)
+  // 门槛二：非另存为场景，目标路径必须与发起保存 tab 的路径一致（canWriteTabToPath），
+  // 不一致直接拒绝写盘，避免把内容写进别的文档；另存为的目标路径本来就是新的，跳过校验。
+  if (saveTabAtEntry && reason !== 'save-as' && !canWriteTabToPath(saveTabAtEntry, filePath)) {
+    return false
+  }
   try {
     const previousFilePath = state.filePath
     const previousDisplayTitle = state.displayTitle
     const previousContentForJournal = state.lastSyncedContent
-    state.isInternalSave = true
     await writeFile(filePath, content, 'utf-8')
     const saveTab = resolveTabForSave(state.tabs, saveTabId)
     if (!saveTab || state.tabs.activeTabId !== saveTabId) {
       if (saveTab) {
         saveTab.lastSyncedContent = content
         recordIgnoredWatchedContent(saveTab.ignoredWatchedContents, content)
+        // 早退分支同样补版本 + journal：docPath 用发起保存 tab 的路径（问题 2）。
+        const snapshot = buildRevisionSnapshotFromTab(saveTab, content, reason)
+        if (snapshot) {
+          await recordManagedRevisionSnapshot(snapshot).catch(() => {})
+        }
+        void documentJournal.record({
+          type: journalSaveEventType(reason),
+          docPath: saveTab.filePath,
+          draftId: saveTab.draftId,
+          displayTitle: saveTab.displayTitle,
+          source: 'internal',
+          previous: previousContentForJournal === null ? null : describeJournalContent(previousContentForJournal),
+          next: describeJournalContent(content),
+        })
       }
       return true
     }
@@ -2195,8 +2261,6 @@ async function saveToPath(
     return true
   } catch {
     return false
-  } finally {
-    setTimeout(() => { state.isInternalSave = false }, 100)
   }
 }
 
@@ -2218,7 +2282,6 @@ async function saveFileAsForWindow(win: BrowserWindow, nextPath: string, content
 
   if (previousDocumentKind === 'draft' && sourcePath) {
     try {
-      state.isInternalSave = true
       const nextContent = await relocateManagedDocument({
         sourcePath,
         targetPath: nextPath,
@@ -2255,8 +2318,6 @@ async function saveFileAsForWindow(win: BrowserWindow, nextPath: string, content
       return true
     } catch {
       return false
-    } finally {
-      setTimeout(() => { state.isInternalSave = false }, 100)
     }
   }
 
@@ -2789,6 +2850,9 @@ ipcMain.handle('update-settings', async (event, patch: Partial<AppSettings>) => 
   appSettings = await updateAppSettings(settingsPath, appSettings, patch ?? {})
   buildMenu()
   broadcastSettingsState()
+  // tabs 开关切换时全窗口广播一次 tabs-state：开启侧让已开窗口的标签条补上集合，
+  // 关闭侧标签条靠 enabled:false 收到卸载通知（updateTitle 已被开关守卫拦住）。
+  broadcastTabsState()
   return appSettings
 })
 

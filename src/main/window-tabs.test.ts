@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { decideReactivatedTabSync, recordIgnoredWatchedContent } from './file-sync'
 import {
   addTab,
   canWriteTabToPath,
@@ -121,29 +122,55 @@ describe('window tab model', () => {
     expect(serializeTabsForRenderer({ tabs: [tab], activeTabId: tab.id })[0].hasUnsaved).toBe(true)
   })
 
-  it('门槛四：外部变更按 tab 生效——被拦下的内容只留在对应 tab，不污染其他 tab', () => {
+  it('门槛四：外部变更对账按 tab 生效——A 的自写凭证不会替 B 挡下外部变更', () => {
     const collection = createInitialTabCollection()
     const a = addTab(collection, makeLoadedTab('/tmp/a.md', 'A1'))
     const b = addTab(collection, makeLoadedTab('/tmp/b.md', 'B1'))
     setActiveTab(collection, a.id)
 
-    // watcher 读到 A 的外部破坏性变更，blockedDestructiveApply：基线保持、外部版本交给守卫面板
-    const blocked = true
-    if (!blocked) a.lastSyncedContent = 'A-external'
+    // A 自己写入 A2（带“忽略一次”凭证），磁盘就是 A2：补读对账无事发生
+    recordIgnoredWatchedContent(a.ignoredWatchedContents, 'A2')
+    expect(
+      decideReactivatedTabSync(a.lastSyncedContent, a.ignoredWatchedContents, 'A2').shouldHandleExternalChange,
+    ).toBe(false)
+
+    // 同样的磁盘内容对 B 是真正的外部变更：凭证按 tab 隔离，B 不会消费 A 的凭证，
+    // 外部变更只作用于内容归属的那个 tab，不会污染其他 tab 的基线
+    expect(
+      decideReactivatedTabSync(b.lastSyncedContent, b.ignoredWatchedContents, 'A2').shouldHandleExternalChange,
+    ).toBe(true)
     expect(a.lastSyncedContent).toBe('A1')
     expect(b.lastSyncedContent).toBe('B1')
     expect(getActiveTab(collection).filePath).toBe('/tmp/a.md')
   })
 
-  it('门槛五：journal/revision 记录的 docPath 取自活动 tab 的 filePath', () => {
+  it('门槛五：补读决策——磁盘一致或自写内容无事发生，落后于磁盘才走外部变更对账', () => {
     const collection = createInitialTabCollection()
     addTab(collection, makeLoadedTab('/tmp/a.md', 'A1'))
     const b = addTab(collection, makeLoadedTab('/tmp/b.md', 'B1'))
+    expect(getActiveTab(collection)).toBe(b)
 
-    const active = getActiveTab(collection)
-    expect(active.filePath).toBe(b.filePath)
-    expect(active.filePath).toBe('/tmp/b.md')
-    expect(canWriteTabToPath(active, active.filePath!)).toBe(true)
+    // 磁盘与基线一致：无需对账
+    expect(
+      decideReactivatedTabSync(b.lastSyncedContent, b.ignoredWatchedContents, 'B1').shouldHandleExternalChange,
+    ).toBe(false)
+
+    // tab 自己刚写入的内容（凭证）：消费凭证后无事发生；凭证一次性，同内容再来就是外部变更
+    recordIgnoredWatchedContent(b.ignoredWatchedContents, 'B2')
+    expect(
+      decideReactivatedTabSync(b.lastSyncedContent, b.ignoredWatchedContents, 'B2').shouldHandleExternalChange,
+    ).toBe(false)
+    expect(
+      decideReactivatedTabSync(b.lastSyncedContent, b.ignoredWatchedContents, 'B2').shouldHandleExternalChange,
+    ).toBe(true)
+
+    // 磁盘落后于基线（切走期间被外部修改）：触发对账
+    expect(
+      decideReactivatedTabSync(b.lastSyncedContent, b.ignoredWatchedContents, 'B-external').shouldHandleExternalChange,
+    ).toBe(true)
+    // 决策是纯函数，不改动 tab 基线；落盘后 journal/revision 的 docPath 取自活动 tab 的 filePath
+    expect(b.lastSyncedContent).toBe('B1')
+    expect(canWriteTabToPath(b, b.filePath!)).toBe(true)
   })
 
   it('门槛六：关闭窗口时全部 tab 的 watcher/debounce 都被清理', () => {

@@ -64,6 +64,7 @@ import {
   type ContextPanelMode,
 } from './phase-c-layout'
 import { createSettingsDialogController, type SettingsPaneId } from './settings-dialog'
+import { createWindowTabStripController } from './window-tabs'
 import { createUpdateBannerController } from './update-banner'
 import {
   resolvePinControl,
@@ -3259,6 +3260,44 @@ async function init(): Promise<void> {
   })
   api.onFileOpened((data) => {
     applyOpenedDocument(data)
+  })
+  // 标签页阶段 A：tab 切换/新建/开新文档的内容同步全部复用主进程的 file-opened 路径
+  //（activateTabInWindow/createTabInWindow 内部走 deliverFileOpenedPayload，
+  // renderer-ready 握手与 pendingFileOpened 机制不被绕过，这里不重复投递编辑器内容）。
+  // 标签条只负责显隐与按钮渲染；tabs-state 本身不带内容。
+  const tabStrip = createWindowTabStripController({
+    onActivate: (tabId) => {
+      // 切走前先 flush 未保存编辑，主进程拿快照回填原 tab，避免丢编辑
+      void flushAutoSave()
+        .then(() => api.switchTab(tabId, getMarkdown()))
+        .catch(() => {})
+    },
+  })
+  api.onTabsState((payload) => {
+    tabStrip.handleTabsState(payload)
+  })
+  api.onTabNewRequest(() => {
+    // ⌘T / 菜单新建 tab：先 flush 当前编辑，再带快照新建空白 tab
+    void flushAutoSave()
+      .then(() => api.createTab(getMarkdown()))
+      .catch(() => {})
+  })
+  api.onTabActivateRequest((tabId) => {
+    // 文件已开在非活动 tab：flush 后带快照切过去
+    void flushAutoSave()
+      .then(() => api.switchTab(tabId, getMarkdown()))
+      .catch(() => {})
+  })
+  api.onTabOpenRequest((payload) => {
+    // 打开新文件落 tab：flush 后交主进程 tabs-open-document（已开同文件则切回）
+    void flushAutoSave()
+      .then(() => api.openTabDocument({
+        filePath: payload.filePath,
+        documentKind: payload.documentKind ?? undefined,
+        draftId: payload.draftId ?? undefined,
+        content: getMarkdown(),
+      }))
+      .catch(() => {})
   })
   // 监听器就绪后握手，让主进程补投早于注册到达的初始内容（新功能演示/语法速查等）
   api.signalRendererReady()

@@ -163,4 +163,22 @@ describe('标签条接线与挂载点（字符串断言）', () => {
     expect(moduleSource).toContain("document.getElementById('tab-strip')")
     expect(moduleSource).toContain('strip.remove()')
   })
+
+  it('main.ts 接线：onTabsState 刷新标签条，四类 tab IPC 先 flushAutoSave 再回调', () => {
+    expect(mainSource).toContain('createWindowTabStripController({')
+    expect(mainSource).toContain('api.onTabsState(')
+    expect(mainSource).toContain('api.onTabNewRequest(')
+    expect(mainSource).toContain('api.onTabActivateRequest(')
+    expect(mainSource).toContain('api.onTabOpenRequest(')
+    // 每个 tab 交互都先 flush 未保存编辑再带快照回调主进程
+    expect(mainSource).toContain('.then(() => api.switchTab(tabId, getMarkdown()))')
+    expect(mainSource).toContain('.then(() => api.createTab(getMarkdown()))')
+    expect(mainSource).toContain('api.openTabDocument({')
+    // tab 监听器必须在 renderer-ready 握手前注册，避免主进程早期推送丢失
+    expect(mainSource.indexOf('api.onTabsState(')).toBeLessThan(mainSource.indexOf('api.signalRendererReady()'))
+    // 内容同步不走 tabs-state：不引入第二条投递路径，不重复投递
+    const tabsStateHandler = mainSource.match(/api\.onTabsState\(\(payload\) => \{[\s\S]*?\n  \}\)/)?.[0] ?? ''
+    expect(tabsStateHandler).toContain('tabStrip.handleTabsState')
+    expect(tabsStateHandler).not.toContain('applyOpenedDocument')
+  })
 })

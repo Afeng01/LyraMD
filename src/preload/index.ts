@@ -337,6 +337,13 @@ export interface ElectronAPI {
   onAgentActivity: (callback: (state: string) => void) => void
   onAgentChangeSummary: (callback: (payload: AgentChangePayload) => void) => void
   onSidebarState: (callback: (state: SidebarState) => void) => void
+  onTabsState: (callback: (payload: { enabled: boolean; tabs: Array<{ id: string; title: string; hasUnsaved: boolean; isActive: boolean }> }) => void) => void
+  onTabNewRequest: (callback: () => void) => void
+  onTabActivateRequest: (callback: (tabId: string) => void) => void
+  onTabOpenRequest: (callback: (payload: { filePath: string; documentKind?: 'draft' | 'file' | null; draftId?: string | null }) => void) => void
+  switchTab: (tabId: string, content: string) => Promise<boolean>
+  createTab: (content: string) => Promise<boolean>
+  openTabDocument: (payload: { filePath: string; documentKind?: 'draft' | 'file'; draftId?: string | null; content: string }) => Promise<boolean>
   onZoomChange: (callback: (data: { delta?: number; level?: number }) => void) => void
   onMcpDocumentRequest: (callback: (request: McpDocumentRequest) => void) => void
   sendMcpDocumentResponse: (response: McpDocumentResponse) => void
@@ -500,6 +507,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onSidebarState: (callback: (state: SidebarState) => void) => {
     ipcRenderer.on('sidebar-state', (_event, state) => callback(state))
   },
+  onTabsState: (callback: (payload: { enabled: boolean; tabs: Array<{ id: string; title: string; hasUnsaved: boolean; isActive: boolean }> }) => void) => {
+    ipcRenderer.on('tabs-state', (_event, payload) => callback(payload))
+  },
+  onTabNewRequest: (callback: () => void) => {
+    ipcRenderer.on('tab-new-request', () => callback())
+  },
+  onTabActivateRequest: (callback: (tabId: string) => void) => {
+    ipcRenderer.on('tab-activate-request', (_event, tabId) => callback(tabId))
+  },
+  onTabOpenRequest: (callback: (payload: { filePath: string; documentKind?: 'draft' | 'file' | null; draftId?: string | null }) => void) => {
+    ipcRenderer.on('tab-open-request', (_event, payload) => callback(payload))
+  },
+  switchTab: (tabId: string, content: string) => ipcRenderer.invoke('tabs-switch', tabId, content),
+  createTab: (content: string) => ipcRenderer.invoke('tabs-new', content),
+  openTabDocument: (payload: { filePath: string; documentKind?: 'draft' | 'file'; draftId?: string | null; content: string }) =>
+    ipcRenderer.invoke('tabs-open-document', payload),
   onZoomChange: (callback: (data: { delta?: number; level?: number }) => void) => {
     ipcRenderer.on('menu-zoom', (_event, data) => callback(data))
   },

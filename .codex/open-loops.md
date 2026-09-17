@@ -1,5 +1,12 @@
 # LyraMD Open Loops
 
+## Open (2026-09-18)
+
+- **阶段 A 第二片**：最近文件融入标签 + 会话恢复（session-state 从单文档扩为标签集合）。方案见 docs/2026-09-15-竞品调研-ColoMD-2.4-主界面优化方案.md §8 阶段 A；阶段 A1 已落地（08fe0ff7→a1bc299a，540 tests 全绿）。
+- **A1 修复的聚焦复核未完成**：上轮 reviewer 对 `a1bc299a` 的增量复核只运行了 6.5s 即被中止（f4ccdf55）；Cola 已人工快查补读→对账链路骨架无误，但未出正式判定。下次开工先补这轮复核（重点：外部变更补读的正确性、补读与 watcher 事件重复记 journal 的可能性）。
+- **未 push**：本地 main 领先 origin（09-15 前的 28 个 + 09-15/16 两日全部新提交），等用户点头。
+- **版本号与发版**：建议 1.4.0；出安装包时一并做安装版 destructive drill + proof pack（09-15 deferred 项）。asar 瘦身后的验证 dmg（101MB/asar 11MB）在 release/ 下，属 09-16 时代码，发版时需重新出包。
+
 ## Done (2026-09-15)
 
 - **修复新功能演示/语法速查弹出空白窗口**：新增 renderer-ready 握手（commit `df0069e9`）。

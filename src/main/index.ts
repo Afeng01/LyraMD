@@ -75,6 +75,7 @@ import {
   canWriteTabToPath,
   closeAllTabs,
   createInitialTabCollection,
+  decideStartupRestore,
   detachTabWatch,
   findTabById,
   findTabByFilePath,
@@ -3860,31 +3861,37 @@ if (hasSingleInstanceLock) {
             createWindow({ filePath: fp, documentKind: 'file' })
           }
           pendingFilePaths = []
-        } else if (
-          areTabsEnabled()
-          && persistedSessionState.tabs
-          && persistedSessionState.activeTabId
-        ) {
-          // 阶段 A 会话恢复：开关开启且快照有效时，优先整组恢复上次退出的标签集合
-          // （含 blank），覆盖旧的单文档恢复分支；快照无效/开关关闭走原有分支。
-          const win = createWindow()
-          void restoreSessionTabsInWindow(win, {
-            tabs: persistedSessionState.tabs,
-            activeTabId: persistedSessionState.activeTabId,
-          })
-        } else if (
-          persistedSessionState.lastActiveDocument?.kind === 'draft'
-          && existsSync(persistedSessionState.lastActiveDocument.filePath)
-        ) {
-          createWindow({
-            filePath: persistedSessionState.lastActiveDocument.filePath,
-            documentKind: 'draft',
-            draftId: persistedSessionState.lastActiveDocument.draftId ?? null,
-          })
         } else {
-          createWindow()
+          // 阶段 C ④：启动恢复分支判定下沉为纯函数 decideStartupRestore（行为不变，可测）。
+          // 优先级：整组 tab 快照（开关开启）> 草稿 > 全新「未命名文档」tab；
+          // 上次是单文档 file 时现状即落 blank——旧格式遗留行为，不扩大也不收回。
+          const lastActiveDocument = persistedSessionState.lastActiveDocument
+          const lastActiveDraftPath = lastActiveDocument?.kind === 'draft'
+            && existsSync(lastActiveDocument.filePath)
+            ? lastActiveDocument.filePath
+            : null
+          const restorePlan = decideStartupRestore({
+            tabsEnabled: areTabsEnabled(),
+            hasTabSession: Boolean(persistedSessionState.tabs && persistedSessionState.activeTabId),
+            lastActiveDraftPath,
+          })
+          if (restorePlan === 'tab-session') {
+            // 阶段 A 会话恢复：开关开启且快照有效，整组恢复上次退出的标签集合（含 blank）。
+            const win = createWindow()
+            void restoreSessionTabsInWindow(win, {
+              tabs: persistedSessionState.tabs,
+              activeTabId: persistedSessionState.activeTabId,
+            })
+          } else if (restorePlan === 'draft' && lastActiveDraftPath) {
+            createWindow({
+              filePath: lastActiveDraftPath,
+              documentKind: 'draft',
+              draftId: lastActiveDocument?.draftId ?? null,
+            })
+          } else {
+            createWindow()
+          }
         }
-
         void mcpBridge.start().catch(() => {})
 
         // 启动提速：首窗先创建（草稿/最近文件立即可用），工作目录扫描与

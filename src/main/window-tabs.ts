@@ -282,3 +282,28 @@ export function resolveLoadedSessionState(
     activeTabId: tabSession?.activeTabId ?? null,
   }
 }
+
+// ---- 启动恢复决策（阶段 C ④：启动即「未命名」tab，分支可测化）----
+
+export type StartupRestorePlan = 'tab-session' | 'draft' | 'blank'
+
+/**
+ * whenReady 启动分支的纯判定（副作用留在 index.ts，与「纯逻辑留 window-tabs.ts」的
+ * 既有模式一致）。优先级链与既有 whenReady 分支序逐字等价，不改变任何行为：
+ * 1. 开关开启且有有效整组 tab 快照 → 'tab-session'：整组恢复（含 blank tab——
+ *    「退出时就是一个未命名 tab」的会话恢复结果与「启动即未命名」等价）；
+ * 2. 上次活动文档是草稿且文件仍存在（existsSync 由调用方先算好传入）→ 'draft'；
+ * 3. 否则 → 'blank'：全新「未命名文档」tab（阶段 C ④ 的目标语义）。
+ * 上次活动文档是单文档 file 时现状即落 'blank'——旧格式遗留行为，阶段 C 不扩大也不收回。
+ * 关键回退约束：开关关闭时即使盘上有快照也不返回 'tab-session'，保证关闭态与现状等价。
+ */
+export function decideStartupRestore(input: {
+  tabsEnabled: boolean
+  /** persistedSessionState.tabs 与 activeTabId 均有效（已过 resolveLoadedSessionState/parseTabSession 链路） */
+  hasTabSession: boolean
+  lastActiveDraftPath: string | null
+}): StartupRestorePlan {
+  if (input.tabsEnabled && input.hasTabSession) return 'tab-session'
+  if (input.lastActiveDraftPath) return 'draft'
+  return 'blank'
+}

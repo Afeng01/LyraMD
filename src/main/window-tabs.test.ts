@@ -6,6 +6,7 @@ import {
   closeAllTabs,
   createInitialTabCollection,
   createWindowTabState,
+  decideStartupRestore,
   detachTabWatch,
   findTabByFilePath,
   findTabById,
@@ -38,6 +39,29 @@ describe('window tab model', () => {
     expect(getActiveTab(collection)).toBe(collection.tabs[0])
     expect(getActiveTab(collection).documentKind).toBe('blank')
     expect(getActiveTab(collection).filePath).toBeNull()
+  })
+
+  it('模型契约：初始集合恒为单 tab（阶段 C「单文档也是一个 tab」的显式断言）', () => {
+    const collection = createInitialTabCollection()
+    expect(collection.tabs).toHaveLength(1)
+    expect(collection.activeTabId).toBe(collection.tabs[0]!.id)
+    expect(collection.tabs[0]!.documentKind).toBe('blank')
+    expect(tabDisplayTitle(collection.tabs[0]!)).toBe('未命名文档')
+  })
+
+  it('decideStartupRestore：优先级链与开关回退（阶段 C ④ 启动分支可测化）', () => {
+    // 有整组快照且开启 → 恢复整组（优先级最高，即使同时有草稿记录）
+    expect(decideStartupRestore({ tabsEnabled: true, hasTabSession: true, lastActiveDraftPath: null })).toBe('tab-session')
+    expect(decideStartupRestore({ tabsEnabled: true, hasTabSession: true, lastActiveDraftPath: '/tmp/d.md' })).toBe('tab-session')
+    // 无快照 + 草稿 → 恢复草稿
+    expect(decideStartupRestore({ tabsEnabled: true, hasTabSession: false, lastActiveDraftPath: '/tmp/d.md' })).toBe('draft')
+    expect(decideStartupRestore({ tabsEnabled: false, hasTabSession: false, lastActiveDraftPath: '/tmp/d.md' })).toBe('draft')
+    // 无快照无草稿 → 全新「未命名文档」tab（阶段 C ④ 的目标语义）
+    expect(decideStartupRestore({ tabsEnabled: true, hasTabSession: false, lastActiveDraftPath: null })).toBe('blank')
+    expect(decideStartupRestore({ tabsEnabled: false, hasTabSession: false, lastActiveDraftPath: null })).toBe('blank')
+    // 关键回退断言：开关关闭时即使盘上有快照也不恢复整组（回退与现状等价）
+    expect(decideStartupRestore({ tabsEnabled: false, hasTabSession: true, lastActiveDraftPath: null })).toBe('blank')
+    expect(decideStartupRestore({ tabsEnabled: false, hasTabSession: true, lastActiveDraftPath: '/tmp/d.md' })).toBe('draft')
   })
 
   it('门槛一：切换 tab 只移动活动指针，不改动任何 tab 的内容字段', () => {
@@ -262,6 +286,18 @@ describe('tab session persistence（会话恢复）', () => {
     expect(parsed!.tabs).toEqual(session.tabs)
     expect(parsed!.tabs.map((tab) => tab.kind)).toEqual(['blank', 'file', 'draft'])
     expect(new Set(parsed!.tabs.map((tab) => tab.id)).size).toBe(parsed!.tabs.length)
+  })
+
+  it('parseTabSession：单 blank 条目快照可解析（「未命名 tab 会话」的恢复输入，阶段 C ④）', () => {
+    const session = parseTabSession({
+      tabs: [{ id: 'tab-1', kind: 'blank', filePath: null, draftId: null }],
+      activeTabId: 'tab-1',
+    })
+    expect(session).not.toBeNull()
+    expect(session?.tabs).toHaveLength(1)
+    expect(session?.tabs[0]?.kind).toBe('blank')
+    expect(session?.tabs[0]?.filePath).toBeNull()
+    expect(session?.activeTabId).toBe('tab-1')
   })
 
   it('旧格式（无 tabs 字段）解析为 null，调用方回退单文档恢复行为', () => {

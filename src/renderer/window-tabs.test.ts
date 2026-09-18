@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  createWindowTabStripController,
   filterRecentFilesForTabStrip,
   hasUnsavedDot,
   recentFileDisplayName,
@@ -20,13 +21,13 @@ const tab = (overrides: Partial<WindowTabStripItem> = {}): WindowTabStripItem =>
   ...overrides,
 })
 
-describe('标签条显隐（阶段 A：enabled 且多文档才渲染）', () => {
+describe('标签条显隐（阶段 C：单一顶栏，开关开启即常驻）', () => {
   it('开关关闭时永不显示，即使有多个 tab', () => {
     expect(shouldRenderTabStrip({ enabled: false, tabs: [tab(), tab({ id: 'tab-2' })] })).toBe(false)
   })
 
-  it('开关开启但单 tab 时不显示（单文档零 DOM 痕迹）', () => {
-    expect(shouldRenderTabStrip({ enabled: true, tabs: [tab()] })).toBe(false)
+  it('开关开启但单 tab 时也显示（阶段 C：标签条常驻，单文档也是一个 tab）', () => {
+    expect(shouldRenderTabStrip({ enabled: true, tabs: [tab()] })).toBe(true)
   })
 
   it('开关开启且 tab 数 > 1 时显示', () => {
@@ -34,7 +35,7 @@ describe('标签条显隐（阶段 A：enabled 且多文档才渲染）', () => 
     expect(shouldRenderTabStrip({ enabled: true, tabs: [tab(), tab({ id: 'tab-2' }), tab({ id: 'tab-3' })] })).toBe(true)
   })
 
-  it('缺省 payload 安全收敛为不显示', () => {
+  it('开关开启但 tabs 空数组时不显示（防御空集合；缺省 payload 同样安全收敛）', () => {
     expect(shouldRenderTabStrip({ enabled: true, tabs: [] })).toBe(false)
     expect(shouldRenderTabStrip(undefined as unknown as { enabled: boolean; tabs: WindowTabStripItem[] })).toBe(false)
   })
@@ -140,6 +141,111 @@ describe('标签条 DOM 渲染（jsdom 不可用，用最小桩验证结构）',
     )
     container.children[0].listeners.get('click')?.()
     expect(activated).toBe('tab-7')
+  })
+})
+
+describe('标签条挂载与零痕迹回退（阶段 C：单 tab 常驻）', () => {
+  let mountRoot: FakeMountNode
+
+  class FakeMountNode {
+    children: FakeMountNode[] = []
+    parent: FakeMountNode | null = null
+    className = ''
+    dataset: Record<string, string> = {}
+    textContent = ''
+    type = ''
+    hidden = false
+    innerHTML = ''
+    title = ''
+    attributes = new Map<string, string>()
+    listeners = new Map<string, () => void>()
+    constructor(public tagName: string, public id = '') {}
+    get isConnected(): boolean {
+      let node: FakeMountNode | null = this
+      while (node.parent) node = node.parent
+      return node === mountRoot
+    }
+    appendChild(child: FakeMountNode): void {
+      child.parent = this
+      this.children.push(child)
+    }
+    append(...children: FakeMountNode[]): void {
+      for (const child of children) this.appendChild(child)
+    }
+    replaceChildren(): void {
+      for (const child of this.children) child.parent = null
+      this.children = []
+    }
+    remove(): void {
+      if (!this.parent) return
+      this.parent.children = this.parent.children.filter((child) => child !== this)
+      this.parent = null
+    }
+    before(node: FakeMountNode): void {
+      if (!this.parent) return
+      const index = this.parent.children.indexOf(this)
+      this.parent.children.splice(index, 0, node)
+      node.parent = this.parent
+    }
+    addEventListener(type: string, listener: () => void): void {
+      this.listeners.set(type, listener)
+    }
+    setAttribute(name: string, value: string): void {
+      this.attributes.set(name, value)
+    }
+  }
+
+  const findById = (node: FakeMountNode, id: string): FakeMountNode | null => {
+    if (node.id === id) return node
+    for (const child of node.children) {
+      const found = findById(child, id)
+      if (found) return found
+    }
+    return null
+  }
+
+  const collectClassNames = (node: FakeMountNode, acc: string[] = []): string[] => {
+    if (node.className) acc.push(node.className)
+    for (const child of node.children) collectClassNames(child, acc)
+    return acc
+  }
+
+  beforeEach(() => {
+    mountRoot = new FakeMountNode('#root')
+    mountRoot.append(new FakeMountNode('div', 'workspace'), new FakeMountNode('div', 'tab-strip'))
+    vi.stubGlobal('document', {
+      getElementById: (id: string) => findById(mountRoot, id),
+      createElement: (tagName: string) => new FakeMountNode(tagName),
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('单 tab 渲染：条挂载且含时钟按钮与最近文件下拉容器（阶段 C：⑤ 最近文件入口随标签常驻）', () => {
+    const controller = createWindowTabStripController({ onActivate: () => {} })
+    controller.handleTabsState({ enabled: true, tabs: [tab({ isActive: true })] })
+    expect(controller.isMounted()).toBe(true)
+    const stripNode = findById(mountRoot, 'tab-strip')
+    expect(stripNode).not.toBeNull()
+    const classNames = collectClassNames(stripNode!)
+    expect(classNames).toContain('tab-strip-tab active')
+    expect(classNames).toContain('tab-strip-recent-button')
+    expect(classNames).toContain('tab-strip-recent-menu')
+  })
+
+  it('从单 tab 常驻切回关闭：节点被摘除（零痕迹回退，与阶段 A 前等价）', () => {
+    const controller = createWindowTabStripController({ onActivate: () => {} })
+    controller.handleTabsState({ enabled: true, tabs: [tab({ isActive: true })] })
+    expect(controller.isMounted()).toBe(true)
+    controller.handleTabsState({ enabled: false, tabs: [] })
+    expect(controller.isMounted()).toBe(false)
+    // 再次开启可重新挂载（新节点插回 workspace 前原位）
+    controller.handleTabsState({ enabled: true, tabs: [tab({ isActive: true })] })
+    expect(controller.isMounted()).toBe(true)
   })
 })
 

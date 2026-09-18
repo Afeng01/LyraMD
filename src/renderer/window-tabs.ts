@@ -1,6 +1,7 @@
 // 标签页阶段 A 第一片的渲染层：窗口级标签条的显隐与渲染。
-// 显隐规则（方案 §8 阶段 A）：appSettings.tabs.enabled 且窗口内 tab 数 > 1 才渲染；
-// 否则把标签条节点从 DOM 完全摘除，零 DOM 痕迹（默认关闭时与现状等价）。
+// 显隐规则（方案 §8 阶段 C：单一顶栏）：appSettings.tabs.enabled 开启即常驻渲染——
+// 单文档也是一个 tab，最近文件入口随标签常驻；开关关闭时把标签条节点从 DOM
+// 完全摘除，零 DOM 痕迹（关闭态与阶段 A 前现状等价）。
 // 纯逻辑（显隐判定、样式类名、未保存圆点）与 DOM 副作用分离，便于 node 环境测试。
 
 export interface WindowTabStripItem {
@@ -23,9 +24,12 @@ export interface TabStripHandlers {
   onOpenRecent?: (filePath: string) => void
 }
 
-/** 标签条显隐判定：开关开启且窗口内不止一个 tab 才显示；单文档永不显示标签条。 */
+/**
+ * 标签条显隐判定（阶段 C：单一顶栏）：开关开启即常驻显示——单文档也是一个 tab；
+ * 关闭时（或异常空集合）不显示，零 DOM 痕迹回退机制原样保留。
+ */
 export function shouldRenderTabStrip(payload: TabsStatePayload): boolean {
-  return payload?.enabled === true && Array.isArray(payload.tabs) && payload.tabs.length > 1
+  return payload?.enabled === true && Array.isArray(payload.tabs) && payload.tabs.length > 0
 }
 
 /** tab 按钮样式类名：活动 tab 高亮；未保存圆点用独立元素，不进类名。 */

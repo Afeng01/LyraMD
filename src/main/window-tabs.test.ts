@@ -204,11 +204,20 @@ describe('window tab model', () => {
       id: a.id,
       title: '笔记',
       documentKind: 'file',
+      filePath: '/tmp/笔记.md',
       hasUnsaved: false,
       isActive: true,
     })
     expect(views.filter((view) => view.isActive)).toHaveLength(1)
     expect(JSON.stringify(views)).not.toContain('A1')
+  })
+
+  it('标签条视图：filePath 供渲染层最近文件入口排除已开 tab；blank 为 null', () => {
+    const collection = createInitialTabCollection()
+    addTab(collection, makeLoadedTab('/tmp/b.md', 'B1'))
+    const views = serializeTabsForRenderer(collection)
+    expect(views[0].filePath).toBeNull()
+    expect(views[1].filePath).toBe('/tmp/b.md')
   })
 
   it('detachTabWatch 只清理目标 tab，不影响其他 tab 的 watcher', () => {

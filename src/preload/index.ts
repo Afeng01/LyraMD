@@ -339,7 +339,7 @@ export interface ElectronAPI {
   onAgentActivity: (callback: (state: string) => void) => void
   onAgentChangeSummary: (callback: (payload: AgentChangePayload) => void) => void
   onSidebarState: (callback: (state: SidebarState) => void) => void
-  onTabsState: (callback: (payload: { enabled: boolean; tabs: Array<{ id: string; title: string; hasUnsaved: boolean; isActive: boolean }> }) => void) => void
+  onTabsState: (callback: (payload: { enabled: boolean; tabs: Array<{ id: string; title: string; hasUnsaved: boolean; isActive: boolean; filePath?: string | null }> }) => void) => void
   onTabNewRequest: (callback: () => void) => void
   onTabActivateRequest: (callback: (tabId: string) => void) => void
   onTabOpenRequest: (callback: (payload: { filePath: string; documentKind?: 'draft' | 'file' | null; draftId?: string | null }) => void) => void
@@ -509,7 +509,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onSidebarState: (callback: (state: SidebarState) => void) => {
     ipcRenderer.on('sidebar-state', (_event, state) => callback(state))
   },
-  onTabsState: (callback: (payload: { enabled: boolean; tabs: Array<{ id: string; title: string; hasUnsaved: boolean; isActive: boolean }> }) => void) => {
+  onTabsState: (callback: (payload: { enabled: boolean; tabs: Array<{ id: string; title: string; hasUnsaved: boolean; isActive: boolean; filePath?: string | null }> }) => void) => {
     ipcRenderer.on('tabs-state', (_event, payload) => callback(payload))
   },
   onTabNewRequest: (callback: () => void) => {

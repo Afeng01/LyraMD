@@ -32,6 +32,8 @@ export interface WindowTabView {
   id: string
   title: string
   documentKind: TabDocumentKind
+  /** 供渲染层「最近文件入口」排除已在 tab 中打开的文稿；blank/draft 场景可为 null */
+  filePath: string | null
   hasUnsaved: boolean
   isActive: boolean
 }
@@ -157,6 +159,7 @@ export function serializeTabsForRenderer(collection: TabCollection): WindowTabVi
     id: tab.id,
     title: tabDisplayTitle(tab),
     documentKind: tab.documentKind,
+    filePath: tab.filePath,
     hasUnsaved: tab.unsavedContent !== null,
     isActive: tab.id === collection.activeTabId,
   }))

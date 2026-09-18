@@ -2,7 +2,10 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
+  filterRecentFilesForTabStrip,
   hasUnsavedDot,
+  recentFileDisplayName,
+  recentMenuKeyCloses,
   renderTabStripItems,
   resolveTabStripItemClassName,
   shouldRenderTabStrip,
@@ -137,6 +140,51 @@ describe('标签条 DOM 渲染（jsdom 不可用，用最小桩验证结构）',
     )
     container.children[0].listeners.get('click')?.()
     expect(activated).toBe('tab-7')
+  })
+})
+
+describe('最近文件入口（阶段 A 第二片）', () => {
+  it('候选过滤：排除已在 tab 中打开的路径，保序去重', () => {
+    const tabs = [
+      { filePath: '/tmp/a.md' },
+      { filePath: null },
+      { filePath: '/tmp/c.md' },
+    ]
+    expect(
+      filterRecentFilesForTabStrip(['/tmp/a.md', '/tmp/b.md', '/tmp/a.md', '/tmp/c.md', '/tmp/d.md'], tabs),
+    ).toEqual(['/tmp/b.md', '/tmp/d.md'])
+  })
+
+  it('候选过滤：非法输入安全收敛为空', () => {
+    expect(filterRecentFilesForTabStrip(['', 42 as unknown as string], [])).toEqual([])
+    expect(filterRecentFilesForTabStrip(['/tmp/a.md'], undefined as unknown as Array<{ filePath?: string | null }>)).toEqual(['/tmp/a.md'])
+  })
+
+  it('菜单项标题：文档名去 .md 后缀，兼容 Windows 分隔符与无后缀回退', () => {
+    expect(recentFileDisplayName('/tmp/笔记.md')).toBe('笔记')
+    expect(recentFileDisplayName('C:\\notes\\研究.MD')).toBe('研究')
+    expect(recentFileDisplayName('/tmp/.md')).toBe('/tmp/.md')
+  })
+
+  it('下拉关闭：仅 Esc 键触发', () => {
+    expect(recentMenuKeyCloses('Escape')).toBe(true)
+    expect(recentMenuKeyCloses('Enter')).toBe(false)
+    expect(recentMenuKeyCloses(undefined)).toBe(false)
+  })
+
+  it('CSS 提供最近文件入口样式：时钟按钮、下拉菜单、菜单项、空态', () => {
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+    expect(css).toContain('#tab-strip .tab-strip-recent-button')
+    expect(css).toContain('#tab-strip .tab-strip-recent-menu')
+    expect(css).toContain('#tab-strip .tab-strip-recent-item')
+    expect(css).toContain('#tab-strip .tab-strip-recent-empty')
+  })
+
+  it('main.ts 接线：onOpenRecent 走 flushAutoSave → openTabDocument，侧边栏 recentFiles 喂给标签条', () => {
+    const mainSource = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+    expect(mainSource).toContain('onOpenRecent: (filePath) => {')
+    expect(mainSource).toContain('.then(() => api.openTabDocument({ filePath, content: getMarkdown() }))')
+    expect(mainSource).toContain('tabStrip.handleRecentFiles(state.recentFiles ?? [])')
   })
 })
 

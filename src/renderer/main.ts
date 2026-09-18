@@ -3275,6 +3275,13 @@ async function init(): Promise<void> {
         .then(() => api.switchTab(tabId, getMarkdown()))
         .catch(() => {})
     },
+    onOpenRecent: (filePath) => {
+      // 最近文件回 tab（阶段 A 第二片）：先 flush 再走 openTabDocument；
+      // 已开同路径时主进程 tabs-open-document 自动切回该 tab，未开则落新 tab
+      void flushAutoSave()
+        .then(() => api.openTabDocument({ filePath, content: getMarkdown() }))
+        .catch(() => {})
+    },
   })
   api.onTabsState((payload) => {
     tabStrip.handleTabsState(payload)
@@ -3334,6 +3341,8 @@ async function init(): Promise<void> {
 
   api.onSidebarState((state) => {
     setSidebarState(state)
+    // 最近文件列表同步给标签条的时钟下拉（阶段 A 第二片）
+    tabStrip.handleRecentFiles(state.recentFiles ?? [])
     refreshRenderedMedia()
     settingsDialog.refresh()
   })

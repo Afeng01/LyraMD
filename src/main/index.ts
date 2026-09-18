@@ -80,6 +80,7 @@ import {
   findTabByFilePath,
   getActiveTab,
   parseTabSession,
+  resolveLoadedSessionState,
   resolveTabForSave,
   serializeTabSession,
   serializeTabsForRenderer,
@@ -368,38 +369,18 @@ async function loadSidebarState(): Promise<void> {
 }
 
 async function loadSessionState(): Promise<void> {
+  let lastActiveDocument: Partial<PersistedSessionState>['lastActiveDocument'] = null
+  let tabSession: PersistedTabSession | null = null
   try {
     const raw = await readFile(sessionStatePath, 'utf-8')
     const parsed = JSON.parse(raw) as Partial<PersistedSessionState>
-    const lastActiveDocument = parsed.lastActiveDocument
-    // 阶段 A 会话恢复：同时解析 tab 集合快照；旧格式/损坏回退为 null（旧行为），
-    // lastActiveDocument 继续读写保持向后兼容。
-    const tabSession = parseTabSession({ tabs: parsed.tabs, activeTabId: parsed.activeTabId })
-    if (
-      lastActiveDocument
-      && (lastActiveDocument.kind === 'draft' || lastActiveDocument.kind === 'file')
-      && typeof lastActiveDocument.filePath === 'string'
-    ) {
-      persistedSessionState = {
-        lastActiveDocument: {
-          kind: lastActiveDocument.kind,
-          filePath: lastActiveDocument.filePath,
-          draftId: typeof lastActiveDocument.draftId === 'string' ? lastActiveDocument.draftId : null,
-        },
-        tabs: tabSession?.tabs ?? null,
-        activeTabId: tabSession?.activeTabId ?? null,
-      }
-      return
-    }
+    lastActiveDocument = parsed.lastActiveDocument ?? null
+    tabSession = parseTabSession({ tabs: parsed.tabs, activeTabId: parsed.activeTabId })
   } catch {
     // fall through to defaults
   }
-
-  persistedSessionState = {
-    lastActiveDocument: null,
-    tabs: null,
-    activeTabId: null,
-  }
+  // 活动文档无效时仅回退 lastActiveDocument，不再连带丢弃整组合法 tab 快照。
+  persistedSessionState = resolveLoadedSessionState(lastActiveDocument, tabSession)
 }
 
 async function loadSettingsState(): Promise<void> {

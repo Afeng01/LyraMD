@@ -11,6 +11,7 @@ import {
   findTabById,
   getActiveTab,
   parseTabSession,
+  resolveLoadedSessionState,
   resolveTabForSave,
   serializeTabSession,
   serializeTabsForRenderer,
@@ -299,5 +300,44 @@ describe('tab session persistence（会话恢复）', () => {
       activeTabId: 't1',
     }
     expect(parseTabSession(missingPath)).toBeNull()
+  })
+})
+
+describe('resolveLoadedSessionState（会话加载不丢 tab 快照）', () => {
+  const validTabSession = {
+    tabs: [
+      { id: 't1', kind: 'file' as const, filePath: '/tmp/a.md', draftId: null },
+      { id: 't2', kind: 'blank' as const, filePath: null, draftId: null },
+    ],
+    activeTabId: 't1',
+  }
+
+  it('lastActiveDocument 合法时照常恢复活动文档与快照', () => {
+    expect(resolveLoadedSessionState(
+      { kind: 'file', filePath: '/tmp/a.md', draftId: null },
+      validTabSession,
+    )).toEqual({
+      lastActiveDocument: { kind: 'file', filePath: '/tmp/a.md', draftId: null },
+      tabs: validTabSession.tabs,
+      activeTabId: 't1',
+    })
+  })
+
+  it('lastActiveDocument 缺失/blank/损坏但 tabs 合法 → 活动文档回退 null，快照保留', () => {
+    for (const broken of [undefined, null, { kind: 'blank', filePath: null }, { kind: 'file', filePath: 42 }]) {
+      expect(resolveLoadedSessionState(broken, validTabSession)).toEqual({
+        lastActiveDocument: null,
+        tabs: validTabSession.tabs,
+        activeTabId: 't1',
+      })
+    }
+  })
+
+  it('快照本身无效时回退 null，且不抛错', () => {
+    expect(resolveLoadedSessionState({ kind: 'file', filePath: '/tmp/a.md', draftId: null }, null)).toEqual({
+      lastActiveDocument: { kind: 'file', filePath: '/tmp/a.md', draftId: null },
+      tabs: null,
+      activeTabId: null,
+    })
   })
 })

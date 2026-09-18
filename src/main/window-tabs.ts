@@ -240,3 +240,45 @@ export function parseTabSession(raw: unknown): PersistedTabSession | null {
   if (!seen.has(candidate.activeTabId)) return null
   return { tabs, activeTabId: candidate.activeTabId }
 }
+
+export interface LoadedSessionState {
+  lastActiveDocument: {
+    kind: 'draft' | 'file'
+    filePath: string
+    draftId: string | null
+  } | null
+  tabs: PersistedTabSession['tabs'] | null
+  activeTabId: string | null
+}
+
+/**
+ * 会话加载解析：lastActiveDocument 合法时照常恢复；缺失/blank/损坏时活动文档回退为 null，
+ * 但不再丢弃整组合法的 tab 快照——persistLastActiveDocument 在活动文档置 blank 时
+ * 仍照常写 tabs，加载端必须对等保留，否则 blank 活动文档会把快照白丢。
+ */
+export function resolveLoadedSessionState(
+  lastActiveDocument: unknown,
+  tabSession: PersistedTabSession | null,
+): LoadedSessionState {
+  if (
+    lastActiveDocument
+    && typeof lastActiveDocument === 'object'
+    && (lastActiveDocument.kind === 'draft' || lastActiveDocument.kind === 'file')
+    && typeof lastActiveDocument.filePath === 'string'
+  ) {
+    return {
+      lastActiveDocument: {
+        kind: lastActiveDocument.kind,
+        filePath: lastActiveDocument.filePath,
+        draftId: typeof lastActiveDocument.draftId === 'string' ? lastActiveDocument.draftId : null,
+      },
+      tabs: tabSession?.tabs ?? null,
+      activeTabId: tabSession?.activeTabId ?? null,
+    }
+  }
+  return {
+    lastActiveDocument: null,
+    tabs: tabSession?.tabs ?? null,
+    activeTabId: tabSession?.activeTabId ?? null,
+  }
+}

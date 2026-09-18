@@ -539,6 +539,9 @@ class WindowStateImpl implements WindowState {
 }
 
 const windowStates = new Map<number, WindowState>()
+// 会话恢复进行中的窗口 id 集合：恢复序列可能正在逐条装载 tab，
+// 此期间到达的 openFile 不得直写活动 tab（会顶掉恢复出的标签），退回空窗/新窗路径。
+const sessionRestoreInFlightWindows = new Set<number>()
 let settingsWindow: BrowserWindow | null = null
 let pendingFilePaths: string[] = []
 const hasSingleInstanceLock = app.isPackaged ? app.requestSingleInstanceLock() : true
@@ -2148,36 +2151,40 @@ function createTabInWindow(win: BrowserWindow, editorContentSnapshot?: string): 
 async function restoreSessionTabsInWindow(win: BrowserWindow, session: PersistedTabSession): Promise<void> {
   const state = getState(win)
   const restoredTabs = new Map<string, WindowTabState>()
-
-  for (const [index, entry] of session.tabs.entries()) {
-    if (index === 0) {
-      // 首条目复用初始空白 tab，避免多出一个永不使用的空 tab
-      restoredTabs.set(entry.id, state.activeTab)
-      if (entry.kind === 'blank' || entry.filePath === null || !existsSync(entry.filePath)) continue
+  sessionRestoreInFlightWindows.add(win.id)
+  try {
+    for (const [index, entry] of session.tabs.entries()) {
+      if (index === 0) {
+        // 首条目复用初始空白 tab，避免多出一个永不使用的空 tab
+        restoredTabs.set(entry.id, state.activeTab)
+        if (entry.kind === 'blank' || entry.filePath === null || !existsSync(entry.filePath)) continue
+        await loadFileInWindow(win, entry.filePath, {
+          documentKind: entry.kind,
+          draftId: entry.draftId,
+          recordRecent: false,
+        })
+        continue
+      }
+      if (entry.kind !== 'blank' && (entry.filePath === null || !existsSync(entry.filePath))) continue
+      // 原活动 tab 转为非活动：先卸 watcher/debounce，再落新 tab（门槛二/三）
+      detachTabWatch(state.activeTab)
+      restoredTabs.set(entry.id, addTab(state.tabs))
+      if (entry.kind === 'blank') continue
       await loadFileInWindow(win, entry.filePath, {
         documentKind: entry.kind,
         draftId: entry.draftId,
         recordRecent: false,
       })
-      continue
     }
-    if (entry.kind !== 'blank' && (entry.filePath === null || !existsSync(entry.filePath))) continue
-    // 原活动 tab 转为非活动：先卸 watcher/debounce，再落新 tab（门槛二/三）
-    detachTabWatch(state.activeTab)
-    restoredTabs.set(entry.id, addTab(state.tabs))
-    if (entry.kind === 'blank') continue
-    await loadFileInWindow(win, entry.filePath, {
-      documentKind: entry.kind,
-      draftId: entry.draftId,
-      recordRecent: false,
-    })
-  }
 
-  const targetTab = restoredTabs.get(session.activeTabId) ?? null
-  if (targetTab && targetTab.id !== state.tabs.activeTabId) {
-    activateTabInWindow(win, targetTab.id)
+    const targetTab = restoredTabs.get(session.activeTabId) ?? null
+    if (targetTab && targetTab.id !== state.tabs.activeTabId) {
+      activateTabInWindow(win, targetTab.id)
+    }
+  } finally {
+    sessionRestoreInFlightWindows.delete(win.id)
+    sendTabsState(win)
   }
-  sendTabsState(win)
 }
 
 // Open file: reuse existing window or create new one
@@ -2219,9 +2226,13 @@ function openFile(filePath: string, targetWin?: BrowserWindow | null): void {
       // file-opened 载荷由 pendingFileOpened 缓冲，renderer-ready 握手后补投，无需渲染层配合。
       // 安全依赖（本兑底仅限此精确分支，不得推广到 ready 路径）：未 ready ⇒ 渲染层
       // 尚未注册任何监听 ⇒ 不可能有在途未保存编辑，改写活动 tab 不会丢编辑。
-      void loadFileInWindow(hostWin, filePath)
-      hostWin.focus()
-      return
+      // 例外：会话恢复进行中不兑底——恢复序列正在逐条装载 tab，直写活动 tab 会
+      // 顶掉恢复出的标签；落到下方空窗复用/新窗口的既有路径。
+      if (!sessionRestoreInFlightWindows.has(hostWin.id)) {
+        void loadFileInWindow(hostWin, filePath)
+        hostWin.focus()
+        return
+      }
     }
   }
 

@@ -78,11 +78,14 @@ import {
   findTabById,
   findTabByFilePath,
   getActiveTab,
+  parseTabSession,
   resolveTabForSave,
+  serializeTabSession,
   serializeTabsForRenderer,
   setActiveTab,
   snapshotTabUnsavedContent,
   tabContentForActivation,
+  type PersistedTabSession,
   type TabCollection,
   type WindowTabState,
 } from './window-tabs'
@@ -174,6 +177,9 @@ interface PersistedSessionState {
     filePath: string
     draftId?: string | null
   } | null
+  /** 阶段 A 会话恢复：上次退出的 tab 集合快照（含 blank），null 表示旧格式/无效 */
+  tabs: PersistedTabSession['tabs'] | null
+  activeTabId: string | null
 }
 
 interface SidebarSnapshot extends PersistedSidebarState {
@@ -192,6 +198,8 @@ let watchedWorkdirPaths: string[] = []
 let workdirRefreshTimer: NodeJS.Timeout | null = null
 let persistedSessionState: PersistedSessionState = {
   lastActiveDocument: null,
+  tabs: null,
+  activeTabId: null,
 }
 let appSettings: AppSettings = DEFAULT_APP_SETTINGS
 
@@ -363,6 +371,9 @@ async function loadSessionState(): Promise<void> {
     const raw = await readFile(sessionStatePath, 'utf-8')
     const parsed = JSON.parse(raw) as Partial<PersistedSessionState>
     const lastActiveDocument = parsed.lastActiveDocument
+    // 阶段 A 会话恢复：同时解析 tab 集合快照；旧格式/损坏回退为 null（旧行为），
+    // lastActiveDocument 继续读写保持向后兼容。
+    const tabSession = parseTabSession({ tabs: parsed.tabs, activeTabId: parsed.activeTabId })
     if (
       lastActiveDocument
       && (lastActiveDocument.kind === 'draft' || lastActiveDocument.kind === 'file')
@@ -374,6 +385,8 @@ async function loadSessionState(): Promise<void> {
           filePath: lastActiveDocument.filePath,
           draftId: typeof lastActiveDocument.draftId === 'string' ? lastActiveDocument.draftId : null,
         },
+        tabs: tabSession?.tabs ?? null,
+        activeTabId: tabSession?.activeTabId ?? null,
       }
       return
     }
@@ -383,6 +396,8 @@ async function loadSessionState(): Promise<void> {
 
   persistedSessionState = {
     lastActiveDocument: null,
+    tabs: null,
+    activeTabId: null,
   }
 }
 
@@ -790,6 +805,9 @@ ipcMain.on('renderer-ready', (event) => {
     win.webContents.send('file-opened', state.pendingFileOpened)
     state.pendingFileOpened = null
   }
+  // 阶段 A 会话恢复：启动恢复路径会在渲染层注册监听器之前推送 tabs-state（消息丢失），
+  // 握手时重推一次，保证标签条首帧集合不丢。
+  sendTabsState(win)
 })
 
 function getState(win: BrowserWindow): WindowState {
@@ -1788,6 +1806,11 @@ function persistLastActiveDocument(state: WindowState): void {
       draftId: state.draftId,
     }
   }
+  // 阶段 A 会话恢复：与 lastActiveDocument 合并写入当前窗口的 tab 集合快照（含 blank）。
+  // 开关关闭时集合恒为单 tab，写入无害；恢复分支由 areTabsEnabled() 守卫。
+  const tabSession = serializeTabSession(state.tabs)
+  persistedSessionState.tabs = tabSession.tabs
+  persistedSessionState.activeTabId = tabSession.activeTabId
 
   persistSessionState()
 }
@@ -2104,6 +2127,46 @@ function createTabInWindow(win: BrowserWindow, editorContentSnapshot?: string): 
   persistLastActiveDocument(state)
   sendSidebarState(win)
   return true
+}
+
+// 阶段 A 会话恢复：启动时把上次退出的 tab 集合恢复进首窗。
+// 首条目复用窗口创建时的初始空白 tab，其余条目 detachTabWatch + addTab + loadFileInWindow——
+// 内容投递与 watcher 挂载全部走 A1 既有路径（file-opened 握手补投、watcher 只挂活动 tab）。
+// 文件已不存在的条目直接跳过；最后按 activeTabId 激活，激活复用 activateTabInWindow
+// （含磁盘补读对账），保证编辑器最终显示的是活动 tab 的内容而非最后加载的那一个。
+async function restoreSessionTabsInWindow(win: BrowserWindow, session: PersistedTabSession): Promise<void> {
+  const state = getState(win)
+  const restoredTabs = new Map<string, WindowTabState>()
+
+  for (const [index, entry] of session.tabs.entries()) {
+    if (index === 0) {
+      // 首条目复用初始空白 tab，避免多出一个永不使用的空 tab
+      restoredTabs.set(entry.id, state.activeTab)
+      if (entry.kind === 'blank' || entry.filePath === null || !existsSync(entry.filePath)) continue
+      await loadFileInWindow(win, entry.filePath, {
+        documentKind: entry.kind,
+        draftId: entry.draftId,
+        recordRecent: false,
+      })
+      continue
+    }
+    if (entry.kind !== 'blank' && (entry.filePath === null || !existsSync(entry.filePath))) continue
+    // 原活动 tab 转为非活动：先卸 watcher/debounce，再落新 tab（门槛二/三）
+    detachTabWatch(state.activeTab)
+    restoredTabs.set(entry.id, addTab(state.tabs))
+    if (entry.kind === 'blank') continue
+    await loadFileInWindow(win, entry.filePath, {
+      documentKind: entry.kind,
+      draftId: entry.draftId,
+      recordRecent: false,
+    })
+  }
+
+  const targetTab = restoredTabs.get(session.activeTabId) ?? null
+  if (targetTab && targetTab.id !== state.tabs.activeTabId) {
+    activateTabInWindow(win, targetTab.id)
+  }
+  sendTabsState(win)
 }
 
 // Open file: reuse existing window or create new one
@@ -3776,6 +3839,18 @@ if (hasSingleInstanceLock) {
             createWindow({ filePath: fp, documentKind: 'file' })
           }
           pendingFilePaths = []
+        } else if (
+          areTabsEnabled()
+          && persistedSessionState.tabs
+          && persistedSessionState.activeTabId
+        ) {
+          // 阶段 A 会话恢复：开关开启且快照有效时，优先整组恢复上次退出的标签集合
+          // （含 blank），覆盖旧的单文档恢复分支；快照无效/开关关闭走原有分支。
+          const win = createWindow()
+          void restoreSessionTabsInWindow(win, {
+            tabs: persistedSessionState.tabs,
+            activeTabId: persistedSessionState.activeTabId,
+          })
         } else if (
           persistedSessionState.lastActiveDocument?.kind === 'draft'
           && existsSync(persistedSessionState.lastActiveDocument.filePath)

@@ -172,3 +172,67 @@ export function serializeTabsForRenderer(collection: TabCollection): WindowTabVi
 export function canWriteTabToPath(tab: WindowTabState, targetPath: string): boolean {
   return tab.filePath !== null && tab.filePath === targetPath
 }
+
+// ---- 会话持久化（阶段 A 第二片：会话恢复）----
+
+export interface PersistedTabSessionEntry {
+  id: string
+  kind: TabDocumentKind
+  filePath: string | null
+  draftId: string | null
+}
+
+export interface PersistedTabSession {
+  tabs: PersistedTabSessionEntry[]
+  activeTabId: string
+}
+
+/** 退出/文档状态变化时快照当前窗口 tab 集合（含 blank tab，保 id 供激活映射）。 */
+export function serializeTabSession(collection: TabCollection): PersistedTabSession {
+  return {
+    tabs: collection.tabs.map((tab) => ({
+      id: tab.id,
+      kind: tab.documentKind,
+      filePath: tab.filePath,
+      draftId: tab.draftId,
+    })),
+    activeTabId: collection.activeTabId,
+  }
+}
+
+const VALID_SESSION_KINDS: readonly string[] = ['blank', 'draft', 'file']
+
+/**
+ * 会话恢复解析：旧格式 / 损坏数据一律返回 null，调用方回退既有单文档恢复行为。
+ * 校验规则：tabs 非空数组、条目字段形态合法、id 唯一非空、activeTabId 必须指向其中一条。
+ * blank 条目不携带路径与草稿；draft/file 条目必须有非空 filePath。
+ */
+export function parseTabSession(raw: unknown): PersistedTabSession | null {
+  if (!raw || typeof raw !== 'object') return null
+  const candidate = raw as { tabs?: unknown; activeTabId?: unknown }
+  if (!Array.isArray(candidate.tabs) || candidate.tabs.length === 0) return null
+  if (typeof candidate.activeTabId !== 'string' || candidate.activeTabId.length === 0) return null
+
+  const seen = new Set<string>()
+  const tabs: PersistedTabSessionEntry[] = []
+  for (const entry of candidate.tabs) {
+    if (!entry || typeof entry !== 'object') return null
+    const { id, kind, filePath, draftId } = entry as Record<string, unknown>
+    if (typeof id !== 'string' || id.length === 0 || seen.has(id)) return null
+    if (typeof kind !== 'string' || !VALID_SESSION_KINDS.includes(kind)) return null
+    if (kind === 'blank') {
+      tabs.push({ id, kind: 'blank', filePath: null, draftId: null })
+    } else {
+      if (typeof filePath !== 'string' || filePath.length === 0) return null
+      tabs.push({
+        id,
+        kind: kind as 'draft' | 'file',
+        filePath,
+        draftId: typeof draftId === 'string' ? draftId : null,
+      })
+    }
+    seen.add(id)
+  }
+  if (!seen.has(candidate.activeTabId)) return null
+  return { tabs, activeTabId: candidate.activeTabId }
+}

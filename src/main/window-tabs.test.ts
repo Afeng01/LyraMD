@@ -10,7 +10,9 @@ import {
   findTabByFilePath,
   findTabById,
   getActiveTab,
+  parseTabSession,
   resolveTabForSave,
+  serializeTabSession,
   serializeTabsForRenderer,
   setActiveTab,
   snapshotTabUnsavedContent,
@@ -240,5 +242,62 @@ describe('window tab model', () => {
     expect(findTabById(collection, 'missing')).toBeNull()
     const blank = createWindowTabState()
     expect(tabDisplayTitle(blank)).toBe('未命名文档')
+  })
+})
+
+describe('tab session persistence（会话恢复）', () => {
+  it('roundtrip：序列化后解析还原同一集合（含 blank 与 file 条目、活动指针、id 唯一）', () => {
+    const collection = createInitialTabCollection()
+    addTab(collection, makeLoadedTab('/tmp/a.md', 'A1'))
+    const draftTab = addTab(collection)
+    draftTab.documentKind = 'draft'
+    draftTab.draftId = 'draft-1'
+    draftTab.filePath = '/tmp/draft-1.md'
+    const session = serializeTabSession(collection)
+
+    const parsed = parseTabSession(session)
+    expect(parsed).not.toBeNull()
+    expect(parsed!.activeTabId).toBe(session.activeTabId)
+    expect(parsed!.tabs).toEqual(session.tabs)
+    expect(parsed!.tabs.map((tab) => tab.kind)).toEqual(['blank', 'file', 'draft'])
+    expect(new Set(parsed!.tabs.map((tab) => tab.id)).size).toBe(parsed!.tabs.length)
+  })
+
+  it('旧格式（无 tabs 字段）解析为 null，调用方回退单文档恢复行为', () => {
+    expect(parseTabSession(undefined)).toBeNull()
+    expect(parseTabSession(null)).toBeNull()
+    expect(parseTabSession({})).toBeNull()
+    expect(parseTabSession({ lastActiveDocument: { kind: 'file', filePath: '/tmp/a.md' } })).toBeNull()
+  })
+
+  it('损坏 JSON / 字段类型错乱解析为 null，不抛异常', () => {
+    expect(parseTabSession('corrupted')).toBeNull()
+    expect(parseTabSession(42)).toBeNull()
+    expect(parseTabSession(JSON.parse('{"tabs":123,"activeTabId":null}'))).toBeNull()
+    expect(parseTabSession(JSON.parse('{"tabs":[],"activeTabId":"tab-1"}'))).toBeNull()
+    expect(parseTabSession(JSON.parse('{"tabs":[{"id":"t1","kind":"file"}],"activeTabId":"t1"}'))).toBeNull()
+  })
+
+  it('activeTabId 不在集合中返回 null', () => {
+    const collection = createInitialTabCollection()
+    addTab(collection, makeLoadedTab('/tmp/a.md', 'A1'))
+    const session = serializeTabSession(collection)
+    expect(parseTabSession({ ...session, activeTabId: 'tab-missing' })).toBeNull()
+  })
+
+  it('条目校验：id 重复 / file 条目缺路径 均解析为 null', () => {
+    const duplicated = {
+      tabs: [
+        { id: 't1', kind: 'file', filePath: '/tmp/a.md', draftId: null },
+        { id: 't1', kind: 'blank', filePath: null, draftId: null },
+      ],
+      activeTabId: 't1',
+    }
+    expect(parseTabSession(duplicated)).toBeNull()
+    const missingPath = {
+      tabs: [{ id: 't1', kind: 'file', filePath: '', draftId: null }],
+      activeTabId: 't1',
+    }
+    expect(parseTabSession(missingPath)).toBeNull()
   })
 })

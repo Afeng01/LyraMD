@@ -2035,9 +2035,12 @@ function handleExternalFileContent(
         : {}),
     })
   }
-  // suppressContentApply（带未保存编辑的补读）：编辑器保留未保存快照，跳过 file-changed
-  // 投递以免覆盖渲染层内容；决策面照常通过 agent-change-summary（applyBlocked）触达。
-  if (!win.isDestroyed() && options.suppressContentApply !== true) {
+  // suppressContentApply（带未保存编辑的补读）：正常场景跳过 file-changed 投递以免覆盖
+  // 渲染层内容。但渲染层对 agent-change-summary 的唯一消费点是 onFileChanged →
+  // processIncomingDocumentContent，因此 blockedDestructiveApply 时必须补发一份
+  // file-changed(previousContent)（与非 suppress blocked 路径同形）：渲染层对
+  // applyBlocked 载荷走决策面，不落盘也不覆盖未保存内容，否则决策面永远到不了用户眼前。
+  if (!win.isDestroyed() && (options.suppressContentApply !== true || blockedDestructiveApply)) {
     win.webContents.send('file-changed', blockedDestructiveApply ? previousContent : data)
   }
   if (!win.isDestroyed()) sendSidebarState(win)

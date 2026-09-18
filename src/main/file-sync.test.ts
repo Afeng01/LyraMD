@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   consumeIgnoredWatchedContent,
   decideWatchEvent,
+  isAlreadyHandledExternalContent,
   normalizeChangedName,
   reconcileWatchedContent,
   recordIgnoredWatchedContent,
@@ -58,6 +59,28 @@ describe('reconcileWatchedContent', () => {
       nextSyncedContent: 'loaded file',
       shouldPropagate: true,
     })
+  })
+})
+
+describe('isAlreadyHandledExternalContent', () => {
+  const handled = { diskContent: '# external\n', baseline: '# local\n' }
+
+  it('matches the same disk content while the baseline is unchanged', () => {
+    expect(isAlreadyHandledExternalContent(handled, '# external\n', '# local\n')).toBe(true)
+  })
+
+  it('re-checks when the baseline has advanced (accepted or locally edited)', () => {
+    expect(isAlreadyHandledExternalContent(handled, '# external\n', '# edited\n')).toBe(false)
+    expect(isAlreadyHandledExternalContent(handled, '# external\n', null)).toBe(false)
+  })
+
+  it('re-checks when the disk content differs from the handled snapshot', () => {
+    expect(isAlreadyHandledExternalContent(handled, '# external v2\n', '# local\n')).toBe(false)
+  })
+
+  it('never dedupes without a handled record', () => {
+    expect(isAlreadyHandledExternalContent(null, '# external\n', '# local\n')).toBe(false)
+    expect(isAlreadyHandledExternalContent(undefined, '# external\n', '# local\n')).toBe(false)
   })
 })
 

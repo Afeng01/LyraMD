@@ -52,6 +52,12 @@ export interface ReactivatedTabSyncDecision {
   shouldHandleExternalChange: boolean
 }
 
+/** tab 上记录的“已处理过的被拦外部变更”凭证：当次磁盘内容 + 当时的同步基线。 */
+export interface HandledExternalContentRecord {
+  diskContent: string
+  baseline: string | null
+}
+
 /**
  * tab 重新激活后的磁盘补读决策（门槛五）。
  *
@@ -71,6 +77,20 @@ export function decideReactivatedTabSync(
   return {
     shouldHandleExternalChange: reconcileWatchedContent(lastSyncedContent, diskContent).shouldPropagate,
   }
+}
+
+/**
+ * 被拦决策面去重判断：同一次外部内容 + 基线未变（用户既没接受也没改本地）时，
+ * watcher 重放 / 重新激活补读不再重复弹决策面；基线一旦推进或内容再变即重新对账。
+ */
+export function isAlreadyHandledExternalContent(
+  handled: HandledExternalContentRecord | null | undefined,
+  diskContent: string,
+  lastSyncedContent: string | null,
+): boolean {
+  return handled !== null && handled !== undefined
+    && handled.diskContent === diskContent
+    && handled.baseline === lastSyncedContent
 }
 
 export function decideWatchEvent(eventType: string): WatchEventDecision {

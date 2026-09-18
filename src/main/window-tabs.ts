@@ -1,4 +1,5 @@
 import type { FSWatcher } from 'fs'
+import type { HandledExternalContentRecord } from './file-sync'
 
 // 标签页阶段 A 的窗口内 tab 数据模型（docs/2026-09-15-竞品调研-ColoMD-2.4-主界面优化方案.md §4/§8）。
 // 设计约束：默认关闭（单 tab）时与既有单文档 WindowState 行为完全等价；
@@ -18,6 +19,8 @@ export interface WindowTabState {
   unsavedContent: string | null
   /** 按 tab 隔离：自己写入文件产生的“忽略一次 watcher 事件”凭证，绝不跨 tab 消费 */
   ignoredWatchedContents: Map<string, number>
+  /** 最近一次被拦下的外部变更（磁盘内容 + 当时的基线）；供被拦决策面去重，基线推进后自动失效 */
+  handledExternalContent: HandledExternalContentRecord | null
   /** 只有活动 tab 允许持有挂载中的 watcher；切走时由 detachTabWatch 关闭 */
   watcher: FSWatcher | null
   debounceTimer: ReturnType<typeof setTimeout> | null
@@ -55,6 +58,7 @@ export function createWindowTabState(): WindowTabState {
     lastSyncedContent: null,
     unsavedContent: null,
     ignoredWatchedContents: new Map<string, number>(),
+    handledExternalContent: null,
     watcher: null,
     debounceTimer: null,
   }

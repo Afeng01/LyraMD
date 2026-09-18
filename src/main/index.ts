@@ -31,6 +31,7 @@ import {
   consumeIgnoredWatchedContent,
   decideReactivatedTabSync,
   decideWatchEvent,
+  isAlreadyHandledExternalContent,
   reconcileWatchedContent,
   recordIgnoredWatchedContent,
   watchTargetFile,
@@ -1955,9 +1956,18 @@ function watchFile(win: BrowserWindow, state: WindowState): void {
 // 保证「低风险自动采纳 / 高风险 blockedDestructiveApply 决策面」语义一致（门槛四/五）。
 // 目标 tab 显式传参而非读 state 活动委托字段：补读是异步的，期间活动 tab 可能再次切走，
 // 字段必须归属发起读取的那个 tab。
-function handleExternalFileContent(win: BrowserWindow, state: WindowState, tab: WindowTabState, data: string): void {
+function handleExternalFileContent(
+  win: BrowserWindow,
+  state: WindowState,
+  tab: WindowTabState,
+  data: string,
+  options: { forceDecision?: boolean; suppressContentApply?: boolean } = {},
+): void {
   if (state.activeTab !== tab) return
   if (consumeIgnoredWatchedContent(tab.ignoredWatchedContents, data)) return
+  // 被拦决策面去重：同一次磁盘内容且基线未推进（用户既没接受也没改本地）时，
+  // watcher 重放 / 反复切换补读不再重复弹决策面；基线一变即重新对账。
+  if (isAlreadyHandledExternalContent(tab.handledExternalContent, data, tab.lastSyncedContent)) return
   const previousContent = tab.lastSyncedContent ?? ''
   const syncDecision = reconcileWatchedContent(tab.lastSyncedContent, data)
   if (!syncDecision.shouldPropagate) return
@@ -1966,7 +1976,8 @@ function handleExternalFileContent(win: BrowserWindow, state: WindowState, tab: 
   }
   const changeSummary = summarizeAgentChange(previousContent, data)
   const changeRisk = assessExternalChangeRisk(previousContent, data, changeSummary)
-  const blockedDestructiveApply = changeRisk.isDestructive && previousContent.length > 0
+  // forceDecision：该 tab 带未保存编辑的补读，外部内容不允许静默采纳，低风险也升级为决策面。
+  const blockedDestructiveApply = (changeRisk.isDestructive || options.forceDecision === true) && previousContent.length > 0
   if (previousContent !== data) {
     void documentJournal.record({
       type: blockedDestructiveApply ? 'external-change-blocked' : 'external-change-detected',
@@ -1982,6 +1993,7 @@ function handleExternalFileContent(win: BrowserWindow, state: WindowState, tab: 
   if (blockedDestructiveApply) {
     // 被拦时快照的是外部变更前的本地基线；传参而非展开 state——
     // WindowState 是带原型 getter 的类实例，对象展开会丢失按 tab 委托的字段。
+    tab.handledExternalContent = { diskContent: data, baseline: previousContent }
     void persistExternalChangeRecoveryForWindowState(state, changeRisk.reason ?? 'external-change', previousContent)
   } else {
     tab.lastSyncedContent = syncDecision.nextSyncedContent
@@ -2023,7 +2035,11 @@ function handleExternalFileContent(win: BrowserWindow, state: WindowState, tab: 
         : {}),
     })
   }
-  if (!win.isDestroyed()) win.webContents.send('file-changed', blockedDestructiveApply ? previousContent : data)
+  // suppressContentApply（带未保存编辑的补读）：编辑器保留未保存快照，跳过 file-changed
+  // 投递以免覆盖渲染层内容；决策面照常通过 agent-change-summary（applyBlocked）触达。
+  if (!win.isDestroyed() && options.suppressContentApply !== true) {
+    win.webContents.send('file-changed', blockedDestructiveApply ? previousContent : data)
+  }
   if (!win.isDestroyed()) sendSidebarState(win)
 }
 
@@ -2099,7 +2115,17 @@ function activateTabInWindow(win: BrowserWindow, tabId: string, editorContentSna
           data,
         )
         if (!reactivationDecision.shouldHandleExternalChange) return
-        handleExternalFileContent(win, state, reactivatedTab, data)
+        // 该 tab 带未保存编辑时，外部内容不能直接投递进编辑器：升级为决策面——
+        // forceDecision 让低风险变更也走 blocked 分支，suppressContentApply 跳过 file-changed。
+        handleExternalFileContent(
+          win,
+          state,
+          reactivatedTab,
+          data,
+          reactivatedTab.unsavedContent !== null
+            ? { forceDecision: true, suppressContentApply: true }
+            : undefined,
+        )
       })
       .catch(() => {})
   }
@@ -2848,6 +2874,8 @@ ipcMain.handle('accept-external-change', async (event) => {
 
   const previousContentForJournal = state.lastSyncedContent
   state.lastSyncedContent = content
+  // 用户接受外部版本后编辑器将加载外部内容，原未保存快照随之失效。
+  state.activeTab.unsavedContent = null
   recordIgnoredWatchedContent(state.ignoredWatchedContents, content)
   state.displayTitle = state.documentKind === 'draft' && state.draftId
     ? resolveDraftDisplayTitle(state.draftId, content)

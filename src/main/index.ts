@@ -2207,15 +2207,24 @@ function openFile(filePath: string, targetWin?: BrowserWindow | null): void {
     const hostWin = targetWin && !targetWin.isDestroyed()
       ? targetWin
       : getFocusedWindow() ?? BrowserWindow.getAllWindows().find((candidate) => !candidate.isDestroyed()) ?? null
-    if (hostWin && getState(hostWin).rendererReady) {
-      // 开启标签页且宿主窗口就绪：渲染层 flush 后通过 tabs-open-document 落新 tab
-      hostWin.webContents.send('tab-open-request', { filePath, documentKind: null, draftId: null })
+    if (hostWin) {
+      if (getState(hostWin).rendererReady) {
+        // 开启标签页且宿主窗口就绪：渲染层 flush 后通过 tabs-open-document 落新 tab
+        hostWin.webContents.send('tab-open-request', { filePath, documentKind: null, draftId: null })
+        hostWin.focus()
+        return
+      }
+      // 阶段 C：宿主存在但渲染层未 ready 时不再退到空窗复用/新窗口——直接落宿主活动 tab。
+      // file-opened 载荷由 pendingFileOpened 缓冲，renderer-ready 握手后补投，无需渲染层配合。
+      // 安全依赖（本兑底仅限此精确分支，不得推广到 ready 路径）：未 ready ⇒ 渲染层
+      // 尚未注册任何监听 ⇒ 不可能有在途未保存编辑，改写活动 tab 不会丢编辑。
+      void loadFileInWindow(hostWin, filePath)
       hostWin.focus()
       return
     }
   }
 
-  // 未开启标签页（或宿主窗口渲染层未就绪）：保持既有行为——空窗复用 / 新窗口
+  // 未开启标签页：保持既有行为——空窗复用 / 新窗口
   const emptyWin = findEmptyWindow()
   if (emptyWin) {
     loadFileInWindow(emptyWin, filePath)

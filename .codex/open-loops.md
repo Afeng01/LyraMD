@@ -1,11 +1,16 @@
 # LyraMD Open Loops
 
-## Open (2026-09-18)
+## Open (2026-09-25)
 
-- **阶段 A 第二片**：最近文件融入标签 + 会话恢复（session-state 从单文档扩为标签集合）。方案见 docs/2026-09-15-竞品调研-ColoMD-2.4-主界面优化方案.md §8 阶段 A；阶段 A1 已落地（08fe0ff7→a1bc299a，540 tests 全绿）。
-- **A1 修复的聚焦复核未完成**：上轮 reviewer 对 `a1bc299a` 的增量复核只运行了 6.5s 即被中止（f4ccdf55）；Cola 已人工快查补读→对账链路骨架无误，但未出正式判定。下次开工先补这轮复核（重点：外部变更补读的正确性、补读与 watcher 事件重复记 journal 的可能性）。
-- **未 push**：本地 main 领先 origin（09-15 前的 28 个 + 09-15/16 两日全部新提交），等用户点头。
-- **版本号与发版**：建议 1.4.0；出安装包时一并做安装版 destructive drill + proof pack（09-15 deferred 项）。asar 瘦身后的验证 dmg（101MB/asar 11MB）在 release/ 下，属 09-16 时代码，发版时需重新出包。
+- **人眼验收**：阶段 A/B/C 已落地；本轮又收敛为「草稿 / 工作目录」侧栏、工作目录 `+` 菜单、暖黄色行内星标、可关闭标签和解释性最近文件菜单。`npm test` 74 files / 578 tests 全绿，`npm run build` 通过；dev 正运行并会热更新。待 Cherry 在真实窗口确认布局与关闭交互。
+- **Push**：本地 `main` 领先 `origin/main` 57 个提交，等待 Cherry 明确点头；未执行 push。
+- **1.4.0 发版**：仍等 Cherry 决策。若进入发版，按 `docs/release-checklist.md` 重新出包，并做安装版 destructive drill + proof pack；`release/` 旧 dmg 不包含本轮代码。
+- **后续候选（未立项）**：标签关闭前自动留恢复副本；正文宽度三档；Word 导出 Mermaid 图。详见 `docs/2026-09-15-竞品调研-ColoMD-2.4-主界面优化方案.md` §10。
+
+## Done (2026-09-25)
+
+- **阶段 A/B/C 标签页战役**：会话恢复、常驻单一顶栏与聚焦复核修复均已落地；A2 复核问题收口，阶段 C reviewer 判通过，启动恢复期间 openFile 窄竞态修复已提交 `56be6451`。
+- **2026-09-25 主界面与标签交互优化**：实现见 CHANGELOG 未发布区；本轮测试/构建结论见上方 Open 项。
 
 ## Done (2026-09-15)
 

@@ -4,6 +4,7 @@ import {
   addTab,
   canWriteTabToPath,
   closeAllTabs,
+  closeTabFromCollection,
   createInitialTabCollection,
   createWindowTabState,
   decideStartupRestore,
@@ -47,6 +48,53 @@ describe('window tab model', () => {
     expect(collection.activeTabId).toBe(collection.tabs[0]!.id)
     expect(collection.tabs[0]!.documentKind).toBe('blank')
     expect(tabDisplayTitle(collection.tabs[0]!)).toBe('未命名文档')
+  })
+
+  it('关闭非活动 tab 不改变当前活动项', () => {
+    const collection = createInitialTabCollection()
+    const first = collection.tabs[0]!
+    const second = addTab(collection, makeLoadedTab('/tmp/a.md', 'A'))
+    const active = addTab(collection, makeLoadedTab('/tmp/b.md', 'B'))
+
+    const result = closeTabFromCollection(collection, second.id)
+    expect(result?.closedTab).toBe(second)
+    expect(result?.wasActive).toBe(false)
+    expect(getActiveTab(collection)).toBe(active)
+    expect(collection.tabs).toEqual([first, active])
+  })
+
+  it('关闭活动 tab 时选右侧相邻项；没有右侧时选左侧', () => {
+    const collection = createInitialTabCollection()
+    const first = collection.tabs[0]!
+    const middle = addTab(collection, makeLoadedTab('/tmp/a.md', 'A'))
+    const last = addTab(collection, makeLoadedTab('/tmp/b.md', 'B'))
+
+    const closeLast = closeTabFromCollection(collection, last.id)
+    expect(closeLast?.activeTab).toBe(middle)
+    expect(closeLast?.wasActive).toBe(true)
+
+    const closeMiddle = closeTabFromCollection(collection, middle.id)
+    expect(closeMiddle?.activeTab).toBe(first)
+    expect(collection.tabs).toEqual([first])
+  })
+
+  it('关闭最后一个 tab 时替换成全新的空白 tab，不留下空集合', () => {
+    const collection = createInitialTabCollection()
+    const original = collection.tabs[0]!
+
+    const result = closeTabFromCollection(collection, original.id)
+    expect(result?.closedTab).toBe(original)
+    expect(result?.replacedLastTab).toBe(true)
+    expect(collection.tabs).toHaveLength(1)
+    expect(getActiveTab(collection)).not.toBe(original)
+    expect(getActiveTab(collection).documentKind).toBe('blank')
+    expect(getActiveTab(collection).filePath).toBeNull()
+  })
+
+  it('关闭未知 tabId 不改变集合', () => {
+    const collection = createInitialTabCollection()
+    expect(closeTabFromCollection(collection, 'missing')).toBeNull()
+    expect(collection.tabs).toHaveLength(1)
   })
 
   it('decideStartupRestore：优先级链与开关回退（阶段 C ④ 启动分支可测化）', () => {
@@ -137,6 +185,23 @@ describe('window tab model', () => {
     a.lastSyncedContent = 'A1-edited'
     snapshotTabUnsavedContent(a, 'A1-edited')
     expect(a.unsavedContent).toBeNull()
+  })
+
+  it('空白 tab 的空内容不误标为未保存，输入内容仍产生未保存状态', () => {
+    const tab = createWindowTabState()
+    snapshotTabUnsavedContent(tab, '')
+    expect(tab.unsavedContent).toBeNull()
+
+    snapshotTabUnsavedContent(tab, '新写的内容')
+    expect(tab.unsavedContent).toBe('新写的内容')
+  })
+
+  it('重复快照不能把 autosave 失败留下的未保存内容误清空', () => {
+    const tab = makeLoadedTab('/tmp/a.md', 'A1')
+    snapshotTabUnsavedContent(tab, 'A2-unsaved')
+    snapshotTabUnsavedContent(tab, 'A2-unsaved')
+    expect(tab.lastSyncedContent).toBe('A1')
+    expect(tab.unsavedContent).toBe('A2-unsaved')
   })
 
   it('未保存圆点：与基线一致的内容不产生圆点', () => {

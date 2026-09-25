@@ -20,8 +20,8 @@ describe('normalizeSidebarTab', () => {
     expect(normalizeSidebarTab('bad')).toBe('drafts')
   })
 
-  it('preserves the recent tab when explicitly persisted', () => {
-    expect(normalizeSidebarTab('recent')).toBe('recent')
+  it('migrates the removed recent tab to drafts', () => {
+    expect(normalizeSidebarTab('recent')).toBe('drafts')
   })
 
   it('preserves the workdir tab when explicitly persisted', () => {

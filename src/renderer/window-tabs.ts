@@ -20,6 +20,7 @@ export interface TabsStatePayload {
 
 export interface TabStripHandlers {
   onActivate: (tabId: string) => void
+  onClose?: (tabId: string) => void
   /** 最近文件入口：点选未打开的最近文稿，先 flushAutoSave 再走 openTabDocument */
   onOpenRecent?: (filePath: string) => void
 }
@@ -87,6 +88,11 @@ export function renderTabStripItems(
 ): void {
   container.replaceChildren()
   for (const tab of tabs) {
+    const item = doc.createElement('div')
+    item.className = tab.isActive ? 'tab-strip-item active' : 'tab-strip-item'
+    item.dataset.tabId = tab.id
+    item.setAttribute('role', 'presentation')
+
     const button = doc.createElement('button')
     button.type = 'button'
     button.className = resolveTabStripItemClassName(tab)
@@ -110,7 +116,20 @@ export function renderTabStripItems(
     button.addEventListener('click', () => {
       handlers.onActivate(tab.id)
     })
-    container.append(button)
+
+    const closeButton = doc.createElement('button')
+    closeButton.type = 'button'
+    closeButton.className = 'tab-strip-close'
+    closeButton.title = `关闭 ${tab.title}`
+    closeButton.setAttribute('aria-label', `关闭标签 ${tab.title}`)
+    closeButton.textContent = '×'
+    closeButton.addEventListener('click', (event) => {
+      event.stopPropagation()
+      handlers.onClose?.(tab.id)
+    })
+
+    item.append(button, closeButton)
+    container.append(item)
   }
 }
 
@@ -164,16 +183,23 @@ export function createWindowTabStripController(handlers: TabStripHandlers): Wind
   function closeRecentMenu(): void {
     detachOutsideClose()
     if (recentMenu) recentMenu.hidden = true
+    recentButton?.setAttribute('aria-expanded', 'false')
   }
 
   function renderRecentMenuItems(): void {
     if (!recentMenu) return
     recentMenu.replaceChildren()
     const candidates = filterRecentFilesForTabStrip(recentFiles, currentTabs)
+    const heading = document.createElement('div')
+    heading.className = 'tab-strip-recent-heading'
+    heading.textContent = '最近打开的文稿'
+    recentMenu.append(heading)
     if (candidates.length === 0) {
       const empty = document.createElement('div')
       empty.className = 'tab-strip-recent-empty'
-      empty.textContent = '暂无最近文件'
+      empty.textContent = recentFiles.length === 0
+        ? '还没有最近文件记录'
+        : '最近记录中的文稿都已在标签页中打开'
       recentMenu.append(empty)
       return
     }
@@ -206,8 +232,8 @@ export function createWindowTabStripController(handlers: TabStripHandlers): Wind
     const button = document.createElement('button')
     button.type = 'button'
     button.className = 'tab-strip-recent-button'
-    button.title = '最近文件'
-    button.setAttribute('aria-label', '最近文件')
+    button.title = '打开最近文件（未在标签页中的文稿）'
+    button.setAttribute('aria-label', '打开最近文件')
     button.setAttribute('aria-haspopup', 'menu')
     button.setAttribute('aria-expanded', 'false')
     button.innerHTML =
@@ -226,6 +252,7 @@ export function createWindowTabStripController(handlers: TabStripHandlers): Wind
     menu.className = 'tab-strip-recent-menu'
     menu.hidden = true
     menu.setAttribute('role', 'menu')
+    menu.setAttribute('aria-label', '最近打开的文稿')
     wrapper.append(button, menu)
     container.append(wrapper)
     recentButton = button

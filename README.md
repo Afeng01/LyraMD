@@ -23,8 +23,9 @@ Real-time collaboration between humans and AI agents, adapted for a quieter work
 - **Feedback and issue reporting** from Settings, opening a prefilled GitHub Issue without storing a GitHub token locally.
 - **WYSIWYG Markdown editing** powered by Milkdown.
 - **Markdown outline, images, and tokens** for H1-H6 headings, local/relative images including paths with spaces, YAML tags, Obsidian `#tag` / nested tags, and `[[wikilink]]`.
-- **Lightweight sidebar** with fixed workspace/pinned areas, clearer draft/recent/workdir tabs, full-title hover, and a scrolling document list.
-- **Recent file management** with a compact delete mode.
+- **Lightweight sidebar** with only Drafts and Workdir views; the Workdir `+` menu switches folders or creates a Markdown file/folder. Pinned documents get an inline amber star without changing list order.
+- **Recent files** from the tab strip's clock menu: open a recent document that is not already in the current window as a tab.
+- **Opt-in tabs** with session restore, per-tab unsaved indicators, a 24×24 close target, and a confirmation before discarding unsaved content.
 - **Recursive Markdown workdir list** using relative paths.
 - **Writing tools** including deterministic CJK typography cleanup, document stats, search, outline, local images, and Markdown token styling.
 - **Themes, fonts, and export**: built-in themes with per-theme editor fonts, custom font selection, custom CSS import, PDF export, and HTML export.
@@ -34,8 +35,8 @@ Real-time collaboration between humans and AI agents, adapted for a quieter work
 LyraMD keeps the original agent-native single-file editing core, but adds just enough navigation for a personal writing/workbench flow:
 
 - switch among a small set of Markdown files in one window
-- keep a long-running work directory pinned
-- see recent files without turning the app into a full file manager
+- switch the active working directory from the sidebar without keeping a workspace list open
+- return to recent documents from the tab strip without turning the app into a full file manager
 
 ## Development
 

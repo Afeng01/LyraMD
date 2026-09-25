@@ -136,7 +136,6 @@
         </svg>
       </button>
     </div>
-    <div id="agent-activity-dot" class="agent-activity-idle" aria-hidden="true"></div>
     <div id="update-banner" hidden aria-live="polite">
       <div id="update-banner-text">
         <span id="update-banner-title"></span>
@@ -155,27 +154,18 @@
       <div id="drawer-edge-trigger" aria-hidden="true"></div>
       <div id="sidebar-drawer-shell">
         <aside id="sidebar">
-          <section id="workspaces-section" class="sidebar-section">
-            <div class="sidebar-section-header">
-              <div class="sidebar-section-title static">
-                <span>工作区</span>
-              </div>
-              <button id="workspace-add" type="button" class="sidebar-icon-button" aria-label="新建或选择工作区" title="新建或选择工作区">+</button>
-            </div>
-            <div id="workspaces-list" class="workspace-list"></div>
-          </section>
-
           <section id="library-section" class="sidebar-section">
             <div class="sidebar-library-header">
               <div id="sidebar-tabs" class="sidebar-tabs" role="tablist" aria-label="文稿列表">
                 <button id="drafts-tab" type="button" data-sidebar-tab="drafts" role="tab">草稿</button>
-                <button id="recent-tab" type="button" data-sidebar-tab="recent" role="tab">最近</button>
                 <button id="workdir-tab" type="button" data-sidebar-tab="workdir" role="tab">工作目录</button>
-                <button id="draft-new" type="button" class="sidebar-tab-icon-button" aria-label="新建" title="新建">+</button>
+                <button id="draft-new" type="button" class="sidebar-tab-icon-button" aria-label="新建" title="新建" aria-haspopup="menu" aria-expanded="false">+</button>
               </div>
-              <div id="library-create-menu" class="library-create-menu" hidden>
-                <button id="library-create-file" type="button">新建文稿</button>
-                <button id="library-create-folder" type="button">新建文件夹</button>
+              <div id="library-create-menu" class="library-create-menu" role="menu" hidden>
+                <button id="library-select-workdir" type="button" role="menuitem">选择工作目录…</button>
+                <div class="library-create-divider" role="separator"></div>
+                <button id="library-create-file" type="button" role="menuitem">新建文稿</button>
+                <button id="library-create-folder" type="button" role="menuitem">新建文件夹</button>
               </div>
             </div>
             <div id="library-scroll-region">

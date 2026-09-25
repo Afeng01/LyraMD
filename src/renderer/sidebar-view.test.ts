@@ -14,8 +14,6 @@ import {
   resolveSidebarInlineTitleCommitAction,
   resolveVisibleTabItems,
   resolveVisibleWorkdirTreeRows,
-  resolveWorkspaceLabel,
-  shouldScrollWorkspaces,
 } from './sidebar-view'
 
 function createSidebarState(patch: Partial<SidebarState> = {}): SidebarState {
@@ -46,20 +44,7 @@ function createSidebarState(patch: Partial<SidebarState> = {}): SidebarState {
   }
 }
 
-describe('workspace view helpers', () => {
-  it('uses 选择目录 when no workspace is selected', () => {
-    expect(resolveWorkspaceLabel(null)).toBe('选择目录')
-  })
-
-  it('uses the folder basename for selected workspaces', () => {
-    expect(resolveWorkspaceLabel('/Users/cherry/鹿鸣与小北')).toBe('鹿鸣与小北')
-  })
-
-  it('scrolls workspace history after two entries', () => {
-    expect(shouldScrollWorkspaces(['/a', '/b'])).toBe(false)
-    expect(shouldScrollWorkspaces(['/a', '/b', '/c'])).toBe(true)
-  })
-
+describe('sidebar workbench layout', () => {
   it('lets the library list fill the remaining sidebar height', () => {
     const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
@@ -74,23 +59,17 @@ describe('workspace view helpers', () => {
     expect(css).toMatch(/#library-scroll-region\s*\{[\s\S]*overscroll-behavior:\s*contain/)
   })
 
-  it('keeps workspace scrolling bounded to two visible workspaces', () => {
-    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
-
-    expect(css).toMatch(/\.workspace-list\.scrollable\s*\{[\s\S]*max-height:\s*calc\(\(34px \+ 5px\) \* 2 - 5px\)/)
-    expect(css).toMatch(/\.workspace-list\.scrollable\s*\{[\s\S]*overscroll-behavior:\s*contain/)
-  })
-
-  it('renders workspace remove controls and preserves library scroll when toggling folders', () => {
+  it('removes the workspace list UI while keeping directory selection in the workdir plus menu', () => {
+    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
     const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
-    const preload = readFileSync(join(process.cwd(), 'src/preload/index.ts'), 'utf8')
     const main = readFileSync(join(process.cwd(), 'src/main/index.ts'), 'utf8')
 
-    expect(renderer).toContain('data-remove-workspace-path')
+    expect(html).not.toContain('id="workspaces-list"')
+    expect(html).toContain('id="library-select-workdir"')
+    expect(renderer).toContain('librarySelectWorkdir?.addEventListener')
+    expect(renderer).toContain('api.chooseWorkdir()')
+    expect(main).toContain("ipcMain.handle('choose-workdir'")
     expect(renderer).toContain('renderSidebarPreservingLibraryScroll')
-    expect(readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')).toContain('.workspace-item.active + .workspace-row-actions')
-    expect(preload).toContain("removeWorkspace: (path: string) => ipcRenderer.invoke('remove-workspace', path)")
-    expect(main).toContain("ipcMain.handle('remove-workspace'")
   })
 })
 
@@ -213,7 +192,7 @@ describe('pinned view helpers', () => {
     expect(renderer).toContain("if (item.pinned) appendPinnedMark(fileRow)")
     expect(renderer).toContain("'sidebar-pinned-mark'")
     expect(css).toContain('.sidebar-pinned-mark')
-    expect(css).toMatch(/\.sidebar-pinned-mark\s*\{[\s\S]*?color:\s*var\(--link-color\)/)
+    expect(css).toMatch(/\.sidebar-pinned-mark\s*\{[\s\S]*?color:\s*#e3a13b/)
     // 星标与标题同行：content 必须是 flex 容器，否则块级标题把星标挤到下一行
     expect(css).toMatch(/\.sidebar-item-content\s*\{[^}]*display:\s*flex[^}]*align-items:\s*center/)
   })
@@ -383,13 +362,16 @@ describe('workdir tree helpers', () => {
 })
 
 describe('library create action regression', () => {
-  it('renders a dedicated draft create button next to drafts and recent', () => {
+  it('keeps only drafts and workdir tabs and removes workspace/recent sections', () => {
     const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
     const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
 
-    expect(html).toContain('id="draft-new"')
-    expect(renderer).toContain('draftNew?.addEventListener')
+    expect(html).toContain('id="drafts-tab"')
+    expect(html).toContain('id="workdir-tab"')
+    expect(html).not.toContain('id="recent-tab"')
+    expect(html).not.toContain('id="workspaces-section"')
     expect(renderer).toContain('beginBlankDocumentFromSidebar()')
+    expect(renderer).toContain('librarySelectWorkdir?.addEventListener')
   })
 
   it('routes the library plus button to workdir file creation on the workdir tab', () => {
@@ -397,8 +379,9 @@ describe('library create action regression', () => {
     const preload = readFileSync(join(process.cwd(), 'src/preload/index.ts'), 'utf8')
     const main = readFileSync(join(process.cwd(), 'src/main/index.ts'), 'utf8')
 
-    expect(renderer).toContain("sidebarState?.activeSidebarTab !== 'workdir'")
+    expect(renderer).toContain("sidebarState?.activeSidebarTab === 'workdir'")
     expect(renderer).toContain('openLibraryCreateMenu()')
+    expect(renderer).toContain('api.chooseWorkdir()')
     expect(renderer).toContain('api.createWorkdirFile()')
     expect(renderer).not.toContain("currentFileNew.hidden = activeTab !== 'workdir'")
     expect(preload).toContain("createWorkdirFile: () => ipcRenderer.invoke('create-workdir-file')")
@@ -421,11 +404,12 @@ describe('library create action regression', () => {
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
 
     expect(html).toContain('id="library-create-menu"')
+    expect(html).toContain('id="library-select-workdir"')
     expect(html).toContain('id="library-create-file"')
     expect(html).toContain('id="library-create-folder"')
     expect(html).not.toContain('id="current-file-new"')
     expect(html.indexOf('id="workdir-tab"')).toBeLessThan(html.indexOf('id="draft-new"'))
-    expect(css).toContain('grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.35fr) 28px')
+    expect(css).toContain('grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr) 28px')
     expect(css).not.toContain('box-shadow: inset 2px 0 0 color-mix(in srgb, var(--link-color) 72%, transparent 28%);')
   })
 
@@ -458,14 +442,11 @@ describe('sidebar polish regression', () => {
     expect(activeTitleRule).not.toContain('white-space: normal')
   })
 
-  it('matches workspace surface color to the library area', () => {
-    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
-    const workspaceRule = css.match(/#workspaces-section\s*\{[\s\S]*?\}/)?.[0] ?? ''
-    const libraryRule = css.match(/#library-section\s*\{[\s\S]*?\}/)?.[0] ?? ''
+  it('does not render the removed workspace panel or recent tab', () => {
+    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
 
-    expect(workspaceRule).toContain('background: color-mix(in srgb, var(--bg-color) 96%, var(--border-color) 4%)')
-    expect(workspaceRule).toContain('border: 1px solid color-mix(in srgb, var(--border-color) 58%, transparent 42%)')
-    expect(libraryRule).toContain('background: color-mix(in srgb, var(--bg-color) 96%, var(--border-color) 4%)')
+    expect(html).not.toContain('id="workspaces-section"')
+    expect(html).not.toContain('id="recent-tab"')
   })
 
   it('no longer keeps a compact pinned scroll area after sidebar convergence', () => {
@@ -478,10 +459,10 @@ describe('sidebar polish regression', () => {
   it('hides sidebar scroll thumbs until the scroll region is active', () => {
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
 
-    expect(css).toContain('#sidebar :is(#workspaces-list, #library-scroll-region)::-webkit-scrollbar-thumb')
+    expect(css).toContain('#sidebar #library-scroll-region::-webkit-scrollbar-thumb')
     expect(css).toContain('background: transparent')
-    expect(css).toContain('#sidebar :is(#workspaces-list, #library-scroll-region):hover::-webkit-scrollbar-thumb')
-    expect(css).toContain('#sidebar :is(#workspaces-list, #library-scroll-region):focus-within::-webkit-scrollbar-thumb')
+    expect(css).toContain('#sidebar #library-scroll-region:hover::-webkit-scrollbar-thumb')
+    expect(css).toContain('#sidebar #library-scroll-region:focus-within::-webkit-scrollbar-thumb')
   })
 
   it('adds left breathing room inside the sidebar without shifting the drawer shell', () => {

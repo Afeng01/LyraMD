@@ -66,8 +66,8 @@ describe('标签条 DOM 渲染（jsdom 不可用，用最小桩验证结构）',
     appendChild(child: FakeNode): void {
       this.children.push(child)
     }
-    append(child: FakeNode): void {
-      this.children.push(child)
+    append(...children: FakeNode[]): void {
+      this.children.push(...children)
     }
     replaceChildren(): void {
       this.children = []
@@ -107,11 +107,16 @@ describe('标签条 DOM 渲染（jsdom 不可用，用最小桩验证结构）',
       tab({ id: 'tab-2', title: '草稿', isActive: false, hasUnsaved: false }),
     ])
     expect(container.children).toHaveLength(2)
-    const [active, inactive] = container.children
+    const [activeItem, inactiveItem] = container.children
+    const active = activeItem.children[0]!
+    const inactive = inactiveItem.children[0]!
+    expect(activeItem.className).toBe('tab-strip-item active')
     expect(active.className).toBe('tab-strip-tab active')
     expect(active.attributes.get('aria-selected')).toBe('true')
     // 未保存圆点是独立子元素
     expect(active.children.some((child) => child.className === 'tab-strip-unsaved-dot')).toBe(true)
+    expect(activeItem.children[1]?.className).toBe('tab-strip-close')
+    expect(inactiveItem.className).toBe('tab-strip-item')
     expect(inactive.className).toBe('tab-strip-tab')
     expect(inactive.attributes.get('aria-selected')).toBe('false')
     expect(inactive.children.some((child) => child.className === 'tab-strip-unsaved-dot')).toBe(false)
@@ -139,8 +144,30 @@ describe('标签条 DOM 渲染（jsdom 不可用，用最小桩验证结构）',
       { onActivate: (tabId) => { activated = tabId } },
       document as unknown as Document,
     )
-    container.children[0].listeners.get('click')?.()
+    container.children[0]!.children[0]!.listeners.get('click')?.()
     expect(activated).toBe('tab-7')
+  })
+
+  it('点击独立关闭按钮触发 onClose，不走标签切换', () => {
+    const document = new FakeDocument()
+    const container = new FakeNode('div', 'tab-strip')
+    let activated: string | null = null
+    let closed: string | null = null
+    renderTabStripItems(
+      container as unknown as HTMLElement,
+      [tab({ id: 'tab-9' })],
+      {
+        onActivate: (tabId) => { activated = tabId },
+        onClose: (tabId) => { closed = tabId },
+      },
+      document as unknown as Document,
+    )
+    const closeButton = container.children[0]!.children[1]!
+    const closeHandler = closeButton.listeners.get('click') as unknown as (event: { stopPropagation: () => void }) => void
+    closeHandler({ stopPropagation: () => {} })
+    expect(closed).toBe('tab-9')
+    expect(activated).toBeNull()
+    expect(closeButton.attributes.get('aria-label')).toBe('关闭标签 笔记')
   })
 })
 
@@ -204,6 +231,15 @@ describe('标签条挂载与零痕迹回退（阶段 C：单 tab 常驻）', () 
     return null
   }
 
+  const findByClass = (node: FakeMountNode, className: string): FakeMountNode | null => {
+    if (node.className === className) return node
+    for (const child of node.children) {
+      const found = findByClass(child, className)
+      if (found) return found
+    }
+    return null
+  }
+
   const collectClassNames = (node: FakeMountNode, acc: string[] = []): string[] => {
     if (node.className) acc.push(node.className)
     for (const child of node.children) collectClassNames(child, acc)
@@ -235,6 +271,48 @@ describe('标签条挂载与零痕迹回退（阶段 C：单 tab 常驻）', () 
     expect(classNames).toContain('tab-strip-tab active')
     expect(classNames).toContain('tab-strip-recent-button')
     expect(classNames).toContain('tab-strip-recent-menu')
+  })
+
+  it('历史按钮可打开菜单并把未打开的最近文稿送入标签', () => {
+    let openedPath: string | null = null
+    const controller = createWindowTabStripController({
+      onActivate: () => {},
+      onOpenRecent: (filePath) => { openedPath = filePath },
+    })
+    controller.handleRecentFiles(['/tmp/open.md', '/tmp/recent.md'])
+    controller.handleTabsState({
+      enabled: true,
+      tabs: [tab({ id: 'open', filePath: '/tmp/open.md', isActive: true })],
+    })
+
+    const strip = findById(mountRoot, 'tab-strip')!
+    const button = findByClass(strip, 'tab-strip-recent-button')!
+    const menu = findByClass(strip, 'tab-strip-recent-menu')!
+    button.listeners.get('click')?.()
+    expect(menu.hidden).toBe(false)
+    expect(button.attributes.get('aria-expanded')).toBe('true')
+
+    const item = findByClass(menu, 'tab-strip-recent-item')!
+    expect(item.textContent).toBe('recent')
+    item.listeners.get('click')?.()
+    expect(openedPath).toBe('/tmp/recent.md')
+    expect(menu.hidden).toBe(true)
+    expect(button.attributes.get('aria-expanded')).toBe('false')
+  })
+
+  it('历史按钮无候选时仍展开并说明原因', () => {
+    const controller = createWindowTabStripController({ onActivate: () => {} })
+    controller.handleRecentFiles(['/tmp/open.md'])
+    controller.handleTabsState({
+      enabled: true,
+      tabs: [tab({ id: 'open', filePath: '/tmp/open.md', isActive: true })],
+    })
+    const strip = findById(mountRoot, 'tab-strip')!
+    const button = findByClass(strip, 'tab-strip-recent-button')!
+    const menu = findByClass(strip, 'tab-strip-recent-menu')!
+    button.listeners.get('click')?.()
+    expect(menu.hidden).toBe(false)
+    expect(findByClass(menu, 'tab-strip-recent-empty')?.textContent).toBe('最近记录中的文稿都已在标签页中打开')
   })
 
   it('从单 tab 常驻切回关闭：节点被摘除（零痕迹回退，与阶段 A 前等价）', () => {
@@ -306,10 +384,12 @@ describe('标签条接线与挂载点（字符串断言）', () => {
     expect(html.indexOf('id="tab-strip"')).toBeLessThan(html.indexOf('<div id="workspace">'))
   })
 
-  it('base.css 提供标签条样式：容器、活动高亮、未保存圆点', () => {
+  it('base.css 提供标签条样式和 24×24 关闭热区', () => {
     expect(css).toContain('#tab-strip {')
     expect(css).toContain('#tab-strip .tab-strip-tab.active')
     expect(css).toContain('#tab-strip .tab-strip-unsaved-dot')
+    expect(css).toMatch(/#tab-strip \.tab-strip-close\s*\{[\s\S]*?width:\s*24px[\s\S]*?height:\s*24px/)
+    expect(css).toContain('.tab-strip-item.active .tab-strip-close')
   })
 
   it('渲染层模块零痕迹策略：不满足条件时摘除节点', () => {
@@ -324,6 +404,8 @@ describe('标签条接线与挂载点（字符串断言）', () => {
     expect(mainSource).toContain('api.onTabNewRequest(')
     expect(mainSource).toContain('api.onTabActivateRequest(')
     expect(mainSource).toContain('api.onTabOpenRequest(')
+    expect(mainSource).toContain('onClose: (tabId) => {')
+    expect(mainSource).toContain('.then(() => api.closeTab(tabId, getMarkdown()))')
     // 每个 tab 交互都先 flush 未保存编辑再带快照回调主进程
     expect(mainSource).toContain('.then(() => api.switchTab(tabId, getMarkdown()))')
     expect(mainSource).toContain('.then(() => api.createTab(getMarkdown()))')

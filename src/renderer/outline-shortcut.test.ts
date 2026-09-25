@@ -28,9 +28,12 @@ describe('outline shortcut affordance', () => {
     expect(renderer).toContain('outlinePanel.hidden = !showOutlineInRightPanel')
   })
 
-  it('places top-right AI and outline controls to the left of the activity light', () => {
-    expect(css).toMatch(/#agent-toggle\s*\{[\s\S]*right:\s*88px/)
-    expect(css).toMatch(/#outline-toggle\s*\{[\s\S]*right:\s*56px/)
-    expect(css).toMatch(/#agent-activity-dot\s*\{[\s\S]*right:\s*16px/)
+  it('reclaims the activity-light gap for the top-right AI and outline controls', () => {
+    expect(css).toMatch(/#agent-toggle\s*\{[\s\S]*right:\s*48px/)
+    expect(css).toMatch(/#outline-toggle\s*\{[\s\S]*right:\s*16px/)
+    expect(css).toMatch(/body\.platform-win32 #agent-toggle\s*\{[\s\S]*right:\s*198px/)
+    expect(css).toMatch(/body\.platform-win32 #outline-toggle\s*\{[\s\S]*right:\s*166px/)
+    expect(html).not.toContain('agent-activity-dot')
+    expect(css).not.toContain('#agent-activity-dot')
   })
 })

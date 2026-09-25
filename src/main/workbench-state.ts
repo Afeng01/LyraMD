@@ -7,8 +7,9 @@ export type PinnedItem =
 export const DEFAULT_MAX_WORKSPACES = 8
 
 export function normalizeSidebarTab(value: unknown): SidebarTab {
+  // 侧边栏不再提供「最近」页；旧设置中的 recent 安全回退到草稿列表。
   if (value === 'workdir') return 'workdir'
-  return value === 'recent' ? 'recent' : 'drafts'
+  return 'drafts'
 }
 
 export function addWorkspacePath(

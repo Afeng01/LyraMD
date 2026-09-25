@@ -103,6 +103,43 @@ export function addTab(collection: TabCollection, tab: WindowTabState = createWi
   return tab
 }
 
+export interface CloseTabResult {
+  closedTab: WindowTabState
+  activeTab: WindowTabState
+  wasActive: boolean
+  replacedLastTab: boolean
+}
+
+/**
+ * 从集合关闭指定 tab。活动 tab 关闭时优先激活右侧相邻项，否则取左侧；
+ * 关闭最后一个 tab 时以全新的 blank tab 替换，保持窗口始终可继续编辑。
+ * watcher / 未保存确认由主进程副作用层负责。
+ */
+export function closeTabFromCollection(collection: TabCollection, tabId: string): CloseTabResult | null {
+  const index = collection.tabs.findIndex((tab) => tab.id === tabId)
+  if (index < 0) return null
+
+  const wasActive = collection.activeTabId === tabId
+  const [closedTab] = collection.tabs.splice(index, 1)
+  if (!closedTab) return null
+
+  const replacedLastTab = collection.tabs.length === 0
+  if (replacedLastTab) {
+    const replacement = createWindowTabState()
+    collection.tabs.push(replacement)
+    collection.activeTabId = replacement.id
+  } else if (wasActive) {
+    collection.activeTabId = collection.tabs[Math.min(index, collection.tabs.length - 1)]!.id
+  }
+
+  return {
+    closedTab,
+    activeTab: getActiveTab(collection),
+    wasActive,
+    replacedLastTab,
+  }
+}
+
 /** 在同一窗口全部 tab 里按路径找文档；文件可能开在非活动 tab。 */
 export function findTabByFilePath(collection: TabCollection, filePath: string): WindowTabState | null {
   return collection.tabs.find((tab) => tab.filePath === filePath) ?? null
@@ -143,7 +180,9 @@ export function resolveTabForSave(collection: TabCollection, tabId: string): Win
  * 切回时由 tabContentForActivation 恢复；相同（已 autosave 过）则清空，标签条不出圆点。
  */
 export function snapshotTabUnsavedContent(tab: WindowTabState, editorContent: string): void {
-  const savedBaseline = tab.unsavedContent ?? tab.lastSyncedContent
+  // 只与已同步到磁盘的基线比较；若把旧 unsavedContent 当基线，autosave 失败后再次快照
+  // 会把同一份未保存内容误清空。初始 blank tab 的空内容则视为干净状态。
+  const savedBaseline = tab.lastSyncedContent ?? (tab.documentKind === 'blank' ? '' : null)
   tab.unsavedContent = editorContent === savedBaseline ? null : editorContent
 }
 

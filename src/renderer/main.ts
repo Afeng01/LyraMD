@@ -74,8 +74,6 @@ import {
   resolveSidebarInlineTitleCommitAction,
   resolveVisibleTabItems,
   resolveVisibleWorkdirTreeRows,
-  resolveWorkspaceLabel,
-  shouldScrollWorkspaces,
   type SidebarItem,
   type WorkdirTreeRow,
 } from './sidebar-view'
@@ -647,7 +645,6 @@ async function init(): Promise<void> {
   const editor = document.getElementById('editor') as HTMLElement | null
   const editorPlaceholder = document.getElementById('editor-placeholder') as HTMLDivElement | null
   const documentStats = document.getElementById('document-stats') as HTMLDivElement | null
-  const agentActivityDot = document.getElementById('agent-activity-dot') as HTMLDivElement | null
   const titleSyncOverlay = document.getElementById('title-sync-overlay') as HTMLDivElement | null
   const titleSyncCurrentName = document.getElementById('title-sync-current-name') as HTMLSpanElement | null
   const titleSyncNextName = document.getElementById('title-sync-next-name') as HTMLSpanElement | null
@@ -673,16 +670,14 @@ async function init(): Promise<void> {
   const onboardingDirectoryPreview = document.getElementById('onboarding-directory-preview') as HTMLDivElement | null
   const draftNew = document.getElementById('draft-new') as HTMLButtonElement | null
   const libraryCreateMenu = document.getElementById('library-create-menu') as HTMLDivElement | null
+  const librarySelectWorkdir = document.getElementById('library-select-workdir') as HTMLButtonElement | null
   const libraryCreateFile = document.getElementById('library-create-file') as HTMLButtonElement | null
   const libraryCreateFolder = document.getElementById('library-create-folder') as HTMLButtonElement | null
   const draftsToggle = document.getElementById('drafts-toggle') as HTMLButtonElement | null
   const recentFilesToggle = document.getElementById('recent-files-toggle') as HTMLButtonElement | null
   const workdirToggle = document.getElementById('workdir-toggle') as HTMLButtonElement | null
   const workdirChange = document.getElementById('workdir-change') as HTMLButtonElement | null
-  const workspaceAdd = document.getElementById('workspace-add') as HTMLButtonElement | null
-  const workspacesList = document.getElementById('workspaces-list') as HTMLDivElement | null
   const draftsTab = document.getElementById('drafts-tab') as HTMLButtonElement | null
-  const recentTab = document.getElementById('recent-tab') as HTMLButtonElement | null
   const workdirTab = document.getElementById('workdir-tab') as HTMLButtonElement | null
   const librarySection = document.getElementById('library-section') as HTMLElement | null
   const libraryScrollRegion = document.getElementById('library-scroll-region') as HTMLDivElement | null
@@ -789,16 +784,6 @@ async function init(): Promise<void> {
 
   let latestDocumentStatsText = formatDocumentStats(resolveDocumentStats(''))
   let documentStatsAiStatus = ''
-  let agentActivityLightState = 'idle'
-
-  const updateAgentActivityLight = (state: string): void => {
-    agentActivityLightState = state === 'active' || state === 'cooldown'
-      ? state
-      : 'idle'
-    if (!agentActivityDot) return
-    agentActivityDot.dataset.agentActivity = agentActivityLightState
-    agentActivityDot.className = `agent-activity-${agentActivityLightState}`
-  }
 
   const renderDocumentStats = (): void => {
     if (!documentStats) return
@@ -1481,12 +1466,14 @@ async function init(): Promise<void> {
   const closeLibraryCreateMenu = (): void => {
     if (libraryCreateMenu) libraryCreateMenu.hidden = true
     draftNew?.classList.remove('active')
+    draftNew?.setAttribute('aria-expanded', 'false')
   }
 
   const openLibraryCreateMenu = (): void => {
     if (!libraryCreateMenu) return
     libraryCreateMenu.hidden = false
     draftNew?.classList.add('active')
+    draftNew?.setAttribute('aria-expanded', 'true')
   }
 
   const createWorkdirFileFromSidebar = (): void => {
@@ -2903,7 +2890,7 @@ async function init(): Promise<void> {
   }
 
   const renderSidebar = (): void => {
-    if (!appShell || !workspacesList || !libraryList || !sidebarState) return
+    if (!appShell || !libraryList || !sidebarState) return
 
     appShell.classList.toggle('sidebar-open', sidebarState.sidebarOpen)
     appShell.classList.toggle('drawer-mode', sidebarState.isDrawerMode)
@@ -2925,73 +2912,25 @@ async function init(): Promise<void> {
       onboardingDirectoryPreview.textContent = sidebarState.draftDirectoryPath ?? 'Documents/LyraMD Drafts'
     }
 
-    clearElement(workspacesList)
-    workspacesList.classList.toggle('scrollable', shouldScrollWorkspaces(sidebarState.workspacePaths))
-    if (sidebarState.workspacePaths.length === 0) {
-      const action = document.createElement('button')
-      action.type = 'button'
-      action.id = 'workdir-empty-action'
-      action.className = 'workspace-item empty'
-      action.textContent = '选择目录'
-      workspacesList.appendChild(action)
-    } else {
-      for (const workspacePath of sidebarState.workspacePaths) {
-        const row = document.createElement('div')
-        row.className = 'workspace-item-row with-remove'
-
-        const item = document.createElement('button')
-        item.type = 'button'
-        item.className = 'workspace-item'
-        item.dataset.workspacePath = workspacePath
-        item.draggable = true
-        item.title = workspacePath
-        item.classList.toggle('active', workspacePath === sidebarState.workdirPath)
-        item.appendChild(createTextBlock('workspace-item-label', resolveWorkspaceLabel(workspacePath)))
-        item.appendChild(createTextBlock('workspace-drag-handle', '⋮⋮'))
-
-        const actions = document.createElement('div')
-        actions.className = 'workspace-row-actions'
-        const remove = document.createElement('button')
-        remove.type = 'button'
-        remove.className = `row-action-button remove-action-button${pendingRemoveActionKey === `workspace:${workspacePath}` ? ' confirm-delete' : ''}`
-        remove.dataset.removeWorkspacePath = workspacePath
-        remove.title = pendingRemoveActionKey === `workspace:${workspacePath}`
-          ? `确认移除 ${resolveWorkspaceLabel(workspacePath)}`
-          : `从列表移除 ${resolveWorkspaceLabel(workspacePath)}`
-        remove.setAttribute('aria-label', remove.title)
-        remove.appendChild(pendingRemoveActionKey === `workspace:${workspacePath}`
-          ? createIconSvg(['M4 9.5 7.3 12.8 14 5.8'])
-          : createIconSvg([
-              'M5 6h8',
-              'M7 6V4.5h4V6',
-              'M6 6l.5 8h5L12 6',
-            ]))
-        actions.appendChild(remove)
-
-        row.appendChild(item)
-        row.appendChild(actions)
-        workspacesList.appendChild(row)
-      }
-    }
-
     const activeTab = sidebarState.activeSidebarTab
     librarySection?.classList.toggle('library-tab-workdir', activeTab === 'workdir')
     if (draftNew) {
-      const label = activeTab === 'workdir' ? '新建工作目录项目' : '新建草稿'
+      const label = activeTab === 'workdir' ? '工作目录操作' : '新建草稿'
       draftNew.setAttribute('aria-label', label)
-      draftNew.title = label
+      draftNew.title = activeTab === 'workdir'
+        ? '选择工作目录，或新建文稿 / 文件夹'
+        : label
     }
     if (draftsTab) {
       draftsTab.classList.toggle('active', activeTab === 'drafts')
       draftsTab.setAttribute('aria-selected', activeTab === 'drafts' ? 'true' : 'false')
     }
-    if (recentTab) {
-      recentTab.classList.toggle('active', activeTab === 'recent')
-      recentTab.setAttribute('aria-selected', activeTab === 'recent' ? 'true' : 'false')
-    }
     if (workdirTab) {
       workdirTab.classList.toggle('active', activeTab === 'workdir')
       workdirTab.setAttribute('aria-selected', activeTab === 'workdir' ? 'true' : 'false')
+      workdirTab.title = sidebarState.workdirPath
+        ? `当前目录：${sidebarState.workdirPath}`
+        : '尚未选择工作目录'
     }
 
     clearElement(libraryList)
@@ -3002,9 +2941,7 @@ async function init(): Promise<void> {
         'sidebar-empty',
         activeTab === 'drafts'
           ? '未命名草稿会在开始输入后出现在这里'
-          : activeTab === 'workdir'
-            ? (sidebarState.workdirPath ? '这个工作目录里没有 Markdown 文件' : '先选择一个工作区')
-            : '还没有最近文件',
+          : (sidebarState.workdirPath ? '这个工作目录里没有 Markdown 文件' : '先点右侧 + 选择工作目录'),
       ))
       return
     }
@@ -3275,6 +3212,13 @@ async function init(): Promise<void> {
         .then(() => api.switchTab(tabId, getMarkdown()))
         .catch(() => {})
     },
+    onClose: (tabId) => {
+      persistCurrentViewportOffset()
+      // 先 flush 当前编辑器，再关闭目标 tab；主进程会对仍有未保存快照的标签发确认。
+      void flushAutoSave()
+        .then(() => api.closeTab(tabId, getMarkdown()))
+        .catch(() => {})
+    },
     onOpenRecent: (filePath) => {
       // 最近文件回 tab（阶段 A 第二片）：先 flush 再走 openTabDocument；
       // 已开同路径时主进程 tabs-open-document 自动切回该 tab，未开则落新 tab
@@ -3345,10 +3289,6 @@ async function init(): Promise<void> {
     tabStrip.handleRecentFiles(state.recentFiles ?? [])
     refreshRenderedMedia()
     settingsDialog.refresh()
-  })
-
-  api.onAgentActivity((state) => {
-    updateAgentActivityLight(state)
   })
 
   sidebarToggle?.addEventListener('click', () => {
@@ -3709,11 +3649,25 @@ async function init(): Promise<void> {
 
   draftNew?.addEventListener('click', () => {
     if (sidebarState?.activeSidebarTab === 'workdir') {
+      if (!sidebarState.workdirPath) {
+        closeLibraryCreateMenu()
+        api.chooseWorkdir().then((state) => {
+          if (state) setSidebarState(state)
+        }).catch(() => syncSidebarState())
+        return
+      }
       openLibraryCreateMenu()
       return
     }
     closeLibraryCreateMenu()
     beginBlankDocumentFromSidebar()
+  })
+
+  librarySelectWorkdir?.addEventListener('click', () => {
+    closeLibraryCreateMenu()
+    api.chooseWorkdir().then((state) => {
+      if (state) setSidebarState(state)
+    }).catch(() => syncSidebarState())
   })
 
   libraryCreateFile?.addEventListener('click', createWorkdirFileFromSidebar)
@@ -3737,10 +3691,6 @@ async function init(): Promise<void> {
     api.chooseWorkdir().catch(() => {})
   })
 
-  workspaceAdd?.addEventListener('click', () => {
-    api.chooseWorkdir().catch(() => {})
-  })
-
   const selectSidebarTab = (tab: SidebarTab): void => {
     api.setActiveSidebarTab(tab).then((state) => {
       if (state) setSidebarState(state)
@@ -3751,59 +3701,8 @@ async function init(): Promise<void> {
     selectSidebarTab('drafts')
   })
 
-  recentTab?.addEventListener('click', () => {
-    selectSidebarTab('recent')
-  })
-
   workdirTab?.addEventListener('click', () => {
     selectSidebarTab('workdir')
-  })
-
-  document.addEventListener('dragstart', (event) => {
-    const target = event.target as HTMLElement | null
-    const workspaceButton = target?.closest('[data-workspace-path]') as HTMLElement | null
-    if (!workspaceButton) return
-    const workspacePath = workspaceButton.dataset.workspacePath
-    if (!workspacePath || !event.dataTransfer) return
-    event.dataTransfer.effectAllowed = 'move'
-    event.dataTransfer.setData('application/x-lyramd-workspace', workspacePath)
-  })
-
-  document.addEventListener('dragover', (event) => {
-    const target = event.target as HTMLElement | null
-    const workspaceButton = target?.closest('[data-workspace-path]') as HTMLElement | null
-    if (!workspaceButton || !event.dataTransfer) return
-    if (!event.dataTransfer.types.includes('application/x-lyramd-workspace')) return
-    event.preventDefault()
-    event.dataTransfer.dropEffect = 'move'
-    workspaceButton.classList.add('drag-over')
-  })
-
-  document.addEventListener('dragleave', (event) => {
-    const target = event.target as HTMLElement | null
-    target?.closest('[data-workspace-path]')?.classList.remove('drag-over')
-  })
-
-  document.addEventListener('dragend', () => {
-    document.querySelectorAll('.workspace-item.drag-over').forEach((element) => {
-      element.classList.remove('drag-over')
-    })
-  })
-
-  document.addEventListener('drop', (event) => {
-    const target = event.target as HTMLElement | null
-    const workspaceButton = target?.closest('[data-workspace-path]') as HTMLElement | null
-    if (!workspaceButton || !event.dataTransfer) return
-    const sourcePath = event.dataTransfer.getData('application/x-lyramd-workspace')
-    const targetPath = workspaceButton.dataset.workspacePath
-    document.querySelectorAll('.workspace-item.drag-over').forEach((element) => {
-      element.classList.remove('drag-over')
-    })
-    if (!sourcePath || !targetPath || sourcePath === targetPath) return
-    event.preventDefault()
-    api.reorderWorkspaces(sourcePath, targetPath).then((state) => {
-      if (state) setSidebarState(state)
-    }).catch(() => syncSidebarState())
   })
 
   onboardingChoose?.addEventListener('click', () => {
@@ -4041,23 +3940,6 @@ async function init(): Promise<void> {
       return
     }
 
-    const removeWorkspaceButton = target?.closest('[data-remove-workspace-path]') as HTMLElement | null
-    if (removeWorkspaceButton) {
-      event.preventDefault()
-      event.stopPropagation()
-      const workspacePath = removeWorkspaceButton.dataset.removeWorkspacePath
-      if (!workspacePath) return
-      if (!requestRemoveConfirmation(`workspace:${workspacePath}`)) return
-      api.removeWorkspace(workspacePath).then((state) => {
-        if (state) {
-          setSidebarState(state)
-          return
-        }
-        syncSidebarState()
-      }).catch(() => syncSidebarState())
-      return
-    }
-
     if (pendingRemoveActionKey) {
       clearPendingRemoveConfirmation()
       renderSidebar()
@@ -4083,17 +3965,6 @@ async function init(): Promise<void> {
     if (searchPanelOpen && searchPanel && !target?.closest('#search-panel')) {
       closeSearchPanel()
       focusEditorAtLastSelection()
-      return
-    }
-
-    const workspaceButton = target?.closest('[data-workspace-path]') as HTMLElement | null
-    if (workspaceButton) {
-      event.preventDefault()
-      const workspacePath = workspaceButton.dataset.workspacePath
-      if (!workspacePath) return
-      api.selectWorkspace(workspacePath).then((state) => {
-        if (state) setSidebarState(state)
-      }).catch(() => syncSidebarState())
       return
     }
 

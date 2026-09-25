@@ -74,6 +74,7 @@ import {
   addTab,
   canWriteTabToPath,
   closeAllTabs,
+  closeTabFromCollection,
   createInitialTabCollection,
   decideStartupRestore,
   detachTabWatch,
@@ -440,9 +441,6 @@ interface WindowState {
   readonly ignoredWatchedContents: Map<string, number>
   watcher: FSWatcher | null
   debounceTimer: ReturnType<typeof setTimeout> | null
-  agentState: 'idle' | 'active' | 'cooldown'
-  lastExternalChange: number
-  agentCooldownTimer: ReturnType<typeof setTimeout> | null
   workdirPath: string | null
   workdirEntries: WorkdirEntry[]
   workdirTree: WorkdirTreeNode[]
@@ -457,9 +455,6 @@ class WindowStateImpl implements WindowState {
   desktopSidebarOpen: boolean
   isDrawerMode = false
   tabs: TabCollection
-  agentState: 'idle' | 'active' | 'cooldown' = 'idle'
-  lastExternalChange = 0
-  agentCooldownTimer: ReturnType<typeof setTimeout> | null = null
   workdirPath: string | null
   workdirEntries: WorkdirEntry[] = []
   workdirTree: WorkdirTreeNode[] = []
@@ -1685,11 +1680,6 @@ function createWindow(initialDocument?: { filePath: string; documentKind?: Exclu
   win.on('closed', () => {
     // 门槛六：窗口关闭时每个 tab 都走 watcher/debounce 清理，不止活动 tab。
     closeAllTabs(state.tabs)
-    if (state.agentCooldownTimer) {
-      clearTimeout(state.agentCooldownTimer)
-      state.agentCooldownTimer = null
-    }
-    state.agentState = 'idle'
     windowStates.delete(win.id)
   })
 
@@ -1880,39 +1870,6 @@ function stopWatching(state: WindowState): void {
     clearTimeout(state.debounceTimer)
     state.debounceTimer = null
   }
-  if (state.agentCooldownTimer) {
-    clearTimeout(state.agentCooldownTimer)
-    state.agentCooldownTimer = null
-  }
-  state.agentState = 'idle'
-  state.lastExternalChange = 0
-}
-
-function transitionAgentState(win: BrowserWindow, state: WindowState, newState: 'idle' | 'active' | 'cooldown'): void {
-  if (state.agentCooldownTimer) {
-    clearTimeout(state.agentCooldownTimer)
-    state.agentCooldownTimer = null
-  }
-
-  if (newState === 'active') {
-    if (state.agentState !== 'active') {
-      state.agentState = 'active'
-      if (!win.isDestroyed()) win.webContents.send('agent-activity', 'active')
-    }
-    // Reset cooldown timer — 3s after last write
-    state.agentCooldownTimer = setTimeout(() => {
-      transitionAgentState(win, state, 'cooldown')
-    }, 3000)
-  } else if (newState === 'cooldown') {
-    state.agentState = 'cooldown'
-    if (!win.isDestroyed()) win.webContents.send('agent-activity', 'cooldown')
-    state.agentCooldownTimer = setTimeout(() => {
-      transitionAgentState(win, state, 'idle')
-    }, 2000)
-  } else {
-    state.agentState = 'idle'
-    if (!win.isDestroyed()) win.webContents.send('agent-activity', 'idle')
-  }
 }
 
 function watchFile(win: BrowserWindow, state: WindowState): void {
@@ -1984,15 +1941,6 @@ function handleExternalFileContent(
     tab.lastSyncedContent = syncDecision.nextSyncedContent
   }
 
-  // Agent activity detection
-  const now = Date.now()
-  const gap = now - state.lastExternalChange
-  state.lastExternalChange = now
-  if (gap > 0 && gap < 2000) {
-    transitionAgentState(win, state, 'active')
-  } else if (state.agentState === 'active') {
-    transitionAgentState(win, state, 'active')
-  }
   if (!blockedDestructiveApply && tab.documentKind === 'draft' && tab.draftId) {
     const nextEntry = findDraftEntryById(tab.draftId)
     if (nextEntry) {
@@ -2140,6 +2088,54 @@ function createTabInWindow(win: BrowserWindow, editorContentSnapshot?: string): 
   deliverFileOpenedPayload(win, { path: null, content: '' })
   persistLastActiveDocument(state)
   sendSidebarState(win)
+  return true
+}
+
+// 关闭 tab 前由渲染层 flush 活动文档并回传正文；若快照仍脏，必须明确确认丢弃。
+// 关闭当前 tab 时优先切到右侧相邻项，最后一个 tab 则替换为全新 blank tab。
+async function closeTabInWindow(win: BrowserWindow, tabId: string, editorContentSnapshot?: string): Promise<boolean> {
+  if (!areTabsEnabled()) return false
+  const state = getState(win)
+  const target = findTabById(state.tabs, tabId)
+  if (!target) return false
+  if (typeof editorContentSnapshot === 'string') {
+    snapshotTabUnsavedContent(state.activeTab, editorContentSnapshot)
+  }
+
+  if (target.unsavedContent !== null) {
+    const { response } = await dialog.showMessageBox(win, {
+      type: 'warning',
+      title: '关闭未保存的标签？',
+      message: `“${target.displayTitle || '未命名文档'}”仍有未保存内容。`,
+      detail: '关闭标签会丢弃这部分内容。要保留文稿，请取消并先确认保存状态。',
+      buttons: ['取消', '丢弃并关闭'],
+      defaultId: 0,
+      cancelId: 0,
+    })
+    if (response !== 1) {
+      sendTabsState(win)
+      return false
+    }
+  }
+
+  const wasActive = state.tabs.activeTabId === tabId
+  if (wasActive && state.tabs.tabs.length > 1) {
+    const index = state.tabs.tabs.findIndex((tab) => tab.id === tabId)
+    const nextTab = state.tabs.tabs[index + 1] ?? state.tabs.tabs[index - 1]
+    if (!nextTab || !activateTabInWindow(win, nextTab.id)) return false
+  }
+
+  const result = closeTabFromCollection(state.tabs, tabId)
+  if (!result) return false
+  detachTabWatch(result.closedTab)
+
+  if (result.replacedLastTab) {
+    updateTitle(win)
+    deliverFileOpenedPayload(win, { path: null, content: '' })
+  }
+  persistLastActiveDocument(state)
+  sendSidebarState(win)
+  sendTabsState(win)
   return true
 }
 
@@ -2762,6 +2758,12 @@ ipcMain.handle('tabs-switch', async (event, tabId: string, content: string) => {
   const win = getWinFromEvent(event)
   if (!win || typeof tabId !== 'string') return false
   return activateTabInWindow(win, tabId, typeof content === 'string' ? content : undefined)
+})
+
+ipcMain.handle('tabs-close', async (event, tabId: string, content: string) => {
+  const win = getWinFromEvent(event)
+  if (!win || typeof tabId !== 'string') return false
+  return closeTabInWindow(win, tabId, typeof content === 'string' ? content : undefined)
 })
 
 ipcMain.handle('tabs-new', async (event, content: string) => {

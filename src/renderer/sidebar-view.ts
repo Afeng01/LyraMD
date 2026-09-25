@@ -59,15 +59,6 @@ export type SidebarInlineTitleCommitAction =
   | { kind: 'update-draft-title'; draftId: string }
   | { kind: 'rename-file-title'; filePath: string }
 
-export function resolveWorkspaceLabel(workspacePath: string | null): string {
-  if (!workspacePath) return '选择目录'
-  return basename(workspacePath)
-}
-
-export function shouldScrollWorkspaces(workspacePaths: string[], threshold = 2): boolean {
-  return workspacePaths.length > threshold
-}
-
 export function isPinnedDraft(state: SidebarState, draftId: string): boolean {
   return state.pinnedItems.some((item) => item.kind === 'draft' && item.draftId === draftId)
 }

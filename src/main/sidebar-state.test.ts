@@ -32,7 +32,7 @@ describe('sidebar defaults', () => {
 })
 
 describe('window sidebar view state', () => {
-  it('copies the persisted default tab and workdir without sharing mutable window view state', () => {
+  it('migrates a legacy recent tab while keeping window view state independent', () => {
     const first = createWindowSidebarViewState({
       ...DEFAULT_SIDEBAR_STATE,
       activeSidebarTab: 'recent',
@@ -48,7 +48,7 @@ describe('window sidebar view state', () => {
     first.workdirPath = '/workspace-b'
 
     expect(second).toEqual({
-      activeSidebarTab: 'recent',
+      activeSidebarTab: 'drafts',
       workdirPath: '/workspace-a',
     })
   })

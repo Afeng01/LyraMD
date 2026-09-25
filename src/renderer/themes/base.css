@@ -292,11 +292,11 @@ body.platform-win32 #safety-toggle {
 }
 
 body.platform-win32 #agent-toggle {
-  right: 238px;
+  right: 198px;
 }
 
 body.platform-win32 #outline-toggle {
-  right: 206px;
+  right: 166px;
 }
 
 #sidebar-toggle {
@@ -362,11 +362,11 @@ body.platform-win32 #outline-toggle {
 }
 
 #agent-toggle {
-  right: 88px;
+  right: 48px;
 }
 
 #outline-toggle {
-  right: 56px;
+  right: 16px;
 }
 
 #sidebar-toggle:hover,
@@ -406,8 +406,7 @@ body.platform-win32 #outline-toggle {
   overflow: hidden;
 }
 
-/* 标签页阶段 A：窗口级标签条。默认不渲染——只有 tabs.enabled 且多文档时
-   渲染层才会把 #tab-strip 挂载到 #workspace 之前（零 DOM 痕迹）。 */
+/* 阶段 C：tabs.enabled 开启时单文档也常驻一个 tab；关闭开关时标签条从 DOM 摘除。 */
 #tab-strip {
   display: flex;
   align-items: stretch;
@@ -423,6 +422,14 @@ body.platform-win32 #outline-toggle {
 
 #tab-strip::-webkit-scrollbar {
   display: none;
+}
+
+#tab-strip .tab-strip-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  flex: none;
+  min-width: 0;
 }
 
 #tab-strip .tab-strip-tab {
@@ -441,6 +448,39 @@ body.platform-win32 #outline-toggle {
   font: inherit;
   font-size: 12px;
   font-weight: 600;
+}
+
+#tab-strip .tab-strip-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 17px;
+  line-height: 1;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+
+#tab-strip .tab-strip-item:hover .tab-strip-close,
+#tab-strip .tab-strip-item:focus-within .tab-strip-close,
+#tab-strip .tab-strip-item.active .tab-strip-close {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#tab-strip .tab-strip-close:hover {
+  background: color-mix(in srgb, var(--text-muted) 12%, transparent 88%);
+  color: var(--text-color);
 }
 
 #tab-strip .tab-strip-title {
@@ -511,6 +551,13 @@ body.platform-win32 #outline-toggle {
   border-radius: 8px;
   background: var(--bg-color);
   box-shadow: 0 8px 24px color-mix(in srgb, rgba(15, 23, 42, 0.16) 60%, transparent 40%);
+}
+
+#tab-strip .tab-strip-recent-heading {
+  padding: 6px 10px 5px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 650;
 }
 
 #tab-strip .tab-strip-recent-item {
@@ -611,33 +658,6 @@ body.platform-win32 #outline-toggle {
   margin-top: 14px;
 }
 
-#workspaces-section {
-  padding: 6px;
-  border: 1px solid color-mix(in srgb, var(--border-color) 58%, transparent 42%);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--bg-color) 96%, var(--border-color) 4%);
-}
-
-#workspaces-section .sidebar-section-header {
-  margin-bottom: 8px;
-}
-
-#workspaces-section .sidebar-section-title::before {
-  display: none;
-}
-
-#workspaces-section .sidebar-section-title {
-  padding-left: 0;
-  color: var(--text-muted);
-}
-
-#workspace-add {
-  width: 26px;
-  height: 26px;
-  border-color: transparent;
-  background: transparent;
-}
-
 .sidebar-label {
   margin: 0 0 8px;
   font-size: 12px;
@@ -684,22 +704,22 @@ body.platform-win32 #outline-toggle {
   gap: 4px;
 }
 
-#sidebar :is(#workspaces-list, #library-scroll-region) {
+#sidebar #library-scroll-region {
   scrollbar-color: transparent transparent;
 }
 
-#sidebar :is(#workspaces-list, #library-scroll-region)::-webkit-scrollbar-thumb {
+#sidebar #library-scroll-region::-webkit-scrollbar-thumb {
   background: transparent;
   border-radius: 3px;
 }
 
-#sidebar :is(#workspaces-list, #library-scroll-region):hover,
-#sidebar :is(#workspaces-list, #library-scroll-region):focus-within {
+#sidebar #library-scroll-region:hover,
+#sidebar #library-scroll-region:focus-within {
   scrollbar-color: color-mix(in srgb, var(--border-color) 72%, transparent 28%) transparent;
 }
 
-#sidebar :is(#workspaces-list, #library-scroll-region):hover::-webkit-scrollbar-thumb,
-#sidebar :is(#workspaces-list, #library-scroll-region):focus-within::-webkit-scrollbar-thumb {
+#sidebar #library-scroll-region:hover::-webkit-scrollbar-thumb,
+#sidebar #library-scroll-region:focus-within::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, var(--border-color) 72%, transparent 28%);
 }
 
@@ -748,7 +768,7 @@ body.platform-win32 #outline-toggle {
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
-  color: var(--link-color);
+  color: #e3a13b;
 }
 
 .sidebar-pinned-mark svg {
@@ -824,8 +844,7 @@ body.platform-win32 #outline-toggle {
 
 .sidebar-section-toggle,
 .sidebar-section-title,
-.sidebar-inline-button,
-.sidebar-icon-button {
+.sidebar-inline-button {
   -webkit-app-region: no-drag;
   border: none;
   background: transparent;
@@ -904,139 +923,6 @@ body.platform-win32 #outline-toggle {
   background: transparent;
 }
 
-.sidebar-icon-button {
-  width: 30px;
-  height: 30px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent 30%);
-  border-radius: 7px;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 18px;
-  line-height: 1;
-}
-
-.sidebar-icon-button:hover {
-  color: var(--text-color);
-  background: color-mix(in srgb, var(--selection-bg) 24%, transparent 76%);
-}
-
-.workspace-list {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  max-height: none;
-}
-
-.workspace-list.scrollable {
-  max-height: calc((34px + 5px) * 2 - 5px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding-right: 2px;
-}
-
-.workspace-item-row {
-  position: relative;
-}
-
-.workspace-item {
-  width: 100%;
-  min-height: 34px;
-  padding: 7px 10px;
-  border: 1px solid transparent;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--text-color);
-  cursor: pointer;
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 500;
-  text-align: left;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  -webkit-app-region: no-drag;
-}
-
-.workspace-item-row.with-remove .workspace-item {
-  padding-right: 38px;
-}
-
-.workspace-row-actions {
-  position: absolute;
-  top: 50%;
-  right: 6px;
-  display: inline-flex;
-  transform: translateY(-50%);
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition: opacity 0.12s ease;
-}
-
-.workspace-item-row:hover .workspace-row-actions,
-.workspace-item-row:focus-within .workspace-row-actions {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-}
-
-.workspace-item.active + .workspace-row-actions {
-  opacity: 0.72;
-  visibility: visible;
-  pointer-events: auto;
-}
-
-.workspace-item.active + .workspace-row-actions:hover {
-  opacity: 1;
-}
-
-.workspace-item:hover {
-  background: color-mix(in srgb, var(--text-muted) 8%, transparent 92%);
-  border-color: color-mix(in srgb, var(--border-color) 58%, transparent 42%);
-}
-
-.workspace-item.active {
-  background: color-mix(in srgb, var(--selection-bg) 34%, transparent 66%);
-  border-color: color-mix(in srgb, var(--link-color) 24%, transparent 76%);
-  color: var(--link-color);
-  font-weight: 600;
-}
-
-.workspace-item.drag-over {
-  border-color: color-mix(in srgb, var(--link-color) 42%, transparent 58%);
-  background: color-mix(in srgb, var(--selection-bg) 58%, transparent 42%);
-}
-
-.workspace-item-label {
-  min-width: 0;
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.workspace-drag-handle {
-  flex-shrink: 0;
-  color: var(--text-muted);
-  font-size: 12px;
-  opacity: 0;
-  cursor: grab;
-}
-
-.workspace-item:hover .workspace-drag-handle,
-.workspace-item:focus-visible .workspace-drag-handle,
-.workspace-item.drag-over .workspace-drag-handle {
-  opacity: 0.76;
-}
-
-.workspace-item.empty {
-  border-style: dashed;
-  color: var(--text-muted);
-}
-
 .sidebar-library-header {
   position: relative;
   display: grid;
@@ -1051,7 +937,7 @@ body.platform-win32 #outline-toggle {
 .sidebar-tabs {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.35fr) 28px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr) 28px;
   padding: 2px;
   border: 1px solid color-mix(in srgb, var(--border-color) 58%, transparent 42%);
   border-radius: 7px;
@@ -1090,7 +976,7 @@ body.platform-win32 #outline-toggle {
   z-index: 8;
   top: calc(100% + 4px);
   right: 0;
-  min-width: 104px;
+  min-width: 184px;
   padding: 4px;
   border: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent 30%);
   border-radius: 8px;
@@ -1115,6 +1001,12 @@ body.platform-win32 #outline-toggle {
 
 .library-create-menu button:hover {
   background: color-mix(in srgb, var(--selection-bg) 34%, transparent 66%);
+}
+
+.library-create-divider {
+  height: 1px;
+  margin: 4px 6px;
+  background: color-mix(in srgb, var(--border-color) 70%, transparent 30%);
 }
 
 .sidebar-item-row {
@@ -2089,46 +1981,6 @@ body.sidebar-resizing * {
   color: var(--text-muted);
 }
 
-#agent-activity-dot {
-  position: fixed;
-  top: 22px;
-  right: 16px;
-  z-index: 52;
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--text-muted) 42%, transparent 58%);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--bg-color) 72%, transparent 28%);
-  pointer-events: none;
-  opacity: 0.62;
-}
-
-#agent-activity-dot[data-agent-activity="active"] {
-  background: #e8913a;
-  opacity: 1;
-  animation: agent-activity-breathe 1.8s ease-in-out infinite;
-}
-
-#agent-activity-dot[data-agent-activity="cooldown"] {
-  background: #3dba5c;
-  opacity: 1;
-  animation: agent-activity-breathe 2.4s ease-in-out infinite;
-}
-
-@keyframes agent-activity-breathe {
-  0%, 100% {
-    transform: scale(0.82);
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--bg-color) 70%, transparent 30%),
-      0 0 0 0 color-mix(in srgb, var(--link-color) 32%, transparent 68%);
-  }
-  50% {
-    transform: scale(1);
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--bg-color) 70%, transparent 30%),
-      0 0 0 8px color-mix(in srgb, var(--link-color) 0%, transparent 100%);
-  }
-}
 
 :root[data-background-scope="window"]:not([data-background-mode="default"]) #editor,
 :root[data-background-scope="editor"]:not([data-background-mode="default"]) #editor {

@@ -125,6 +125,7 @@ export interface DocumentRevisionSummary {
 }
 
 export interface AppSettings {
+  settingsSchemaVersion: number
   titleSyncMode: TitleSyncMode
   saveAsMode: SaveAsMode
   themeName: string

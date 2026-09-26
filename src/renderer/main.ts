@@ -216,6 +216,7 @@ function currentDocumentMeta(state: SidebarState): string {
 
 function createDefaultSettings(): AppSettings {
   return {
+    settingsSchemaVersion: 1,
     titleSyncMode: 'ask',
     saveAsMode: 'switch',
     themeName: 'elegant',
@@ -317,7 +318,7 @@ function createDefaultSettings(): AppSettings {
       ],
     },
     tabs: {
-      enabled: false,
+      enabled: true,
     },
   }
 }

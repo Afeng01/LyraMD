@@ -146,7 +146,10 @@ export const DEFAULT_AI_PROMPT_TEMPLATES: AiPromptTemplate[] = [
   },
 ]
 
+export const APP_SETTINGS_SCHEMA_VERSION = 1
+
 export const DEFAULT_APP_SETTINGS: AppSettings = {
+  settingsSchemaVersion: APP_SETTINGS_SCHEMA_VERSION,
   titleSyncMode: 'ask',
   saveAsMode: 'switch',
   themeName: 'elegant',
@@ -171,7 +174,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     maxRevisionsPerDocument: 40,
   },
   tabs: {
-    enabled: false,
+    enabled: true,
   },
   aiHelper: {
     provider: {
@@ -313,7 +316,9 @@ function normalizeTabSettings(input: unknown): TabSettings {
     ? input as Partial<Record<keyof TabSettings, unknown>>
     : {}
   return {
-    enabled: candidate.enabled === true,
+    enabled: isBoolean(candidate.enabled)
+      ? candidate.enabled
+      : DEFAULT_APP_SETTINGS.tabs.enabled,
   }
 }
 
@@ -453,6 +458,7 @@ function normalizeShortcuts(input: unknown, fallback: ShortcutMap = DEFAULT_SHOR
 
 export function normalizeAppSettings(input: PersistedAppSettings | null | undefined): AppSettings {
   return {
+    settingsSchemaVersion: APP_SETTINGS_SCHEMA_VERSION,
     titleSyncMode: isTitleSyncMode(input?.titleSyncMode)
       ? input.titleSyncMode
       : DEFAULT_APP_SETTINGS.titleSyncMode,
@@ -488,9 +494,14 @@ async function persistAppSettings(settingsPath: string, settings: AppSettings): 
 export async function loadAppSettings(settingsPath: string): Promise<AppSettings> {
   try {
     const raw = await readFile(settingsPath, 'utf-8')
-    const normalized = normalizeAppSettings(JSON.parse(raw) as PersistedAppSettings)
-    await persistAppSettings(settingsPath, normalized)
-    return normalized
+    const persisted = JSON.parse(raw) as PersistedAppSettings
+    const normalized = normalizeAppSettings(persisted)
+    const storedVersion = persisted.settingsSchemaVersion
+    const migrated = typeof storedVersion !== 'number' || storedVersion < APP_SETTINGS_SCHEMA_VERSION
+      ? { ...normalized, tabs: { enabled: true } }
+      : normalized
+    await persistAppSettings(settingsPath, migrated)
+    return migrated
   } catch {
     await persistAppSettings(settingsPath, DEFAULT_APP_SETTINGS)
     return DEFAULT_APP_SETTINGS
@@ -503,6 +514,7 @@ export async function updateAppSettings(
   patch: AppSettingsPatch,
 ): Promise<AppSettings> {
   const nextSettings: AppSettings = {
+    settingsSchemaVersion: APP_SETTINGS_SCHEMA_VERSION,
     titleSyncMode: isTitleSyncMode(patch.titleSyncMode)
       ? patch.titleSyncMode
       : currentSettings.titleSyncMode,

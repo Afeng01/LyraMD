@@ -436,7 +436,6 @@ function createFileItem(
   const content = document.createElement('div')
   content.className = 'sidebar-item-content'
   content.appendChild(createTextBlock('sidebar-title', title))
-  if (meta) content.appendChild(createTextBlock('sidebar-meta', meta))
   item.append(icon, content)
   return item
 }

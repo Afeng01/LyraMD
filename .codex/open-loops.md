@@ -12,6 +12,19 @@
 - **阶段 A/B/C 标签页战役**：会话恢复、常驻单一顶栏与聚焦复核修复均已落地；A2 复核问题收口，阶段 C reviewer 判通过，启动恢复期间 openFile 窄竞态修复已提交 `56be6451`。
 - **2026-09-25 主界面与标签交互优化**：实现见 CHANGELOG 未发布区；本轮测试/构建结论见上方 Open 项。
 
+## Done (2026-09-28)
+
+- **主界面改造收尾并提交**：标签条「+」新建入口（`2382cb63`）、侧栏工作目录/大纲互斥 + 多目录展开与移除保护 + 死代码清理（`51e92056`）、文档同步（`d2542f23`）。
+- **修复 init 崩溃**：清理 `createFileItem` 时遗留 `meta` 引用导致 renderer init 中断、全部事件绑定失效（`b27d627f`）。
+
+## Deferred (2026-09-28)
+
+- **类型检查接入 pipeline（技术债）**：全链路 esbuild 转译 + vitest 无类型检查，TS 级错误（如 `meta is not defined`）必然逃逸到运行时。接入 `tsc --noEmit` 前需先清历史错误：
+  1. `src/main/settings.ts` 4 处 TS2353/TS2339——`settingsSchemaVersion` 已被使用但 `AppSettings` 接口缺该字段（`8825f5f1` 引入）；
+  2. tsconfig 跨 rootDir 引用（preload/renderer 引用 `src/main/update-notice.ts`、`settings.ts`，main 引用 `src/shared/local-media.ts` 报 TS6059），需调整 project references / rootDir 或抽 shared 编译单元；
+  3. `src/main/ai-provider.test.ts` 2 处元组类型误用。
+  用户拍板：先记录不发版前做，1.4.0-beta 发版后再排期。
+
 ## Done (2026-09-15)
 
 - **修复新功能演示/语法速查弹出空白窗口**：新增 renderer-ready 握手（commit `df0069e9`）。

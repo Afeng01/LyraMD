@@ -23,10 +23,10 @@ Real-time collaboration between humans and AI agents, adapted for a quieter work
 - **Feedback and issue reporting** from Settings, opening a prefilled GitHub Issue without storing a GitHub token locally.
 - **WYSIWYG Markdown editing** powered by Milkdown.
 - **Markdown outline, images, and tokens** for H1-H6 headings, local/relative images including paths with spaces, YAML tags, Obsidian `#tag` / nested tags, and `[[wikilink]]`.
-- **Lightweight sidebar** with only Drafts and Workdir views; the Workdir `+` menu switches folders or creates a Markdown file/folder. Pinned documents get an inline amber star without changing list order.
+- **Lightweight sidebar** that switches between Workdir and Outline; draft files appear in the Workdir list, and multiple directories can be expanded or collapsed independently. The Workdir actions menu adds folders or creates Markdown files/folders; non-draft roots can be removed from the list without deleting disk contents. Pinned documents get an inline amber star without changing list order.
 - **Recent files** from the tab strip's clock menu: open a recent document that is not already in the current window as a tab.
-- **Opt-in tabs** with session restore, per-tab unsaved indicators, a 24×24 close target, and a confirmation before discarding unsaved content.
-- **Recursive Markdown workdir list** using relative paths.
+- **Tabs enabled by default** at the top of the window (legacy settings migrate automatically; the setting remains optional), with session restore, per-tab unsaved indicators, a 24×24 close target, and a confirmation before discarding unsaved content.
+- **Multiple recursive Markdown workdirs** using relative paths, with independent expand/collapse state; the draft directory appears as a workdir too.
 - **Writing tools** including deterministic CJK typography cleanup, document stats, search, outline, local images, and Markdown token styling.
 - **Themes, fonts, and export**: built-in themes with per-theme editor fonts, custom font selection, custom CSS import, PDF export, and HTML export.
 
@@ -35,7 +35,8 @@ Real-time collaboration between humans and AI agents, adapted for a quieter work
 LyraMD keeps the original agent-native single-file editing core, but adds just enough navigation for a personal writing/workbench flow:
 
 - switch among a small set of Markdown files in one window
-- switch the active working directory from the sidebar without keeping a workspace list open
+- browse multiple working directories from one compact sidebar
+- switch between a directory tree and the document outline in the sidebar
 - return to recent documents from the tab strip without turning the app into a full file manager
 
 ## Development

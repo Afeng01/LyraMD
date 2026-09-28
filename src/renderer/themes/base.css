@@ -3807,14 +3807,19 @@ body.theme-dark .settings-option input[type="radio"]:checked::after {
 
 .settings-release-notes {
   display: grid;
-  gap: 12px;
+  gap: 14px;
 }
 
 .settings-release-card {
-  border: 1px solid color-mix(in srgb, var(--border-color) 30%, transparent 70%);
-  border-radius: 8px;
-  padding: 14px;
-  background: color-mix(in srgb, var(--bg-color) 94%, var(--border-color) 6%);
+  border: 1px solid color-mix(in srgb, var(--border-color) 22%, transparent 78%);
+  border-radius: 10px;
+  padding: 16px 18px 14px;
+  background: color-mix(in srgb, var(--bg-color) 96%, var(--border-color) 4%);
+}
+
+.settings-release-card.latest {
+  border-color: color-mix(in srgb, var(--link-color) 34%, transparent 66%);
+  background: color-mix(in srgb, var(--selection-bg) 14%, var(--bg-color) 86%);
 }
 
 .settings-release-header {
@@ -3822,13 +3827,36 @@ body.theme-dark .settings-option input[type="radio"]:checked::after {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 10px;
+  margin-bottom: 4px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed color-mix(in srgb, var(--border-color) 45%, transparent 55%);
+}
+
+.settings-release-title-group {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
 }
 
 .settings-release-version {
   color: var(--text-color);
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.settings-release-card.latest .settings-release-version {
+  color: var(--link-color);
+}
+
+.settings-release-card.latest .settings-release-badge {
+  background: color-mix(in srgb, var(--link-color) 18%, transparent 82%);
+}
+
+.settings-release-date {
+  color: var(--text-muted);
+  font-size: 12px;
 }
 
 .settings-release-badge {
@@ -3848,16 +3876,40 @@ body.theme-dark .settings-option input[type="radio"]:checked::after {
   background: transparent;
 }
 
+.settings-release-card h5 {
+  margin: 16px 0 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
 .settings-release-card ul {
   margin: 0;
-  padding-left: 18px;
+  padding-left: 16px;
   color: var(--text-muted);
-  font-size: 12px;
-  line-height: 1.55;
+  font-size: 12.5px;
+  line-height: 1.65;
+}
+
+.settings-release-card li::marker {
+  color: var(--link-color);
+}
+
+.settings-release-card li strong {
+  color: var(--text-color);
+  font-weight: 600;
 }
 
 .settings-release-card li + li {
-  margin-top: 6px;
+  margin-top: 7px;
+}
+
+.settings-release-card p {
+  margin: 8px 0 0;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  line-height: 1.65;
 }
 
 #editor .ProseMirror .markdown-token {

@@ -17,20 +17,30 @@ function renderReleaseNotesPane(): void {
 
 function releaseBadge(release: ChangelogRelease, index: number): { text: string; muted: boolean } {
   if (release.version === '未发布') return { text: '开发中', muted: true }
-  if (index === 1) return { text: '最新发布版', muted: false }
-  return { text: release.note || '历史版本', muted: true }
+  if (index === 0) return { text: '最新发布版', muted: false }
+  return { text: '历史版本', muted: true }
 }
 
 function createReleaseCard(release: ChangelogRelease, index: number): HTMLElement {
   const article = document.createElement('article')
   article.className = 'settings-release-card'
+  article.classList.toggle('latest', index === 0)
 
   const header = document.createElement('div')
   header.className = 'settings-release-header'
+  const titleGroup = document.createElement('div')
+  titleGroup.className = 'settings-release-title-group'
   const version = document.createElement('span')
   version.className = 'settings-release-version'
   version.textContent = release.version === '未发布' ? 'LyraMD 未发布' : `LyraMD ${release.version}`
-  header.appendChild(version)
+  titleGroup.appendChild(version)
+  if (release.note) {
+    const date = document.createElement('span')
+    date.className = 'settings-release-date'
+    date.textContent = release.note
+    titleGroup.appendChild(date)
+  }
+  header.appendChild(titleGroup)
   const badge = releaseBadge(release, index)
   const badgeSpan = document.createElement('span')
   badgeSpan.className = badge.muted ? 'settings-release-badge muted' : 'settings-release-badge'

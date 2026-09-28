@@ -3873,11 +3873,6 @@ async function init(): Promise<void> {
       return
     }
 
-    if (pendingRemoveActionKey) {
-      clearPendingRemoveConfirmation()
-      renderSidebar()
-    }
-
     const removeWorkspaceButton = target?.closest('[data-remove-workspace-path]') as HTMLElement | null
     if (removeWorkspaceButton) {
       event.preventDefault()
@@ -3892,6 +3887,11 @@ async function init(): Promise<void> {
         syncSidebarState()
       }).catch(() => syncSidebarState())
       return
+    }
+
+    if (pendingRemoveActionKey) {
+      clearPendingRemoveConfirmation()
+      renderSidebar()
     }
 
     const workspaceToggle = target?.closest('[data-workspace-toggle-path]') as HTMLElement | null

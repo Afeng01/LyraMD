@@ -327,6 +327,21 @@ describe('library create action regression', () => {
   })
 })
 
+describe('workspace removal confirmation regression', () => {
+  it('handles the second workspace-removal click before clearing pending confirmation', () => {
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+    const clickStart = renderer.indexOf("document.addEventListener('click', (event) => {")
+    const clickEnd = renderer.indexOf("\n  document.addEventListener('dblclick'", clickStart)
+    const clickHandler = renderer.slice(clickStart, clickEnd)
+    const removeBranch = clickHandler.indexOf("const removeWorkspaceButton = target?.closest('[data-remove-workspace-path]')")
+    const pendingReset = clickHandler.indexOf('if (pendingRemoveActionKey) {')
+
+    expect(removeBranch).toBeGreaterThanOrEqual(0)
+    expect(pendingReset).toBeGreaterThanOrEqual(0)
+    expect(removeBranch).toBeLessThan(pendingReset)
+  })
+})
+
 describe('sidebar polish regression', () => {
   it('sets title attributes on draft items for hover tooltip', () => {
     const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')

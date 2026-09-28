@@ -41,7 +41,7 @@ export interface DocumentSafetySettings {
 }
 
 export interface TabSettings {
-  /** 标签页阶段 A 开关：开启后 ⌘T 新建 tab、新开文档落新 tab（默认关闭，行为与单文档一致） */
+  /** 标签页开关：启用时 ⌘T 新建 tab、新开文档落新 tab（默认开启；关闭后恢复单文档行为） */
   enabled: boolean
 }
 

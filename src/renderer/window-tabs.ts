@@ -20,6 +20,7 @@ export interface TabsStatePayload {
 
 export interface TabStripHandlers {
   onActivate: (tabId: string) => void
+  onNew?: () => void
   onClose?: (tabId: string) => void
   /** 最近文件入口：点选未打开的最近文稿，先 flushAutoSave 再走 openTabDocument */
   onOpenRecent?: (filePath: string) => void
@@ -226,6 +227,17 @@ export function createWindowTabStripController(handlers: TabStripHandlers): Wind
   }
 
   /** 标签条末尾的时钟按钮 + 下拉容器；每次重渲染都会重建，旧引用随之作废。 */
+  function renderNewTabControl(container: HTMLElement): void {
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = 'tab-strip-new-button'
+    button.textContent = '+'
+    button.title = '新建标签'
+    button.setAttribute('aria-label', '新建标签')
+    button.addEventListener('click', () => handlers.onNew?.())
+    container.append(button)
+  }
+
   function renderRecentControl(container: HTMLElement): void {
     const wrapper = document.createElement('div')
     wrapper.className = 'tab-strip-recent'
@@ -297,6 +309,7 @@ export function createWindowTabStripController(handlers: TabStripHandlers): Wind
     closeRecentMenu()
     currentTabs = payload.tabs
     renderTabStripItems(strip, payload.tabs, handlers)
+    renderNewTabControl(strip)
     renderRecentControl(strip)
   }
 

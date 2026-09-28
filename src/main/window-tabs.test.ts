@@ -34,7 +34,7 @@ function makeLoadedTab(filePath: string, content: string): WindowTabState {
 }
 
 describe('window tab model', () => {
-  it('初始集合只有一个 tab 且它是活动 tab（默认关闭时与单文档现状等价）', () => {
+  it('初始集合只有一个活动 tab，承载窗口的当前文档', () => {
     const collection = createInitialTabCollection()
     expect(collection.tabs).toHaveLength(1)
     expect(getActiveTab(collection)).toBe(collection.tabs[0])

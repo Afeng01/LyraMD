@@ -179,12 +179,13 @@ describe('settings dialog regression', () => {
     expect(file).toContain('api.updateSettings({ showDocumentStats')
   })
 
-  it('exposes the opt-in open-in-tabs toggle in the general pane', () => {
+  it('exposes the default-on open-in-tabs toggle in the general pane', () => {
     const file = readFileSync(join(process.cwd(), 'src/renderer/settings-dialog.ts'), 'utf8')
     const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
 
     expect(html).toContain('id="settings-open-files-in-tabs"')
     expect(html).toContain('在新标签页中打开文件')
+    expect(html).toContain('标签页默认开启；关闭此选项后，每个窗口只打开一篇文稿。')
     expect(file).toContain('updateOpenFilesInTabs')
     expect(file).toContain('api.updateSettings({ tabs: { enabled }')
     expect(file).toMatch(/openInTabsInput\.checked = appSettings\.tabs\?\.enabled === true/)

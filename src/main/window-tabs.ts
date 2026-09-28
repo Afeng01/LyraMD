@@ -1,8 +1,8 @@
 import type { FSWatcher } from 'fs'
 import type { HandledExternalContentRecord } from './file-sync'
 
-// 标签页阶段 A 的窗口内 tab 数据模型（docs/2026-09-15-竞品调研-ColoMD-2.4-主界面优化方案.md §4/§8）。
-// 设计约束：默认关闭（单 tab）时与既有单文档 WindowState 行为完全等价；
+// 窗口内 tab 数据模型（方案历史见 docs/2026-09-15-竞品调研-ColoMD-2.4-主界面优化方案.md §11）。
+// 每个窗口至少有一个 tab；用户关闭标签页偏好时仍保持单文档窗口行为。
 // 本模块只承载纯数据与纯逻辑，Electron/文件系统副作用（watch 挂载、落盘）留在 index.ts。
 
 export type TabDocumentKind = 'blank' | 'draft' | 'file'
@@ -65,7 +65,7 @@ export function createWindowTabState(): WindowTabState {
 }
 
 /**
- * 初始集合恒为「单个 tab 且它就是活动 tab」——这是“默认关闭时与现状等价”的模型层保证：
+ * 初始集合恒为「单个 tab 且它就是活动 tab」——单文档也是一个 tab；
  * 所有按 tab 隔离的字段都恰好只有一份，且始终被活动 tab 命中。
  */
 export function createInitialTabCollection(): TabCollection {

@@ -30,10 +30,11 @@ describe('changelog parser', () => {
     const raw = readFileSync(join(process.cwd(), 'CHANGELOG.md'), 'utf8')
     const releases = parseChangelog(raw)
     expect(releases.length).toBeGreaterThanOrEqual(2)
-    expect(releases[0].version).toBe('未发布')
-    expect(releases[0].blocks.some((block) => block.kind === 'group' && block.title === '文稿安全（2026-09-15，P0 整改第二批）')).toBe(true)
-    const latestPublished = releases[1]
-    expect(latestPublished.version).toMatch(/^\d+\.\d+\.\d+$/)
-    expect(latestPublished.blocks.length).toBeGreaterThan(0)
+    // 最新版块不再用「未发布」占位：发版即写真实版本号（如 1.4.0-beta.1）
+    expect(releases[0].version).toMatch(/^\d+\.\d+\.\d+/)
+    expect(releases[0].blocks.some((block) => block.kind === 'group' && block.title?.startsWith('主界面与标签页'))).toBe(true)
+    const previousRelease = releases[1]
+    expect(previousRelease.version).toMatch(/^\d+\.\d+\.\d+$/)
+    expect(previousRelease.blocks.length).toBeGreaterThan(0)
   })
 })

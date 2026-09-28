@@ -14,25 +14,27 @@ describe('outline shortcut affordance', () => {
     expect(renderer).toContain('toggleOutlinePanel()')
   })
 
-  it('shows the outline shortcut on the toolbar button and settings shortcut list', () => {
-    expect(html).toMatch(/id="outline-toggle"[^>]*title="打开大纲 \(Cmd\/Ctrl\+Shift\+O\)"/)
+  it('keeps the outline shortcut in settings and removes the standalone toolbar button', () => {
+    expect(html).not.toContain('id="outline-toggle"')
+    expect(html).toContain('id="outline-tab"')
     expect(html).toContain('<span class="settings-shortcut-label">打开大纲</span>')
     expect(html).toContain('<kbd class="settings-shortcut-key" data-shortcut-action="toggleOutline">Cmd/Ctrl+Shift+O</kbd>')
   })
 
-  it('keeps the outline panel mounted so open and close can slide', () => {
+  it('switches the outline inside the sidebar instead of opening a context drawer', () => {
+    expect(html).toContain('<section id="outline-panel"')
+    expect(css).toContain('#sidebar #outline-panel')
     expect(css).toContain('#app-shell.context-panel-open.agent-panel-right #context-panel')
-    expect(css).toContain('#app-shell.context-panel-open.context-panel-outline #context-panel')
-    expect(css).toMatch(/#context-panel[\s\S]*transition:.*(?:width|transform)/)
-    expect(renderer).toContain("setContextPanelMode('outline')")
-    expect(renderer).toContain('outlinePanel.hidden = !showOutlineInRightPanel')
+    expect(css).not.toContain('.context-panel-outline')
+    expect(renderer).toContain("selectSidebarTab('outline')")
+    expect(renderer).toContain('outlinePanel.hidden = isWorkdirView')
+    expect(renderer).toContain("if (sidebarState?.activeSidebarTab === 'outline') renderOutlinePanel()")
   })
 
-  it('reclaims the activity-light gap for the top-right AI and outline controls', () => {
-    expect(css).toMatch(/#agent-toggle\s*\{[\s\S]*right:\s*48px/)
-    expect(css).toMatch(/#outline-toggle\s*\{[\s\S]*right:\s*16px/)
-    expect(css).toMatch(/body\.platform-win32 #agent-toggle\s*\{[\s\S]*right:\s*198px/)
-    expect(css).toMatch(/body\.platform-win32 #outline-toggle\s*\{[\s\S]*right:\s*166px/)
+  it('keeps only the AI control in the top-right titlebar area', () => {
+    expect(css).toMatch(/#agent-toggle\s*\{[\s\S]*right:\s*16px/)
+    expect(css).toMatch(/body\.platform-win32 #agent-toggle\s*\{[\s\S]*right:\s*166px/)
+    expect(css).not.toContain('#outline-toggle')
     expect(html).not.toContain('agent-activity-dot')
     expect(css).not.toContain('#agent-activity-dot')
   })

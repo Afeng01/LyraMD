@@ -32,7 +32,7 @@ describe('sidebar defaults', () => {
 })
 
 describe('window sidebar view state', () => {
-  it('migrates a legacy recent tab while keeping window view state independent', () => {
+  it('migrates legacy sidebar tabs to workdir while keeping window view state independent', () => {
     const first = createWindowSidebarViewState({
       ...DEFAULT_SIDEBAR_STATE,
       activeSidebarTab: 'recent',
@@ -48,7 +48,7 @@ describe('window sidebar view state', () => {
     first.workdirPath = '/workspace-b'
 
     expect(second).toEqual({
-      activeSidebarTab: 'drafts',
+      activeSidebarTab: 'workdir',
       workdirPath: '/workspace-a',
     })
   })
@@ -127,14 +127,11 @@ describe('normalizeSidebarState', () => {
     expect(normalizeSidebarState({ recentFiles: ['a.md'] })).toEqual({
       sidebarOpen: false,
       sidebarWidth: 280,
-      draftsExpanded: true,
-      workdirExpanded: true,
-      pinnedExpanded: true,
-      recentFilesExpanded: true,
       workdirPath: null,
       workspacePaths: [],
+      expandedWorkspacePaths: [],
       pinnedItems: [],
-      activeSidebarTab: 'drafts',
+      activeSidebarTab: 'workdir',
       draftDirectoryPath: null,
       draftOnboardingCompleted: false,
       draftEntries: [],
@@ -157,6 +154,7 @@ describe('normalizeSidebarState', () => {
         draftOnboardingCompleted: 'yes',
         workdirPath: '/active',
         workspacePaths: ['/a', 123, '/active'],
+        expandedWorkspacePaths: [],
         activeSidebarTab: 'workdir',
         pinnedItems: [
           { kind: 'draft', draftId: 'draft-a' },
@@ -175,12 +173,9 @@ describe('normalizeSidebarState', () => {
     })).toEqual({
       sidebarOpen: false,
         sidebarWidth: 280,
-        draftsExpanded: false,
-        workdirExpanded: true,
-        pinnedExpanded: false,
-        recentFilesExpanded: true,
         workdirPath: '/active',
-        workspacePaths: ['/a', '/active'],
+        workspacePaths: ['/tmp', '/a', '/active'],
+        expandedWorkspacePaths: [],
         pinnedItems: [
           { kind: 'draft', draftId: 'draft-a' },
           { kind: 'file', filePath: '/tmp/a.md' },

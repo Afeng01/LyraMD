@@ -9,22 +9,20 @@ import {
   normalizeWorkspacePaths,
   removePinnedFile,
   replacePinnedFilePath,
-  reorderWorkspacePaths,
   samePinnedItem,
   togglePinnedItem,
 } from './workbench-state'
 
 describe('normalizeSidebarTab', () => {
-  it('defaults to drafts for unknown values', () => {
-    expect(normalizeSidebarTab(undefined)).toBe('drafts')
-    expect(normalizeSidebarTab('bad')).toBe('drafts')
+  it('defaults legacy and unknown values to workdir', () => {
+    expect(normalizeSidebarTab(undefined)).toBe('workdir')
+    expect(normalizeSidebarTab('bad')).toBe('workdir')
+    expect(normalizeSidebarTab('drafts')).toBe('workdir')
+    expect(normalizeSidebarTab('recent')).toBe('workdir')
   })
 
-  it('migrates the removed recent tab to drafts', () => {
-    expect(normalizeSidebarTab('recent')).toBe('drafts')
-  })
-
-  it('preserves the workdir tab when explicitly persisted', () => {
+  it('preserves the outline view when explicitly persisted', () => {
+    expect(normalizeSidebarTab('outline')).toBe('outline')
     expect(normalizeSidebarTab('workdir')).toBe('workdir')
   })
 })
@@ -43,11 +41,6 @@ describe('workspace path helpers', () => {
     expect(normalizeWorkspacePaths(['/a', 12, '/b'], '/active')).toEqual(['/a', '/b', '/active'])
   })
 
-  it('reorders workspace paths by drag source and target', () => {
-    expect(reorderWorkspacePaths(['/a', '/b', '/c'], '/c', '/a')).toEqual(['/c', '/a', '/b'])
-    expect(reorderWorkspacePaths(['/a', '/b', '/c'], '/a', '/b')).toEqual(['/b', '/a', '/c'])
-    expect(reorderWorkspacePaths(['/a', '/b', '/c'], '/a', '/c')).toEqual(['/b', '/c', '/a'])
-  })
 })
 
 describe('pinned item helpers', () => {

@@ -2,11 +2,6 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { UpdateBannerPayload } from '../main/update-notice'
 import type { TabSettings } from '../main/settings'
 
-export interface WorkdirEntry {
-  absolutePath: string
-  relativePath: string
-}
-
 export interface WorkdirTreeNode {
   absolutePath: string
   kind: 'directory' | 'file'
@@ -31,7 +26,7 @@ export type AgentPanelPosition = 'auto' | 'bottom' | 'right'
 export type BackgroundMode = 'default' | 'color' | 'image'
 export type BackgroundScope = 'editor' | 'window'
 export type EditorFontPreset = 'theme' | 'elegant' | 'sans' | 'serif' | 'mono' | 'custom'
-export type SidebarTab = 'drafts' | 'recent' | 'workdir'
+export type SidebarTab = 'workdir' | 'outline'
 export type PinnedItem =
   | { kind: 'draft'; draftId: string }
   | { kind: 'file'; filePath: string }
@@ -216,12 +211,10 @@ export interface AgentChangePayload {
 export interface SidebarState {
   sidebarOpen: boolean
   sidebarWidth: number
-  draftsExpanded: boolean
-  workdirExpanded: boolean
-  pinnedExpanded: boolean
-  recentFilesExpanded: boolean
   workdirPath: string | null
   workspacePaths: string[]
+  expandedWorkspacePaths: string[]
+  workspaceTrees: Array<{ rootPath: string; tree: WorkdirTreeNode[] }>
   pinnedItems: PinnedItem[]
   activeSidebarTab: SidebarTab
   draftDirectoryPath: string | null
@@ -233,8 +226,6 @@ export interface SidebarState {
   currentDraftId: string | null
   currentDisplayTitle: string
   isDrawerMode: boolean
-  workdirEntries: WorkdirEntry[]
-  workdirTree: WorkdirTreeNode[]
   fileTitleOverrides: Record<string, string>
 }
 
@@ -281,10 +272,7 @@ export interface ElectronAPI {
   renameCurrentFileFromTitle: (nextTitle: string) => Promise<{ path: string | null } | null>
   getSidebarState: () => Promise<SidebarState | null>
   toggleSidebar: () => Promise<boolean>
-  toggleDraftsExpanded: () => Promise<boolean>
-  toggleWorkdirExpanded: () => Promise<boolean>
-  togglePinnedExpanded: () => Promise<boolean>
-  toggleRecentFilesExpanded: () => Promise<boolean>
+  toggleWorkspaceExpanded: (path: string) => Promise<SidebarState | null>
   setActiveSidebarTab: (tab: SidebarTab) => Promise<SidebarState | null>
   togglePinnedDraft: (draftId: string) => Promise<SidebarState | null>
   togglePinnedFile: (path: string) => Promise<SidebarState | null>
@@ -294,14 +282,12 @@ export interface ElectronAPI {
   chooseWorkdir: () => Promise<SidebarState | null>
   selectWorkspace: (path: string) => Promise<SidebarState | null>
   removeWorkspace: (path: string) => Promise<SidebarState | null>
-  reorderWorkspaces: (sourcePath: string, targetPath: string) => Promise<SidebarState | null>
   createWorkdirFile: () => Promise<SidebarState | null>
   createWorkdirFolder: () => Promise<SidebarState | null>
   chooseDraftDirectory: () => Promise<SidebarState | null>
   skipDraftOnboarding: () => Promise<SidebarState | null>
   openSidebarFile: (path: string) => Promise<boolean>
   openDraft: (id: string) => Promise<boolean>
-  removeRecentFile: (path: string) => Promise<boolean>
   removeWorkdirFile: (path: string) => Promise<SidebarState | null>
   checkForUpdates: () => Promise<void>
   onUpdateAvailable: (callback: (payload: UpdateBannerPayload) => void) => void
@@ -395,10 +381,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   renameCurrentFileFromTitle: (nextTitle: string) => ipcRenderer.invoke('rename-current-file-from-title', nextTitle),
   getSidebarState: () => ipcRenderer.invoke('get-sidebar-state'),
   toggleSidebar: () => ipcRenderer.invoke('toggle-sidebar'),
-  toggleDraftsExpanded: () => ipcRenderer.invoke('toggle-drafts-expanded'),
-  toggleWorkdirExpanded: () => ipcRenderer.invoke('toggle-workdir-expanded'),
-  togglePinnedExpanded: () => ipcRenderer.invoke('toggle-pinned-expanded'),
-  toggleRecentFilesExpanded: () => ipcRenderer.invoke('toggle-recent-files-expanded'),
+  toggleWorkspaceExpanded: (path: string) => ipcRenderer.invoke('toggle-workspace-expanded', path),
   setActiveSidebarTab: (tab: SidebarTab) => ipcRenderer.invoke('set-active-sidebar-tab', tab),
   togglePinnedDraft: (draftId: string) => ipcRenderer.invoke('toggle-pinned-draft', draftId),
   togglePinnedFile: (path: string) => ipcRenderer.invoke('toggle-pinned-file', path),
@@ -408,14 +391,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   chooseWorkdir: () => ipcRenderer.invoke('choose-workdir'),
   selectWorkspace: (path: string) => ipcRenderer.invoke('select-workspace', path),
   removeWorkspace: (path: string) => ipcRenderer.invoke('remove-workspace', path),
-  reorderWorkspaces: (sourcePath: string, targetPath: string) => ipcRenderer.invoke('reorder-workspaces', sourcePath, targetPath),
   createWorkdirFile: () => ipcRenderer.invoke('create-workdir-file'),
   createWorkdirFolder: () => ipcRenderer.invoke('create-workdir-folder'),
   chooseDraftDirectory: () => ipcRenderer.invoke('choose-draft-directory'),
   skipDraftOnboarding: () => ipcRenderer.invoke('skip-draft-onboarding'),
   openSidebarFile: (path: string) => ipcRenderer.invoke('open-sidebar-file', path),
   openDraft: (id: string) => ipcRenderer.invoke('open-draft', id),
-  removeRecentFile: (path: string) => ipcRenderer.invoke('remove-recent-file', path),
   removeWorkdirFile: (path: string) => ipcRenderer.invoke('remove-workdir-file', path),
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
   onUpdateAvailable: (callback: (payload: UpdateBannerPayload) => void) => {

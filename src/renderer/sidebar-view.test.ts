@@ -4,7 +4,7 @@ import { join } from 'node:path'
 
 import type { SidebarState } from '../preload/index'
 import {
-  createWorkspaceRootTreeNode,
+  isDraftWorkspaceRoot,
   isPinnedDraft,
   isPinnedFile,
   resolvePinControl,
@@ -12,7 +12,6 @@ import {
   resolveRemoveControl,
   resolveRemoveActionPlan,
   resolveSidebarInlineTitleCommitAction,
-  resolveVisibleTabItems,
   resolveVisibleWorkdirTreeRows,
 } from './sidebar-view'
 
@@ -20,14 +19,12 @@ function createSidebarState(patch: Partial<SidebarState> = {}): SidebarState {
   return {
     sidebarOpen: true,
     sidebarWidth: 336,
-    draftsExpanded: true,
-    workdirExpanded: true,
-    pinnedExpanded: true,
-    recentFilesExpanded: true,
     workdirPath: null,
     workspacePaths: [],
+    expandedWorkspacePaths: [],
+    workspaceTrees: [],
     pinnedItems: [],
-    activeSidebarTab: 'drafts',
+    activeSidebarTab: 'workdir',
     draftDirectoryPath: null,
     draftOnboardingCompleted: true,
     draftEntries: [],
@@ -37,12 +34,25 @@ function createSidebarState(patch: Partial<SidebarState> = {}): SidebarState {
     currentDraftId: null,
     currentDisplayTitle: '未命名文档',
     isDrawerMode: false,
-    workdirEntries: [],
-    workdirTree: [],
     fileTitleOverrides: {},
     ...patch,
   }
 }
+
+describe('draft workspace roots', () => {
+  it('protects configured and legacy draft directories from workspace removal', () => {
+    const state = createSidebarState({
+      draftDirectoryPath: '/drafts',
+      draftEntries: [
+        { id: 'legacy', path: 'C:\\Notes\\Drafts\\one.md', createdAt: 1, updatedAt: 2, displayTitle: '旧草稿' },
+      ],
+    })
+
+    expect(isDraftWorkspaceRoot(state, '/drafts')).toBe(true)
+    expect(isDraftWorkspaceRoot(state, 'C:\\Notes\\Drafts')).toBe(true)
+    expect(isDraftWorkspaceRoot(state, '/workspace')).toBe(false)
+  })
+})
 
 describe('sidebar workbench layout', () => {
   it('lets the library list fill the remaining sidebar height', () => {
@@ -126,7 +136,6 @@ describe('pinned view helpers', () => {
       title: 'a.md',
       active: true,
       pinned: false,
-      source: 'workdir',
     })
 
     expect(plan).toEqual({
@@ -141,47 +150,38 @@ describe('pinned view helpers', () => {
     expect(resolveSidebarInlineTitleCommitAction({
       kind: 'file',
       filePath: '/workspace/a.md',
-      source: 'workdir',
     })).toEqual({
       kind: 'rename-file-title',
       filePath: '/workspace/a.md',
     })
   })
 
-  it('marks pinned items inside the normal tab lists instead of a separate pinned section', () => {
+  it('keeps draft pins attached to draft rows inside the workspace tree', () => {
     const state = createSidebarState({
       currentDraftId: 'd1',
-      pinnedItems: [
-        { kind: 'draft', draftId: 'd1' },
-        { kind: 'file', filePath: '/a.md' },
-      ],
-      recentFiles: ['/a.md'],
+      pinnedItems: [{ kind: 'draft', draftId: 'd1' }],
       draftEntries: [
         { id: 'd1', path: '/drafts/d1.md', createdAt: 1, updatedAt: 2, displayTitle: '草稿一' },
       ],
     })
+    const tree = [{
+      absolutePath: '/drafts/d1.md',
+      kind: 'file' as const,
+      name: 'd1.md',
+      relativePath: 'd1.md',
+    }]
 
-    const tabItems = resolveVisibleTabItems(state, 'recent')
-    expect(tabItems).toEqual([
+    expect(resolveVisibleWorkdirTreeRows(state, tree)).toEqual([
       {
-        kind: 'file',
-        filePath: '/a.md',
-        title: 'a.md',
-        active: false,
+        kind: 'draft',
+        id: 'd1',
+        title: '草稿一',
+        active: true,
         pinned: true,
-        source: 'recent',
+        depth: 0,
+        relativePath: 'd1.md',
       },
     ])
-
-    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
-    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
-    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
-
-    expect(html).not.toContain('id="pinned-section"')
-    expect(html).not.toContain('id="pinned-list"')
-    expect(css).not.toContain('#pinned-list')
-    expect(renderer).not.toContain('resolvePinnedItems')
-    expect(renderer).toContain("source: 'recent' | 'workdir'")
   })
 
   it('renders an inline star mark on pinned rows in the tab lists', () => {
@@ -198,155 +198,49 @@ describe('pinned view helpers', () => {
   })
 })
 
-describe('tab view helpers', () => {
-  it('shows draft entries in the drafts tab', () => {
-    const state = createSidebarState({
-      currentDraftId: 'd1',
-      pinnedItems: [{ kind: 'draft', draftId: 'd1' }],
-      draftEntries: [
-        { id: 'd1', path: '/drafts/d1.md', createdAt: 1, updatedAt: 2, displayTitle: '草稿一' },
-      ],
-    })
 
-    expect(resolveVisibleTabItems(state, 'drafts')).toEqual([
-      {
-        kind: 'draft',
-        id: 'd1',
-        title: '草稿一',
-        active: true,
-        pinned: true,
-      },
-    ])
-  })
-
-  it('shows formal files in the recent tab', () => {
-    const state = createSidebarState({
-      currentFilePath: '/a.md',
-      pinnedItems: [{ kind: 'file', filePath: '/b.md' }],
-      recentFiles: ['/a.md', '/b.md'],
-      fileTitleOverrides: { '/b.md': 'B 文稿' },
-    })
-
-    expect(resolveVisibleTabItems(state, 'recent')).toEqual([
-      {
-        kind: 'file',
-        filePath: '/a.md',
-        title: 'a.md',
-        active: true,
-        pinned: false,
-        source: 'recent',
-      },
-      {
-        kind: 'file',
-        filePath: '/b.md',
-        title: 'B 文稿',
-        active: false,
-        pinned: true,
-        source: 'recent',
-      },
-    ])
-  })
-
-  it('shows files from the active workdir tab', () => {
-    const state = createSidebarState({
-      currentFilePath: '/workspace/folder/b.md',
-      activeSidebarTab: 'workdir',
-      workdirEntries: [
-        { absolutePath: '/workspace/a.md', relativePath: 'a.md' },
-        { absolutePath: '/workspace/folder/b.md', relativePath: 'folder/b.md' },
-      ],
-      pinnedItems: [{ kind: 'file', filePath: '/workspace/a.md' }],
-      fileTitleOverrides: { '/workspace/folder/b.md': 'B 文稿' },
-    })
-
-    expect(resolveVisibleTabItems(state, 'workdir')).toEqual([
-      {
-        kind: 'file',
-        filePath: '/workspace/a.md',
-        title: 'a.md',
-        active: false,
-        pinned: true,
-        source: 'workdir',
-      },
-      {
-        kind: 'file',
-        filePath: '/workspace/folder/b.md',
-        title: 'B 文稿',
-        active: true,
-        pinned: false,
-        source: 'workdir',
-      },
-    ])
-  })
-})
 
 describe('workdir tree helpers', () => {
-  it('wraps each workspace tree under its own root folder', () => {
-    expect(createWorkspaceRootTreeNode('/Users/cherry/Notes', [
+  it('flattens tree rows with active files and collapsed folders', () => {
+    const tree = [
       {
-        absolutePath: '/Users/cherry/Notes/a.md',
-        kind: 'file',
+        absolutePath: '/workspace/a.md',
+        kind: 'file' as const,
         name: 'a.md',
         relativePath: 'a.md',
       },
-    ])).toEqual({
-      absolutePath: '/Users/cherry/Notes',
-      children: [
-        {
-          absolutePath: '/Users/cherry/Notes/a.md',
-          kind: 'file',
-          name: 'a.md',
-          relativePath: 'a.md',
-        },
-      ],
-      kind: 'directory',
-      name: 'Notes',
-      relativePath: 'Notes',
-    })
-  })
+      {
+        absolutePath: '/workspace/notes',
+        children: [
+          {
+            absolutePath: '/workspace/notes/b.md',
+            kind: 'file' as const,
+            name: 'b.md',
+            relativePath: 'notes/b.md',
+          },
+          {
+            absolutePath: '/workspace/notes/nested',
+            children: [
+              {
+                absolutePath: '/workspace/notes/nested/c.md',
+                kind: 'file' as const,
+                name: 'c.md',
+                relativePath: 'notes/nested/c.md',
+              },
+            ],
+            kind: 'directory' as const,
+            name: 'nested',
+            relativePath: 'notes/nested',
+          },
+        ],
+        kind: 'directory' as const,
+        name: 'notes',
+        relativePath: 'notes',
+      },
+    ]
+    const state = createSidebarState({ currentFilePath: '/workspace/notes/nested/c.md' })
 
-  it('flattens tree rows with active files and collapsed folders', () => {
-    const state = createSidebarState({
-      currentFilePath: '/workspace/notes/nested/c.md',
-      workdirTree: [
-        {
-          absolutePath: '/workspace/a.md',
-          kind: 'file',
-          name: 'a.md',
-          relativePath: 'a.md',
-        },
-        {
-          absolutePath: '/workspace/notes',
-          children: [
-            {
-              absolutePath: '/workspace/notes/b.md',
-              kind: 'file',
-              name: 'b.md',
-              relativePath: 'notes/b.md',
-            },
-            {
-              absolutePath: '/workspace/notes/nested',
-              children: [
-                {
-                  absolutePath: '/workspace/notes/nested/c.md',
-                  kind: 'file',
-                  name: 'c.md',
-                  relativePath: 'notes/nested/c.md',
-                },
-              ],
-              kind: 'directory',
-              name: 'nested',
-              relativePath: 'notes/nested',
-            },
-          ],
-          kind: 'directory',
-          name: 'notes',
-          relativePath: 'notes',
-        },
-      ],
-    })
-
-    expect(resolveVisibleWorkdirTreeRows(state, new Set(['/workspace/notes/nested']))).toMatchObject([
+    expect(resolveVisibleWorkdirTreeRows(state, tree, new Set(['/workspace/notes/nested']))).toMatchObject([
       { kind: 'file', filePath: '/workspace/a.md', depth: 0, active: false },
       { kind: 'directory', absolutePath: '/workspace/notes', depth: 0, expanded: true },
       { kind: 'file', filePath: '/workspace/notes/b.md', depth: 1, active: false },
@@ -354,7 +248,7 @@ describe('workdir tree helpers', () => {
       { kind: 'file', filePath: '/workspace/notes/nested/c.md', depth: 2, active: true },
     ])
 
-    expect(resolveVisibleWorkdirTreeRows(state, new Set(), new Set(['/workspace/notes']))).toMatchObject([
+    expect(resolveVisibleWorkdirTreeRows(state, tree, new Set(), new Set(['/workspace/notes']))).toMatchObject([
       { kind: 'file', filePath: '/workspace/a.md', depth: 0 },
       { kind: 'directory', absolutePath: '/workspace/notes', depth: 0, expanded: false },
     ])
@@ -362,30 +256,37 @@ describe('workdir tree helpers', () => {
 })
 
 describe('library create action regression', () => {
-  it('keeps only drafts and workdir tabs and removes workspace/recent sections', () => {
+  it('switches the sidebar between workdir and outline without a drafts tab or titlebar outline control', () => {
     const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
     const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
 
-    expect(html).toContain('id="drafts-tab"')
     expect(html).toContain('id="workdir-tab"')
-    expect(html).not.toContain('id="recent-tab"')
-    expect(html).not.toContain('id="workspaces-section"')
-    expect(renderer).toContain('beginBlankDocumentFromSidebar()')
-    expect(renderer).toContain('librarySelectWorkdir?.addEventListener')
+    expect(html).toContain('id="outline-tab"')
+    expect(html).not.toContain('id="drafts-tab"')
+    expect(html).not.toContain('id="outline-toggle"')
+    expect(renderer).toContain("selectSidebarTab('outline')")
+    expect(renderer).toContain('workspaceTrees.find')
   })
 
-  it('routes the library plus button to workdir file creation on the workdir tab', () => {
+  it('routes the workdir actions menu through workspace selection and file creation IPC', () => {
     const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
     const preload = readFileSync(join(process.cwd(), 'src/preload/index.ts'), 'utf8')
     const main = readFileSync(join(process.cwd(), 'src/main/index.ts'), 'utf8')
 
-    expect(renderer).toContain("sidebarState?.activeSidebarTab === 'workdir'")
-    expect(renderer).toContain('openLibraryCreateMenu()')
+    expect(renderer).toContain('workspaceMenuToggle?.addEventListener')
     expect(renderer).toContain('api.chooseWorkdir()')
     expect(renderer).toContain('api.createWorkdirFile()')
-    expect(renderer).not.toContain("currentFileNew.hidden = activeTab !== 'workdir'")
+    expect(renderer).toContain('api.selectWorkspace(workspacePath)')
+    expect(renderer).toContain('api.removeWorkspace(workspacePath)')
+    expect(renderer).toContain('data-remove-workspace-path')
+    expect(renderer).toContain('isDraftWorkspaceRoot(sidebarState, rootPath)')
     expect(preload).toContain("createWorkdirFile: () => ipcRenderer.invoke('create-workdir-file')")
+    expect(preload).toContain("toggleWorkspaceExpanded: (path: string) => ipcRenderer.invoke('toggle-workspace-expanded', path)")
+    expect(preload).toContain("removeWorkspace: (path: string) => ipcRenderer.invoke('remove-workspace', path)")
     expect(main).toContain("ipcMain.handle('create-workdir-file'")
+    expect(main).toContain("ipcMain.handle('toggle-workspace-expanded'")
+    expect(main).toContain("ipcMain.handle('remove-workspace'")
+    expect(main).toContain('workspacePath === sidebarState.draftDirectoryPath')
   })
 
   it('wires the workdir create folder action through preload and main IPC', () => {
@@ -399,7 +300,7 @@ describe('library create action regression', () => {
     expect(main).toContain("ipcMain.handle('create-workdir-folder'")
   })
 
-  it('renders one contextual library plus menu instead of a second workdir plus', () => {
+  it('renders a named workdir menu instead of a generic sidebar plus', () => {
     const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
 
@@ -408,8 +309,10 @@ describe('library create action regression', () => {
     expect(html).toContain('id="library-create-file"')
     expect(html).toContain('id="library-create-folder"')
     expect(html).not.toContain('id="current-file-new"')
-    expect(html.indexOf('id="workdir-tab"')).toBeLessThan(html.indexOf('id="draft-new"'))
-    expect(css).toContain('grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr) 28px')
+    expect(html).toContain('id="workspace-menu-toggle"')
+    expect(html).not.toContain('id="draft-new"')
+    expect(html.indexOf('id="workdir-tab"')).toBeLessThan(html.indexOf('id="outline-tab"'))
+    expect(css).toContain('grid-template-columns: repeat(2, minmax(0, 1fr))')
     expect(css).not.toContain('box-shadow: inset 2px 0 0 color-mix(in srgb, var(--link-color) 72%, transparent 28%);')
   })
 
@@ -501,19 +404,22 @@ describe('sidebar polish regression', () => {
     expect(css).toContain('.workdir-folder-item .sidebar-title')
   })
 
-  it('uses a stronger tab active state with existing color variables', () => {
+  it('uses a quiet, borderless active state for the sidebar view switcher', () => {
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+    const activeRule = css.match(/\.sidebar-tabs button\.active\s*\{[^}]*\}/)?.[0] ?? ''
 
-    // Active tab should have higher selection-bg mix and a subtle box-shadow
-    expect(css).toMatch(/\.sidebar-tabs button\.active\s*\{[\s\S]*selection-bg\) 52%/)
-    expect(css).toMatch(/\.sidebar-tabs button\.active\s*\{[\s\S]*box-shadow/)
+    expect(activeRule).toContain('selection-bg) 34%')
+    expect(activeRule).not.toContain('box-shadow')
   })
 
-  it('adds a subtle separator below the tab row', () => {
+  it('removes outer borders and separators from the workspace panel', () => {
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+    const sectionRule = css.match(/#library-section\s*\{[^}]*\}/)?.[0] ?? ''
+    const headerRule = css.match(/\.sidebar-library-header\s*\{[^}]*\}/)?.[0] ?? ''
 
-    expect(css).toMatch(/\.sidebar-library-header\s*\{[\s\S]*border-bottom:\s*1px solid/)
-    expect(css).toMatch(/\.sidebar-library-header\s*\{[\s\S]*margin-bottom:\s*10px/)
-    expect(css).toMatch(/\.sidebar-library-header\s*\{[\s\S]*padding-bottom:\s*8px/)
+    expect(sectionRule).not.toContain('border:')
+    expect(sectionRule).not.toContain('background:')
+    expect(headerRule).not.toContain('border-bottom:')
+    expect(css).toContain('margin-bottom: 10px')
   })
 })

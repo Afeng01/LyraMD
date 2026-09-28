@@ -1,4 +1,4 @@
-import type { SidebarState, SidebarTab, WorkdirTreeNode } from '../preload/index'
+import type { SidebarState, WorkdirTreeNode } from '../preload/index'
 
 export interface DraftSidebarItem {
   kind: 'draft'
@@ -14,7 +14,6 @@ export interface FileSidebarItem {
   title: string
   active: boolean
   pinned: boolean
-  source: 'recent' | 'workdir'
 }
 
 export type SidebarItem = DraftSidebarItem | FileSidebarItem
@@ -28,6 +27,10 @@ export type WorkdirTreeRow =
     name: string
     relativePath: string
   }
+  | (DraftSidebarItem & {
+    depth: number
+    relativePath: string
+  })
   | (FileSidebarItem & {
     depth: number
     relativePath: string
@@ -48,12 +51,11 @@ export interface RemoveControl {
 
 export type RemoveActionPlan =
   | { kind: 'draft'; draftId: string; flushAutosaveFirst: false }
-  | { kind: 'recent'; filePath: string; flushAutosaveFirst: false }
   | { kind: 'workdir'; filePath: string; flushAutosaveFirst: true }
 
 export type SidebarInlineTitleEditTarget =
   | { kind: 'draft'; draftId: string }
-  | { kind: 'file'; filePath: string; source: FileSidebarItem['source'] }
+  | { kind: 'file'; filePath: string }
 
 export type SidebarInlineTitleCommitAction =
   | { kind: 'update-draft-title'; draftId: string }
@@ -65,6 +67,17 @@ export function isPinnedDraft(state: SidebarState, draftId: string): boolean {
 
 export function isPinnedFile(state: SidebarState, filePath: string): boolean {
   return state.pinnedItems.some((item) => item.kind === 'file' && item.filePath === filePath)
+}
+
+export function isDraftWorkspaceRoot(state: SidebarState, rootPath: string): boolean {
+  const normalizePath = (value: string): string => value.replaceAll('\\', '/').replace(/\/+$/u, '') || '/'
+  const normalizedRoot = normalizePath(rootPath)
+  if (state.draftDirectoryPath && normalizePath(state.draftDirectoryPath) === normalizedRoot) return true
+  return state.draftEntries.some((entry) => {
+    const normalizedPath = normalizePath(entry.path)
+    const parentPath = normalizedPath.slice(0, normalizedPath.lastIndexOf('/')) || '/'
+    return parentPath === normalizedRoot
+  })
 }
 
 export function resolvePinControl(pinned: boolean, title: string): PinControl {
@@ -91,15 +104,7 @@ export function resolveRemoveActionPlan(item: SidebarItem): RemoveActionPlan | n
     return { kind: 'draft', draftId: item.id, flushAutosaveFirst: false }
   }
 
-  if (item.source === 'recent') {
-    return { kind: 'recent', filePath: item.filePath, flushAutosaveFirst: false }
-  }
-
-  if (item.source === 'workdir') {
-    return { kind: 'workdir', filePath: item.filePath, flushAutosaveFirst: true }
-  }
-
-  return null
+  return { kind: 'workdir', filePath: item.filePath, flushAutosaveFirst: true }
 }
 
 export function resolveRemoveActionKey(plan: RemoveActionPlan): string {
@@ -117,19 +122,9 @@ export function resolveSidebarInlineTitleCommitAction(
   return { kind: 'rename-file-title', filePath: target.filePath }
 }
 
-export function resolveVisibleTabItems(state: SidebarState, tab: SidebarTab = state.activeSidebarTab): SidebarItem[] {
-  if (tab === 'recent') {
-    return state.recentFiles.map((filePath) => createFileItem(state, filePath, 'recent'))
-  }
-  if (tab === 'workdir') {
-    return state.workdirEntries.map((entry) => createFileItem(state, entry.absolutePath, 'workdir'))
-  }
-
-  return state.draftEntries.map((draft) => createDraftItem(state, draft.id, draft.displayTitle))
-}
-
 export function resolveVisibleWorkdirTreeRows(
   state: SidebarState,
+  tree: WorkdirTreeNode[],
   expandedFolderPaths: ReadonlySet<string> = new Set(),
   collapsedFolderPaths: ReadonlySet<string> = new Set(),
 ): WorkdirTreeRow[] {
@@ -157,30 +152,26 @@ export function resolveVisibleWorkdirTreeRows(
         continue
       }
 
+      const draftEntry = state.draftEntries.find((entry) => entry.path === node.absolutePath)
+      if (draftEntry) {
+        rows.push({
+          ...createDraftItem(state, draftEntry.id, draftEntry.displayTitle),
+          depth,
+          relativePath: node.relativePath,
+        })
+        continue
+      }
+
       rows.push({
-        ...createFileItem(state, node.absolutePath, 'workdir'),
+        ...createFileItem(state, node.absolutePath),
         depth,
         relativePath: node.relativePath,
       })
     }
   }
 
-  walk(state.workdirTree, 0)
+  walk(tree, 0)
   return rows
-}
-
-export function createWorkspaceRootTreeNode(
-  rootPath: string,
-  children: WorkdirTreeNode[],
-): WorkdirTreeNode {
-  const name = basename(rootPath)
-  return {
-    absolutePath: rootPath,
-    children,
-    kind: 'directory',
-    name,
-    relativePath: name,
-  }
 }
 
 function createDraftItem(state: SidebarState, draftId: string, title: string): DraftSidebarItem {
@@ -193,14 +184,13 @@ function createDraftItem(state: SidebarState, draftId: string, title: string): D
   }
 }
 
-function createFileItem(state: SidebarState, filePath: string, source: FileSidebarItem['source']): FileSidebarItem {
+function createFileItem(state: SidebarState, filePath: string): FileSidebarItem {
   return {
     kind: 'file',
     filePath,
     title: state.fileTitleOverrides[filePath] ?? basename(filePath),
     active: state.currentFilePath === filePath,
     pinned: isPinnedFile(state, filePath),
-    source,
   }
 }
 

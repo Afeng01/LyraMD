@@ -1,4 +1,4 @@
-export type SidebarTab = 'drafts' | 'recent' | 'workdir'
+export type SidebarTab = 'workdir' | 'outline'
 
 export type PinnedItem =
   | { kind: 'draft'; draftId: string }
@@ -7,9 +7,7 @@ export type PinnedItem =
 export const DEFAULT_MAX_WORKSPACES = 8
 
 export function normalizeSidebarTab(value: unknown): SidebarTab {
-  // 侧边栏不再提供「最近」页；旧设置中的 recent 安全回退到草稿列表。
-  if (value === 'workdir') return 'workdir'
-  return 'drafts'
+  return value === 'outline' ? 'outline' : 'workdir'
 }
 
 export function addWorkspacePath(
@@ -41,24 +39,6 @@ export function normalizeWorkspacePaths(
   return activePath
     ? addWorkspacePath(uniquePaths, activePath, maxWorkspaces)
     : uniquePaths.slice(0, maxWorkspaces)
-}
-
-export function reorderWorkspacePaths(paths: string[], sourcePath: string, targetPath: string): string[] {
-  if (sourcePath === targetPath) return paths
-  if (!paths.includes(sourcePath) || !paths.includes(targetPath)) return paths
-
-  const sourceIndex = paths.indexOf(sourcePath)
-  const targetIndex = paths.indexOf(targetPath)
-  const withoutSource = paths.filter((path) => path !== sourcePath)
-  const insertionIndex = withoutSource.indexOf(targetPath)
-  if (insertionIndex === -1) return paths
-  const nextIndex = sourceIndex < targetIndex ? insertionIndex + 1 : insertionIndex
-
-  return [
-    ...withoutSource.slice(0, nextIndex),
-    sourcePath,
-    ...withoutSource.slice(nextIndex),
-  ]
 }
 
 export function normalizePinnedItems(value: unknown): PinnedItem[] {

@@ -274,8 +274,7 @@ body.platform-win32 #windows-titlebar {
 body.platform-win32 #sidebar-toggle,
 body.platform-win32 #settings-toggle,
 body.platform-win32 #safety-toggle,
-body.platform-win32 #agent-toggle,
-body.platform-win32 #outline-toggle {
+body.platform-win32 #agent-toggle {
   top: 4px;
 }
 
@@ -292,10 +291,6 @@ body.platform-win32 #safety-toggle {
 }
 
 body.platform-win32 #agent-toggle {
-  right: 198px;
-}
-
-body.platform-win32 #outline-toggle {
   right: 166px;
 }
 
@@ -338,8 +333,7 @@ body.platform-win32 #outline-toggle {
 }
 
 #safety-toggle,
-#agent-toggle,
-#outline-toggle {
+#agent-toggle {
   position: absolute;
   top: 12px;
   width: 28px;
@@ -362,10 +356,6 @@ body.platform-win32 #outline-toggle {
 }
 
 #agent-toggle {
-  right: 48px;
-}
-
-#outline-toggle {
   right: 16px;
 }
 
@@ -374,9 +364,7 @@ body.platform-win32 #outline-toggle {
 #safety-toggle:hover,
 #safety-toggle.active,
 #agent-toggle:hover,
-#agent-toggle.active,
-#outline-toggle:hover,
-#outline-toggle.active {
+#agent-toggle.active {
   opacity: 1;
   background: color-mix(in srgb, var(--text-muted) 10%, transparent 90%);
   border-color: color-mix(in srgb, var(--border-color) 40%, transparent 60%);
@@ -385,8 +373,7 @@ body.platform-win32 #outline-toggle {
 #sidebar-toggle svg,
 #settings-toggle svg,
 #safety-toggle svg,
-#agent-toggle svg,
-#outline-toggle svg {
+#agent-toggle svg {
   width: 16px;
   height: 16px;
   display: block;
@@ -406,15 +393,15 @@ body.platform-win32 #outline-toggle {
   overflow: hidden;
 }
 
-/* 阶段 C：tabs.enabled 开启时单文档也常驻一个 tab；关闭开关时标签条从 DOM 摘除。 */
+/* 顶部文稿标签：单文稿同样保留一个 tab，外壳退后，用间距而非边框分组。 */
 #tab-strip {
   display: flex;
-  align-items: stretch;
-  gap: 2px;
+  align-items: center;
+  gap: 4px;
   flex: none;
-  padding: 4px 8px 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 58%, transparent 42%);
-  background: color-mix(in srgb, var(--bg-color) 96%, var(--border-color) 4%);
+  min-height: 34px;
+  padding: 3px 10px;
+  background: var(--bg-color);
   overflow-x: auto;
   scrollbar-width: none;
   -webkit-app-region: no-drag;
@@ -439,9 +426,8 @@ body.platform-win32 #outline-toggle {
   max-width: 168px;
   min-height: 28px;
   padding: 0 10px;
-  border: 1px solid transparent;
-  border-radius: 7px 7px 0 0;
-  border-bottom: none;
+  border: none;
+  border-radius: 6px;
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
@@ -499,14 +485,39 @@ body.platform-win32 #outline-toggle {
 }
 
 #tab-strip .tab-strip-tab.active {
-  border-color: color-mix(in srgb, var(--border-color) 58%, transparent 42%);
-  background: color-mix(in srgb, var(--bg-color) 92%, var(--selection-bg) 8%);
+  background: color-mix(in srgb, var(--selection-bg) 30%, transparent 70%);
   color: var(--text-color);
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--selection-bg) 18%, transparent 82%);
 }
 
 #tab-strip .tab-strip-tab.active .tab-strip-unsaved-dot {
   background: var(--accent-color, var(--text-color));
+}
+
+#tab-strip .tab-strip-new-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 18px;
+  line-height: 1;
+  transition: color 0.14s ease, background 0.14s ease, transform 0.14s ease;
+}
+
+#tab-strip .tab-strip-new-button:hover {
+  color: var(--text-color);
+  background: color-mix(in srgb, var(--selection-bg) 24%, transparent 76%);
+}
+
+#tab-strip .tab-strip-new-button:active {
+  transform: scale(0.95);
 }
 
 /* 最近文件入口（阶段 A 第二片）：时钟按钮固定在标签条末尾，下拉列表绝对定位展开。 */
@@ -635,9 +646,7 @@ body.platform-win32 #outline-toggle {
   flex-shrink: 0;
   min-height: 0;
   padding: 14px 12px 16px 18px;
-  border-right: 1px solid color-mix(in srgb, var(--border-color) 78%, transparent 22%);
-  background: color-mix(in srgb, var(--bg-color) 92%, transparent 8%);
-  backdrop-filter: blur(18px);
+  background: color-mix(in srgb, var(--bg-color) 96%, var(--border-color) 4%);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -650,7 +659,6 @@ body.platform-win32 #outline-toggle {
   max-width: 0;
   padding-left: 0;
   padding-right: 0;
-  border-right-color: transparent;
   overflow: hidden;
 }
 
@@ -701,7 +709,63 @@ body.platform-win32 #outline-toggle {
 .sidebar-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
+}
+
+.sidebar-workspace-root {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  min-height: 30px;
+  border-radius: 6px;
+}
+
+.sidebar-workspace-root.active {
+  background: color-mix(in srgb, var(--selection-bg) 18%, transparent 82%);
+}
+
+.workspace-root-chevron,
+.workspace-root-select {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.workspace-root-chevron {
+  justify-content: center;
+  flex: none;
+  width: 24px;
+}
+
+.workspace-root-select {
+  flex: 1;
+  gap: 7px;
+  padding: 0 32px 0 0;
+  text-align: left;
+}
+
+.workspace-root-select .sidebar-title {
+  font-weight: 600;
+}
+
+.sidebar-workspace-root.active .workspace-root-select,
+.workspace-root-chevron:hover,
+.workspace-root-select:hover {
+  color: var(--text-color);
+}
+
+.sidebar-workspace-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 2px 0 7px 13px;
 }
 
 #sidebar #library-scroll-region {
@@ -711,6 +775,12 @@ body.platform-win32 #outline-toggle {
 #sidebar #library-scroll-region::-webkit-scrollbar-thumb {
   background: transparent;
   border-radius: 3px;
+}
+
+#sidebar #outline-panel {
+  min-height: 0;
+  padding: 2px 4px 12px;
+  overflow-y: auto;
 }
 
 #sidebar #library-scroll-region:hover,
@@ -928,20 +998,15 @@ body.platform-win32 #outline-toggle {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-items: center;
-  gap: 6px;
+  gap: 12px;
   margin-bottom: 10px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 28%, transparent 72%);
 }
 
 .sidebar-tabs {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr) 28px;
-  padding: 2px;
-  border: 1px solid color-mix(in srgb, var(--border-color) 58%, transparent 42%);
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--bg-color) 96%, var(--border-color) 4%);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
   -webkit-app-region: no-drag;
 }
 
@@ -966,9 +1031,48 @@ body.platform-win32 #outline-toggle {
 }
 
 .sidebar-tabs button.active {
-  background: color-mix(in srgb, var(--selection-bg) 52%, transparent 48%);
+  background: color-mix(in srgb, var(--selection-bg) 34%, transparent 66%);
   color: var(--text-color);
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--selection-bg) 18%, transparent 82%);
+}
+
+.sidebar-tabs button:active,
+.workspace-root-chevron:active,
+.workspace-root-select:active {
+  transform: scale(0.97);
+}
+
+.workspace-actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 26px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
+.workspace-actions-row button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 18px;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.workspace-actions-row button:hover,
+.workspace-actions-row button.active {
+  color: var(--text-color);
+  background: color-mix(in srgb, var(--selection-bg) 24%, transparent 76%);
 }
 
 .library-create-menu {
@@ -1093,10 +1197,7 @@ body.platform-win32 #outline-toggle {
   display: flex;
   flex-direction: column;
   max-height: none;
-  padding: 6px;
-  border: 1px solid color-mix(in srgb, var(--border-color) 58%, transparent 42%);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--bg-color) 96%, var(--border-color) 4%);
+  padding: 0;
 }
 
 #library-scroll-region {
@@ -1270,22 +1371,6 @@ body.platform-win32 #outline-toggle {
   transform: translateX(0);
 }
 
-#app-shell.context-panel-open.context-panel-outline #context-panel {
-  position: relative;
-  right: auto;
-  top: auto;
-  bottom: auto;
-  z-index: auto;
-  width: var(--context-panel-width);
-  min-width: var(--context-panel-width);
-  max-width: var(--context-panel-width);
-  height: auto;
-  box-shadow: none;
-  opacity: 1;
-  pointer-events: auto;
-  transform: translateX(0);
-}
-
 #app-shell.agent-drawer-open.context-panel-open.agent-panel-bottom #context-panel {
   bottom: var(--agent-drawer-height);
 }
@@ -1319,8 +1404,7 @@ body.platform-win32 #outline-toggle {
   background: var(--link-color);
 }
 
-#agent-panel,
-#context-panel #outline-panel {
+#agent-panel {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -1844,8 +1928,8 @@ body.platform-win32 #outline-toggle {
   width: 100%;
   min-height: 30px;
   padding: 6px 8px;
-  border: 1px solid transparent;
-  border-radius: 7px;
+  border: none;
+  border-radius: 6px;
   background: transparent;
   color: var(--text-color);
   cursor: pointer;
@@ -1877,14 +1961,10 @@ body.platform-win32 #outline-toggle {
 
 .outline-item:hover {
   background: color-mix(in srgb, var(--selection-bg) 28%, transparent 72%);
-  border-color: color-mix(in srgb, var(--border-color) 72%, transparent 28%);
 }
 
 .outline-empty {
-  padding: 9px;
-  border: 1px dashed var(--border-color);
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--bg-color) 94%, var(--border-color) 6%);
+  padding: 9px 6px;
   color: var(--text-muted);
   font-size: 12px;
   line-height: 1.5;
@@ -1910,11 +1990,13 @@ body.platform-win32 #outline-toggle {
   bottom: 0;
   left: 4px;
   width: 1px;
-  background: color-mix(in srgb, var(--border-color) 75%, transparent 25%);
+  background: var(--link-color);
+  opacity: 0;
+  transition: opacity 0.14s ease;
 }
 
 #sidebar-resizer:hover::before {
-  background: var(--link-color);
+  opacity: 1;
 }
 
 body.sidebar-resizing,

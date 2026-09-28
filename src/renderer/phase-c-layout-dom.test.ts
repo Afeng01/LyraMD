@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 describe('Phase C layout DOM skeleton', () => {
-  it('ships the shared Agent and outline context panel elements', () => {
+  it('keeps the Agent context panel separate from the sidebar outline', () => {
     const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
     const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
@@ -27,7 +27,9 @@ describe('Phase C layout DOM skeleton', () => {
     expect(html).toContain('id="agent-drawer"')
     expect(html).toContain('id="agent-drawer-resizer"')
     expect(html).toContain('id="ai-helper-panel"')
+    expect(html).toContain('id="outline-tab"')
     expect(html).toContain('id="outline-panel"')
+    expect(html).not.toContain('id="outline-toggle"')
     expect(html).not.toContain('id="file-tabbar"')
     expect(html).toContain('id="document-stats"')
 
@@ -43,8 +45,9 @@ describe('Phase C layout DOM skeleton', () => {
     expect(css).not.toContain('#file-tabbar')
 
     expect(renderer).toContain('let aiPaletteOpen = false')
-    expect(renderer).toContain("let activeContextPanel: ContextPanelMode = 'agent'")
-    expect(renderer).toContain('resolveContextPanelState')
+    expect(renderer).not.toContain('activeContextPanel')
+    expect(renderer).not.toContain('resolveContextPanelState')
+    expect(renderer).toContain('outlinePanel.hidden = isWorkdirView')
     expect(renderer).toContain('resolveAgentPanelPlacement')
     expect(renderer).toContain('agentToggle?.addEventListener')
     expect(renderer).toContain('getSelectedPlainText')

@@ -46,7 +46,7 @@ import {
   resolveDocumentAssetDirectoryPath,
 } from './image-assets'
 import { buildTitleSyncPath, decideTitleSync } from './title-sync'
-import { flattenWorkdirTree, resolveNewWorkdirFolderPath, resolveNewWorkdirMarkdownPath, scanWorkdirTree, shouldRefreshWorkdirForWatchEvent, type WorkdirEntry, type WorkdirTreeNode } from './workdir'
+import { flattenWorkdirTree, resolveNewWorkdirFolderPath, resolveNewWorkdirMarkdownPath, scanWorkdirTree, shouldRefreshWorkdirForWatchEvent, type WorkdirTreeNode } from './workdir'
 import { moveFileToTrashAndVerify } from './file-removal'
 import { summarizeAgentChange } from './agent-change-summary'
 import { assessExternalChangeRisk } from './external-change-risk'
@@ -99,12 +99,12 @@ import { decideSecondInstanceAction, extractEditableLaunchPaths } from './window
 import { resolveZoomShortcut } from './zoom-shortcuts'
 import {
   addWorkspacePath,
+  DEFAULT_MAX_WORKSPACES,
   canTogglePinnedFile,
   migratePinnedDraftToFile,
   normalizeSidebarTab,
   removePinnedFile,
   replacePinnedFilePath,
-  reorderWorkspacePaths,
   togglePinnedItem,
 } from './workbench-state'
 import {
@@ -192,8 +192,7 @@ interface SidebarSnapshot extends PersistedSidebarState {
   currentDraftId: string | null
   currentDisplayTitle: string
   isDrawerMode: boolean
-  workdirEntries: WorkdirEntry[]
-  workdirTree: WorkdirTreeNode[]
+  workspaceTrees: Array<{ rootPath: string; tree: WorkdirTreeNode[] }>
 }
 
 let sidebarState: PersistedSidebarState = normalizeSidebarState(null)
@@ -284,7 +283,7 @@ function watchWorkdirPaths(workdirPaths: string[]): void {
 
 async function refreshWorkdirEntries(): Promise<void> {
   const existingWorkspacePaths = sidebarState.workspacePaths.filter((workspacePath) => existsSync(workspacePath))
-  const defaultWorkdirPath = sidebarState.workdirPath && existsSync(sidebarState.workdirPath)
+  const defaultWorkdirPath = sidebarState.workdirPath && existingWorkspacePaths.includes(sidebarState.workdirPath)
     ? sidebarState.workdirPath
     : existingWorkspacePaths[0] ?? null
 
@@ -292,6 +291,7 @@ async function refreshWorkdirEntries(): Promise<void> {
   sidebarState.workdirPath = defaultWorkdirPath
   watchWorkdirPaths(existingWorkspacePaths)
 
+  sidebarState.expandedWorkspacePaths = sidebarState.expandedWorkspacePaths.filter((workspacePath) => existingWorkspacePaths.includes(workspacePath))
   const windows = BrowserWindow.getAllWindows()
   await Promise.all(windows.map((win) => refreshWorkdirEntriesForWindow(win)))
 }
@@ -321,21 +321,16 @@ async function doRefreshWorkdirEntriesForWindow(win: BrowserWindow): Promise<voi
 
   state.workdirPath = activeWorkdirPath
 
-  if (!activeWorkdirPath || existingWorkspacePaths.length === 0) {
-    state.workdirEntries = []
-    state.workdirTree = []
-    return
-  }
+  const expandedPaths = sidebarState.expandedWorkspacePaths
+    .filter((workspacePath) => existingWorkspacePaths.includes(workspacePath))
+  state.workspaceTrees = await Promise.all(expandedPaths.map(async (rootPath) => {
+    try {
+      return { rootPath, tree: await scanWorkdirTree(rootPath) }
+    } catch {
+      return { rootPath, tree: [] }
+    }
+  }))
 
-  try {
-    // 树只扫一次，扁平列表从树摊平，不再对同一工作区做第二遍递归遍历。
-    const tree = await scanWorkdirTree(activeWorkdirPath)
-    state.workdirEntries = flattenWorkdirTree(tree)
-    state.workdirTree = tree
-  } catch {
-    state.workdirEntries = []
-    state.workdirTree = []
-  }
 }
 
 let sidebarPersistQueue: Promise<void> = Promise.resolve()
@@ -365,6 +360,7 @@ async function loadSidebarState(): Promise<void> {
   sidebarState.recentFiles = filterMissingRecentFiles(sidebarState.recentFiles, (filePath) => existsSync(filePath))
   sidebarState.draftEntries = sidebarState.draftEntries.filter((entry) => existsSync(entry.path))
   sidebarState.workspacePaths = sidebarState.workspacePaths.filter((workspacePath) => existsSync(workspacePath))
+  sidebarState.expandedWorkspacePaths = sidebarState.expandedWorkspacePaths.filter((workspacePath) => sidebarState.workspacePaths.includes(workspacePath))
   await persistSidebarState()
   // 工作目录扫描不再阻塞启动链路：它是最重的启动 IO（递归遍历整个工作区），
   // 改由 app.whenReady 在首窗创建后后台执行（见 whenReady 内注释）。
@@ -419,12 +415,11 @@ async function maybeOpenReleaseNotesOnce(): Promise<void> {
 //
 // 标签页阶段 A：单文档状态（documentKind/filePath/draftId/displayTitle/lastSyncedContent/
 // ignoredWatchedContents/watcher/debounceTimer）迁入 per-window 的 tab 集合
-// （WindowTabState + activeTabId，见 window-tabs.ts）。窗口级状态（侧边栏、agent 活动灯、
+// （WindowTabState + activeTabId，见 window-tabs.ts）。窗口级状态（侧边栏、
 // 工作目录缓存、渲染层握手）仍留在窗口上。
 //
 // 下方 documentKind 等 getter/setter 把既有代码的 state.filePath 读写全部委托给活动 tab：
-// 默认关闭（集合恒为单个 tab）时与旧的单文档 WindowState 行为逐字节等价；
-// 开启 opt-in 后，新开文档通过 addTab 落新 tab，旧代码无需改动。
+// 单 tab 时与旧的单文档 WindowState 行为逐字节等价；多 tab 的新文档通过 addTab 落入新标签。
 interface WindowState {
   activeSidebarTab: PersistedSidebarState['activeSidebarTab']
   drawerSidebarOpen: boolean
@@ -442,8 +437,7 @@ interface WindowState {
   watcher: FSWatcher | null
   debounceTimer: ReturnType<typeof setTimeout> | null
   workdirPath: string | null
-  workdirEntries: WorkdirEntry[]
-  workdirTree: WorkdirTreeNode[]
+  workspaceTrees: Array<{ rootPath: string; tree: WorkdirTreeNode[] }>
   // 渲染层监听器就绪前到达的初始内容，先暂存，握手后再投递
   rendererReady: boolean
   pendingFileOpened: { path: string | null; content: string } | null
@@ -456,8 +450,7 @@ class WindowStateImpl implements WindowState {
   isDrawerMode = false
   tabs: TabCollection
   workdirPath: string | null
-  workdirEntries: WorkdirEntry[] = []
-  workdirTree: WorkdirTreeNode[] = []
+  workspaceTrees: Array<{ rootPath: string; tree: WorkdirTreeNode[] }> = []
   rendererReady = false
   pendingFileOpened: { path: string | null; content: string } | null = null
 
@@ -935,8 +928,7 @@ function createSidebarSnapshot(win: BrowserWindow): SidebarSnapshot {
     currentDraftId: state.draftId,
     currentDisplayTitle: state.displayTitle,
     isDrawerMode: drawerMode,
-    workdirEntries: state.workdirEntries,
-    workdirTree: state.workdirTree,
+    workspaceTrees: state.workspaceTrees,
   }
 }
 
@@ -1614,9 +1606,9 @@ function isPathInsideAnyWorkspace(filePath: string): boolean {
 
 function resolveWorkdirCreationRoot(win: BrowserWindow): string | null {
   const state = getState(win)
+  if (state.workdirPath && existsSync(state.workdirPath)) return state.workdirPath
   const currentRoot = getWorkspaceRootForPath(state.filePath)
   if (currentRoot && existsSync(currentRoot)) return currentRoot
-  if (state.workdirPath && existsSync(state.workdirPath)) return state.workdirPath
   if (sidebarState.workdirPath && existsSync(sidebarState.workdirPath)) return sidebarState.workdirPath
   return sidebarState.workspacePaths.find((workspacePath) => existsSync(workspacePath)) ?? null
 }
@@ -1795,11 +1787,19 @@ function defaultDraftDirectoryPath(): string {
   return join(app.getPath('documents'), 'LyraMD Drafts')
 }
 
+function registerDraftWorkspacePath(workspacePath: string): void {
+  sidebarState.workspacePaths = [
+    workspacePath,
+    ...sidebarState.workspacePaths.filter((path) => path !== workspacePath),
+  ].slice(0, DEFAULT_MAX_WORKSPACES)
+  sidebarState.expandedWorkspacePaths = [...new Set([...sidebarState.expandedWorkspacePaths, workspacePath])]
+}
+
 function getEffectiveDraftDirectoryPath(): string {
   return sidebarState.draftDirectoryPath ?? defaultDraftDirectoryPath()
 }
 
-// 标签页阶段 A 开关：默认关闭时所有多 tab 分支都不会走到。
+// 标签页开关保留为用户偏好；默认启用，关闭后恢复单文档窗口行为。
 function areTabsEnabled(): boolean {
   return appSettings.tabs?.enabled === true
 }
@@ -2574,7 +2574,7 @@ async function createWorkdirFileInWindow(win: BrowserWindow): Promise<SidebarSna
   state.workdirPath = creationRoot
   state.activeSidebarTab = 'workdir'
   sidebarState.workdirPath = creationRoot
-  await refreshWorkdirEntriesForWindow(win)
+  await refreshWorkdirEntries()
   await persistSidebarState()
   await loadFileInWindow(win, nextPath, { documentKind: 'file' })
   broadcastSidebarState()
@@ -2593,7 +2593,7 @@ async function createWorkdirFolderInWindow(win: BrowserWindow): Promise<SidebarS
   state.workdirPath = creationRoot
   state.activeSidebarTab = 'workdir'
   sidebarState.workdirPath = creationRoot
-  await refreshWorkdirEntriesForWindow(win)
+  await refreshWorkdirEntries()
   await persistSidebarState()
   broadcastSidebarState()
   return createSidebarSnapshot(win)
@@ -3131,34 +3131,6 @@ ipcMain.handle('toggle-sidebar', async (event) => {
   return toggleSidebarForWindow(getWinFromEvent(event))
 })
 
-ipcMain.handle('toggle-drafts-expanded', async () => {
-  sidebarState.draftsExpanded = !sidebarState.draftsExpanded
-  persistSidebarState()
-  broadcastSidebarState()
-  return sidebarState.draftsExpanded
-})
-
-ipcMain.handle('toggle-workdir-expanded', async () => {
-  sidebarState.workdirExpanded = !sidebarState.workdirExpanded
-  persistSidebarState()
-  broadcastSidebarState()
-  return sidebarState.workdirExpanded
-})
-
-ipcMain.handle('toggle-pinned-expanded', async () => {
-  sidebarState.pinnedExpanded = !sidebarState.pinnedExpanded
-  persistSidebarState()
-  broadcastSidebarState()
-  return sidebarState.pinnedExpanded
-})
-
-ipcMain.handle('toggle-recent-files-expanded', async () => {
-  sidebarState.recentFilesExpanded = !sidebarState.recentFilesExpanded
-  persistSidebarState()
-  broadcastSidebarState()
-  return sidebarState.recentFilesExpanded
-})
-
 ipcMain.handle('set-sidebar-width', async (_event, width: number) => {
   sidebarState.sidebarWidth = clampSidebarWidth(width)
   persistSidebarState()
@@ -3181,7 +3153,8 @@ ipcMain.handle('choose-workdir', async (event) => {
   state.workdirPath = result.filePaths[0]
   sidebarState.workdirPath = state.workdirPath
   sidebarState.workspacePaths = addWorkspacePath(sidebarState.workspacePaths, state.workdirPath)
-  await refreshWorkdirEntriesForWindow(win)
+  sidebarState.expandedWorkspacePaths = [...new Set([...sidebarState.expandedWorkspacePaths, state.workdirPath])]
+  await refreshWorkdirEntries()
   await persistSidebarState()
   broadcastSidebarState()
   return createSidebarSnapshot(win)
@@ -3200,8 +3173,9 @@ ipcMain.handle('select-workspace', async (event, workspacePath: string) => {
 
   state.workdirPath = workspacePath
   sidebarState.workspacePaths = addWorkspacePath(sidebarState.workspacePaths, workspacePath)
+  sidebarState.expandedWorkspacePaths = [...new Set([...sidebarState.expandedWorkspacePaths, workspacePath])]
   sidebarState.workdirPath = workspacePath
-  await refreshWorkdirEntriesForWindow(win)
+  await refreshWorkdirEntries()
   await persistSidebarState()
   broadcastSidebarState()
   return createSidebarSnapshot(win)
@@ -3211,9 +3185,13 @@ ipcMain.handle('remove-workspace', async (event, workspacePath: string) => {
   const win = getWinFromEvent(event)
   if (!win) return null
   if (typeof workspacePath !== 'string') return createSidebarSnapshot(win)
+  if (workspacePath === sidebarState.draftDirectoryPath
+    || sidebarState.draftEntries.some((entry) => dirname(entry.path) === workspacePath)
+  ) return createSidebarSnapshot(win)
 
   const next = removeWorkspacePath(sidebarState.workspacePaths, workspacePath, sidebarState.workdirPath)
   sidebarState.workspacePaths = next.workspacePaths
+  sidebarState.expandedWorkspacePaths = sidebarState.expandedWorkspacePaths.filter((path) => path !== workspacePath)
   sidebarState.workdirPath = next.workdirPath
   for (const window of BrowserWindow.getAllWindows()) {
     const state = getState(window)
@@ -3222,19 +3200,6 @@ ipcMain.handle('remove-workspace', async (event, workspacePath: string) => {
     }
   }
   await refreshWorkdirEntries()
-  await persistSidebarState()
-  broadcastSidebarState()
-  return createSidebarSnapshot(win)
-})
-
-ipcMain.handle('reorder-workspaces', async (event, sourcePath: string, targetPath: string) => {
-  const win = getWinFromEvent(event)
-  if (!win) return null
-  if (typeof sourcePath !== 'string' || typeof targetPath !== 'string') {
-    return createSidebarSnapshot(win)
-  }
-
-  sidebarState.workspacePaths = reorderWorkspacePaths(sidebarState.workspacePaths, sourcePath, targetPath)
   await persistSidebarState()
   broadcastSidebarState()
   return createSidebarSnapshot(win)
@@ -3250,6 +3215,19 @@ ipcMain.handle('create-workdir-folder', async (event) => {
   const win = getWinFromEvent(event)
   if (!win) return null
   return createWorkdirFolderInWindow(win)
+})
+
+ipcMain.handle('toggle-workspace-expanded', async (event, workspacePath: string) => {
+  const win = getWinFromEvent(event)
+  if (!win || typeof workspacePath !== 'string' || !sidebarState.workspacePaths.includes(workspacePath)) return null
+
+  sidebarState.expandedWorkspacePaths = sidebarState.expandedWorkspacePaths.includes(workspacePath)
+    ? sidebarState.expandedWorkspacePaths.filter((path) => path !== workspacePath)
+    : [...sidebarState.expandedWorkspacePaths, workspacePath]
+  await refreshWorkdirEntries()
+  await persistSidebarState()
+  broadcastSidebarState()
+  return createSidebarSnapshot(win)
 })
 
 ipcMain.handle('set-active-sidebar-tab', async (event, tab: string) => {
@@ -3280,7 +3258,7 @@ ipcMain.handle('toggle-pinned-file', async (event, filePath: string) => {
   if (typeof filePath !== 'string' || !canTogglePinnedFile({
     filePath,
     fileExists: existsSync(filePath),
-    knownWorkdirFiles: getState(win).workdirEntries.map((entry) => entry.absolutePath),
+    knownWorkdirFiles: getState(win).workspaceTrees.flatMap((workspace) => flattenWorkdirTree(workspace.tree).map((entry) => entry.absolutePath)),
     recentFiles: sidebarState.recentFiles,
     currentFilePath: getState(win).filePath,
     pinnedItems: sidebarState.pinnedItems,
@@ -3304,8 +3282,10 @@ ipcMain.handle('choose-draft-directory', async (event) => {
   if (result.canceled || result.filePaths.length === 0) return null
 
   sidebarState.draftDirectoryPath = result.filePaths[0]
+  registerDraftWorkspacePath(sidebarState.draftDirectoryPath)
   sidebarState.draftOnboardingCompleted = true
-  persistSidebarState()
+  await refreshWorkdirEntries()
+  await persistSidebarState()
   broadcastSidebarState()
   return createSidebarSnapshot(win)
 })
@@ -3314,8 +3294,11 @@ ipcMain.handle('skip-draft-onboarding', async (event) => {
   const win = getWinFromEvent(event)
   if (!win) return null
   sidebarState.draftDirectoryPath = getEffectiveDraftDirectoryPath()
+  await mkdir(sidebarState.draftDirectoryPath, { recursive: true })
+  registerDraftWorkspacePath(sidebarState.draftDirectoryPath)
   sidebarState.draftOnboardingCompleted = true
-  persistSidebarState()
+  await refreshWorkdirEntries()
+  await persistSidebarState()
   broadcastSidebarState()
   return createSidebarSnapshot(win)
 })
@@ -3367,14 +3350,6 @@ ipcMain.handle('open-draft', async (event, draftId: string) => {
     draftId: draftEntry.id,
     recordRecent: false,
   })
-})
-
-ipcMain.handle('remove-recent-file', async (_event, filePath: string) => {
-  if (typeof filePath !== 'string') return false
-  sidebarState.recentFiles = removeRecentFile(sidebarState.recentFiles, filePath)
-  persistSidebarState()
-  broadcastSidebarState()
-  return true
 })
 
 ipcMain.handle('remove-workdir-file', async (event, filePath: string) => {

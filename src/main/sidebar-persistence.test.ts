@@ -9,14 +9,14 @@ describe('sidebar persistence regression', () => {
     expect(file).toMatch(/ipcMain\.handle\('choose-workdir'[\s\S]*await refreshWorkdirEntries\(\)\n\s+await persistSidebarState\(\)[\s\S]*return createSidebarSnapshot\(win\)/)
     expect(file).toMatch(/ipcMain\.handle\('select-workspace'[\s\S]*sidebarState\.workspacePaths = addWorkspacePath[\s\S]*await refreshWorkdirEntries\(\)\n\s+await persistSidebarState\(\)[\s\S]*return createSidebarSnapshot\(win\)/)
     expect(file).toMatch(/ipcMain\.handle\('remove-workspace'[\s\S]*await refreshWorkdirEntries\(\)\n\s+await persistSidebarState\(\)[\s\S]*return createSidebarSnapshot\(win\)/)
-    expect(file).toMatch(/ipcMain\.handle\('reorder-workspaces'[\s\S]*sidebarState\.workspacePaths = reorderWorkspacePaths[\s\S]*await persistSidebarState\(\)[\s\S]*return createSidebarSnapshot\(win\)/)
+    expect(file).not.toContain("ipcMain.handle('reorder-workspaces'")
   })
 
-  it('scans only the active workdir instead of merging all workspace trees', () => {
-    expect(file).toContain('const tree = await scanWorkdirTree(activeWorkdirPath)')
-    expect(file).toContain('state.workdirEntries = flattenWorkdirTree(tree)')
-    expect(file).not.toContain('existingWorkspacePaths.map(async (rootPath)')
-    expect(file).not.toContain('createWorkspaceRootTreeNode(workspace.rootPath, workspace.tree)')
+  it('scans expanded workspace roots only and keeps an independent tree per root', () => {
+    expect(file).toContain('const expandedPaths = sidebarState.expandedWorkspacePaths')
+    expect(file).toContain('Promise.all(expandedPaths.map(async (rootPath)')
+    expect(file).toContain('return { rootPath, tree: await scanWorkdirTree(rootPath) }')
+    expect(file).not.toContain('const tree = await scanWorkdirTree(activeWorkdirPath)')
   })
 
   it('dedupes concurrent per-window workdir refreshes (startup perf)', () => {

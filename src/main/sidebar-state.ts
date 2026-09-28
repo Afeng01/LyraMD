@@ -1,4 +1,6 @@
+import { dirname } from 'path'
 import {
+  DEFAULT_MAX_WORKSPACES,
   normalizePinnedItems,
   normalizeSidebarTab,
   normalizeWorkspacePaths,
@@ -15,12 +17,9 @@ export const MAX_SIDEBAR_WIDTH = 460
 export interface PersistedSidebarState {
   sidebarOpen: boolean
   sidebarWidth: number
-  draftsExpanded: boolean
-  workdirExpanded: boolean
-  pinnedExpanded: boolean
-  recentFilesExpanded: boolean
   workdirPath: string | null
   workspacePaths: string[]
+  expandedWorkspacePaths: string[]
   pinnedItems: PinnedItem[]
   activeSidebarTab: SidebarTab
   draftDirectoryPath: string | null
@@ -47,14 +46,11 @@ export interface WindowSidebarViewState {
 export const DEFAULT_SIDEBAR_STATE: PersistedSidebarState = {
   sidebarOpen: false,
   sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
-  draftsExpanded: true,
-  workdirExpanded: true,
-  pinnedExpanded: true,
-  recentFilesExpanded: true,
   workdirPath: null,
   workspacePaths: [],
+  expandedWorkspacePaths: [],
   pinnedItems: [],
-  activeSidebarTab: 'drafts',
+  activeSidebarTab: 'workdir',
   draftDirectoryPath: null,
   draftOnboardingCompleted: false,
   draftEntries: [],
@@ -165,23 +161,34 @@ export function normalizeSidebarState(value: unknown): PersistedSidebarState {
 
   const candidate = value as Partial<PersistedSidebarState>
   const workdirPath = typeof candidate.workdirPath === 'string' ? candidate.workdirPath : null
+  const draftDirectoryPath = typeof candidate.draftDirectoryPath === 'string' ? candidate.draftDirectoryPath : null
+  const draftEntries = Array.isArray(candidate.draftEntries)
+    ? candidate.draftEntries.filter(isDraftEntryRecord)
+    : []
+  const configuredWorkspacePaths = normalizeWorkspacePaths(candidate.workspacePaths, workdirPath)
+  const draftWorkspacePaths = [...new Set([
+    ...(draftDirectoryPath ? [draftDirectoryPath] : []),
+    ...draftEntries.map((entry) => dirname(entry.path)),
+  ])]
+  const workspacePaths = [...draftWorkspacePaths, ...configuredWorkspacePaths.filter((path) => !draftWorkspacePaths.includes(path))]
+    .slice(0, DEFAULT_MAX_WORKSPACES)
+  const rawExpandedWorkspacePaths = Array.isArray(candidate.expandedWorkspacePaths)
+    ? candidate.expandedWorkspacePaths.filter((path): path is string => typeof path === 'string' && path.trim().length > 0)
+    : [...draftWorkspacePaths, ...(workdirPath ? [workdirPath] : workspacePaths.slice(0, 1))]
+  const expandedWorkspacePaths = [...new Set(rawExpandedWorkspacePaths)]
+    .filter((path) => workspacePaths.includes(path))
 
   return {
     sidebarOpen: candidate.sidebarOpen === true,
     sidebarWidth: normalizeSidebarWidth(candidate.sidebarWidth),
-    draftsExpanded: candidate.draftsExpanded !== false,
-    workdirExpanded: candidate.workdirExpanded !== false,
-    pinnedExpanded: candidate.pinnedExpanded !== false,
-    recentFilesExpanded: candidate.recentFilesExpanded !== false,
     workdirPath,
-    workspacePaths: normalizeWorkspacePaths(candidate.workspacePaths, workdirPath),
+    workspacePaths,
+    expandedWorkspacePaths,
     pinnedItems: normalizePinnedItems(candidate.pinnedItems),
     activeSidebarTab: normalizeSidebarTab(candidate.activeSidebarTab),
-    draftDirectoryPath: typeof candidate.draftDirectoryPath === 'string' ? candidate.draftDirectoryPath : null,
+    draftDirectoryPath,
     draftOnboardingCompleted: candidate.draftOnboardingCompleted === true,
-    draftEntries: Array.isArray(candidate.draftEntries)
-      ? candidate.draftEntries.filter(isDraftEntryRecord)
-      : [],
+    draftEntries,
     recentFiles: Array.isArray(candidate.recentFiles)
       ? candidate.recentFiles.filter((entry): entry is string => typeof entry === 'string').slice(0, DEFAULT_MAX_RECENT_FILES)
       : [],

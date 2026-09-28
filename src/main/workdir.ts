@@ -1,5 +1,5 @@
 import { readdir } from 'fs/promises'
-import { basename, join, relative } from 'path'
+import { join, relative } from 'path'
 import { isMarkdownFile } from './file-extensions'
 
 // 启动性能：扫描工作区时跳过重目录（依赖/版本库/隐藏目录），
@@ -59,19 +59,6 @@ export function resolveNewWorkdirFolderPath(
   }
 
   return candidatePath
-}
-
-export function createWorkspaceRootTreeNode(
-  rootPath: string,
-  children: WorkdirTreeNode[],
-): WorkdirTreeNode {
-  return {
-    absolutePath: rootPath,
-    children,
-    kind: 'directory',
-    name: basename(rootPath),
-    relativePath: basename(rootPath),
-  }
 }
 
 export function flattenWorkdirTree(nodes: WorkdirTreeNode[]): WorkdirEntry[] {

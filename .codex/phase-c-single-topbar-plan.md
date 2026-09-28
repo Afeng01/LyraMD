@@ -125,7 +125,9 @@ whenReady 分支改为消费该函数（判定文本等价搬移，`existsSync` 
 
 ### ⑤ 最近文件入口随标签常驻
 
-**无代码改动。** `renderRecentControl`（src/renderer/window-tabs.ts:254-270）在条渲染时无条件追加时钟按钮；① 生效后单文档也有入口。`filterRecentFilesForTabStrip` 会把当前唯一已开文档从候选里排除（符合预期：已在 tab 中的文稿不进下拉）。
+> **行为更新（2026-09-29）**：以下是阶段 C 初始方案；用户后续反馈最近打开菜单未能正常显示历史文稿。2026-09-29 标签 UI 修复已替换该规则：菜单展示全部最近记录（包含当前窗口已打开的文稿），已打开项标注「已打开」，点击切换到现有 tab；标签列表独立横向滚动，关闭/新建/历史按钮固定且下拉菜单不受滚动裁切。
+
+**原始方案（仅作历史记录）**：`renderRecentControl` 在条渲染时无条件追加时钟按钮；原 `filterRecentFilesForTabStrip` 曾把当前窗口已打开文稿从下拉排除。该过滤行为已被上述修复取代。
 
 ---
 
@@ -213,5 +215,5 @@ enabled 时 `openFile`（src/main/index.ts:2199）路由顺序：
 1. **最大风险：③ 的「enabled + 宿主未 ready → `loadFileInWindow` 直写活动 tab」**。它绕过渲染层 flush 协同，安全性完全依赖「未 ready ⇒ 不可能有在途未保存编辑」与 `pendingFileOpened` 补投语义（src/main/index.ts:791-808）。若未来 rendererReady 握手时序变化（例如提前置 ready），该路径会静默覆盖活动 tab 文档状态。缓解：兜底仅在该精确分支使用、注释写明依赖、复用现有 `file-opened` 握手回归。
 2. 会话恢复 await 序列期间到达 openFile（恢复中窗口已 ready）走 `tab-open-request`，与 `restoreSessionTabsInWindow` 的 addTab 序列并发——现状已存在，非本方案引入，但常驻后打开入口变多、触发概率上升；测试时补一条手工用例（启动即拖文件）。
 3. 视觉/布局：单 tab 常驻占用顶栏纵向空间，窄窗（drawer 断点 `DRAWER_BREAKPOINT`）与全屏下的几何需截图验收；本次不改 CSS，若溢出属后续打磨，不阻塞阶段 C。
-4. `filterRecentFilesForTabStrip` 在单文档下排除唯一已开文档，下拉可能常显「暂无最近文件」空态——预期行为，验收时确认不视为回归。
+4. 最近文件菜单的旧过滤规则会在已开文稿较多时显示空态；此风险已由 2026-09-29 的完整历史展示修复（见 §1 ⑤ 更新）。
 5. enabled=false 回退等价性依赖 `sendTabsState` 继续发 `tabs: []`：重构 `sendTabsState` 时不得改为 disabled 不发消息（否则渲染层持有旧条）。现有测试 :24 已锚定。

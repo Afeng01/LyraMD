@@ -395,20 +395,40 @@ body.platform-win32 #agent-toggle {
 
 /* 顶部文稿标签：单文稿同样保留一个 tab，外壳退后，用间距而非边框分组。 */
 #tab-strip {
+  position: relative;
+  z-index: 20;
   display: flex;
   align-items: center;
   gap: 4px;
   flex: none;
+  min-width: 0;
   min-height: 34px;
   padding: 3px 10px;
+  overflow: visible;
   background: var(--bg-color);
-  overflow-x: auto;
-  scrollbar-width: none;
   -webkit-app-region: no-drag;
 }
 
-#tab-strip::-webkit-scrollbar {
+#tab-strip .tab-strip-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+#tab-strip .tab-strip-tabs::-webkit-scrollbar {
   display: none;
+}
+
+#tab-strip .tab-strip-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
 }
 
 #tab-strip .tab-strip-item {
@@ -436,7 +456,8 @@ body.platform-win32 #agent-toggle {
   font-weight: 600;
 }
 
-#tab-strip .tab-strip-close {
+#tab-strip .tab-strip-close,
+#tab-strip .tab-strip-close-active {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -464,9 +485,15 @@ body.platform-win32 #agent-toggle {
   pointer-events: auto;
 }
 
-#tab-strip .tab-strip-close:hover {
+#tab-strip .tab-strip-close:hover,
+#tab-strip .tab-strip-close-active:hover {
   background: color-mix(in srgb, var(--text-muted) 12%, transparent 88%);
   color: var(--text-color);
+}
+
+#tab-strip .tab-strip-close-active {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 #tab-strip .tab-strip-title {
@@ -525,7 +552,6 @@ body.platform-win32 #agent-toggle {
   position: relative;
   display: inline-flex;
   align-items: center;
-  margin-left: auto;
   flex: none;
 }
 
@@ -572,7 +598,10 @@ body.platform-win32 #agent-toggle {
 }
 
 #tab-strip .tab-strip-recent-item {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   width: 100%;
   padding: 6px 10px;
   border: none;
@@ -586,6 +615,18 @@ body.platform-win32 #agent-toggle {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+#tab-strip .tab-strip-recent-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#tab-strip .tab-strip-recent-status {
+  flex: none;
+  color: var(--text-muted);
+  font-size: 10px;
 }
 
 #tab-strip .tab-strip-recent-item:hover {

@@ -29,11 +29,12 @@ describe('changelog parser', () => {
   it('parses the real repo CHANGELOG.md into renderable releases', () => {
     const raw = readFileSync(join(process.cwd(), 'CHANGELOG.md'), 'utf8')
     const releases = parseChangelog(raw)
-    expect(releases.length).toBeGreaterThanOrEqual(2)
-    // 最新版块不再用「未发布」占位：发版即写真实版本号（如 1.4.0-beta.1）
-    expect(releases[0].version).toMatch(/^\d+\.\d+\.\d+/)
-    expect(releases[0].blocks.some((block) => block.kind === 'group' && block.title?.startsWith('主界面与标签页'))).toBe(true)
-    const previousRelease = releases[1]
+    expect(releases.length).toBeGreaterThanOrEqual(3)
+    const releaseIndex = releases[0].version === '未发布' ? 1 : 0
+    const latestRelease = releases[releaseIndex]
+    expect(latestRelease.version).toMatch(/^\d+\.\d+\.\d+/)
+    expect(latestRelease.blocks.some((block) => block.kind === 'group' && block.title?.startsWith('主界面与标签页'))).toBe(true)
+    const previousRelease = releases[releaseIndex + 1]
     expect(previousRelease.version).toMatch(/^\d+\.\d+\.\d+$/)
     expect(previousRelease.blocks.length).toBeGreaterThan(0)
   })

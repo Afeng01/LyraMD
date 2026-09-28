@@ -1,10 +1,10 @@
 # LyraMD Open Loops
 
-## Open (2026-09-25)
+## Open (2026-09-29)
 
-- **人眼验收**：阶段 A/B/C 已落地；本轮又收敛为「草稿 / 工作目录」侧栏、工作目录 `+` 菜单、暖黄色行内星标、可关闭标签和解释性最近文件菜单。`npm test` 74 files / 578 tests 全绿，`npm run build` 通过；dev 正运行并会热更新。待 Cherry 在真实窗口确认布局与关闭交互。
-- **Push**：本地 `main` 领先 `origin/main` 57 个提交，等待 Cherry 明确点头；未执行 push。
-- **1.4.0 发版**：仍等 Cherry 决策。若进入发版，按 `docs/release-checklist.md` 重新出包，并做安装版 destructive drill + proof pack；`release/` 旧 dmg 不包含本轮代码。
+- **本轮修复待推送**：`29894e7b` 修复工作目录二次确认循环；同日标签 UI 修复固定关闭/新建/历史入口、修复历史菜单裁切并展示已打开文稿，同步中英文 README 与 CHANGELOG。74 files / 572 tests、4 主题契约、`npm run build` 均通过。Cherry 未授权推送，当前 main 领先 origin/main 2 个提交；如需安装版验收或纳入 Release，先确认推送与版本安排。
+- **正式版前 destructive drill**：1.4.0-beta.1 已于 2026-09-28 发布为 prerelease；安装版破坏性外部更新演练与 proof pack 继续留到 1.4.0 正式版发前执行。
+- **类型检查接入 pipeline（技术债）**：用户此前决定先记录、之后再做；清理三类历史 TS 错误后再接 `tsc --noEmit`，详情见下方 Deferred。
 - **后续候选（未立项）**：标签关闭前自动留恢复副本；正文宽度三档；Word 导出 Mermaid 图。详见 `docs/2026-09-15-竞品调研-ColoMD-2.4-主界面优化方案.md` §10。
 
 ## Done (2026-09-25)
@@ -16,6 +16,12 @@
 
 - **主界面改造收尾并提交**：标签条「+」新建入口（`2382cb63`）、侧栏工作目录/大纲互斥 + 多目录展开与移除保护 + 死代码清理（`51e92056`）、文档同步（`d2542f23`）。
 - **修复 init 崩溃**：清理 `createFileItem` 时遗留 `meta` 引用导致 renderer init 中断、全部事件绑定失效（`b27d627f`）。
+- **发布 1.4.0-beta.1**：main 与 `v1.4.0-beta.1` tag 已推送；CI macOS + Windows 构建成功，GitHub Release 标记为 prerelease。
+
+## Done (2026-09-29)
+
+- **修复工作目录移除确认循环**：第二次点击此前先被通用 pending-confirmation 分支清掉；`29894e7b` 将移除事件分支提前处理。
+- **修复标签栏溢出与历史入口**：标签列表独立横向滚动，×/+/历史按钮固定；历史菜单不再因 overflow 裁切，并展示已打开文稿，点击可切回现有 tab；`63f4cfd4`。
 
 ## Deferred (2026-09-28)
 
@@ -23,7 +29,7 @@
   1. `src/main/settings.ts` 4 处 TS2353/TS2339——`settingsSchemaVersion` 已被使用但 `AppSettings` 接口缺该字段（`8825f5f1` 引入）；
   2. tsconfig 跨 rootDir 引用（preload/renderer 引用 `src/main/update-notice.ts`、`settings.ts`，main 引用 `src/shared/local-media.ts` 报 TS6059），需调整 project references / rootDir 或抽 shared 编译单元；
   3. `src/main/ai-provider.test.ts` 2 处元组类型误用。
-  用户拍板：先记录不发版前做，1.4.0-beta 发版后再排期。
+  用户拍板：先记录，不在当次发版前做；1.4.0-beta.1 已发布，待后续另行排期，本轮未启动。
 
 ## Done (2026-09-15)
 

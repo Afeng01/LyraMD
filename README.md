@@ -24,8 +24,8 @@ Real-time collaboration between humans and AI agents, adapted for a quieter work
 - **WYSIWYG Markdown editing** powered by Milkdown.
 - **Markdown outline, images, and tokens** for H1-H6 headings, local/relative images including paths with spaces, YAML tags, Obsidian `#tag` / nested tags, and `[[wikilink]]`.
 - **Lightweight sidebar** that switches between Workdir and Outline; draft files appear in the Workdir list, and multiple directories can be expanded or collapsed independently. The Workdir actions menu adds folders or creates Markdown files/folders; non-draft roots can be removed from the list without deleting disk contents. Pinned documents get an inline amber star without changing list order.
-- **Recent files** from the tab strip's clock menu: open a recent document that is not already in the current window as a tab.
-- **Tabs enabled by default** at the top of the window (legacy settings migrate automatically; the setting remains optional), with session restore, per-tab unsaved indicators, a 24×24 close target, and a confirmation before discarding unsaved content.
+- **Recent files** from the tab strip's clock menu: browse recent documents, including those already open in the current window; selecting an open document activates its tab, otherwise it opens as a new tab.
+- **Tabs enabled by default** at the top of the window (legacy settings migrate automatically; the setting remains optional), with a horizontally scrollable tab list, fixed close/new/history controls, session restore, per-tab unsaved indicators, and a confirmation before discarding unsaved content.
 - **Multiple recursive Markdown workdirs** using relative paths, with independent expand/collapse state; the draft directory appears as a workdir too.
 - **Writing tools** including deterministic CJK typography cleanup, document stats, search, outline, local images, and Markdown token styling.
 - **Themes, fonts, and export**: built-in themes with per-theme editor fonts, custom font selection, custom CSS import, PDF export, and HTML export.

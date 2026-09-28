@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createWindowTabStripController,
-  filterRecentFilesForTabStrip,
+  normalizeRecentFilesForTabStrip,
   hasUnsavedDot,
   recentFileDisplayName,
   recentMenuKeyCloses,
@@ -115,11 +115,12 @@ describe('标签条 DOM 渲染（jsdom 不可用，用最小桩验证结构）',
     expect(active.attributes.get('aria-selected')).toBe('true')
     // 未保存圆点是独立子元素
     expect(active.children.some((child) => child.className === 'tab-strip-unsaved-dot')).toBe(true)
-    expect(activeItem.children[1]?.className).toBe('tab-strip-close')
+    expect(activeItem.children).toHaveLength(1)
     expect(inactiveItem.className).toBe('tab-strip-item')
     expect(inactive.className).toBe('tab-strip-tab')
     expect(inactive.attributes.get('aria-selected')).toBe('false')
     expect(inactive.children.some((child) => child.className === 'tab-strip-unsaved-dot')).toBe(false)
+    expect(inactiveItem.children[1]?.className).toBe('tab-strip-close')
   })
 
   it('重渲染前清空旧按钮（tabs-state 每次全量刷新）', () => {
@@ -268,12 +269,43 @@ describe('标签条挂载与零痕迹回退（阶段 C：单 tab 常驻）', () 
     const stripNode = findById(mountRoot, 'tab-strip')
     expect(stripNode).not.toBeNull()
     const classNames = collectClassNames(stripNode!)
+    expect(stripNode!.children[0]?.className).toBe('tab-strip-tabs')
+    expect(stripNode!.children[1]?.className).toBe('tab-strip-controls')
+    expect(stripNode!.children[1]?.children.map((child) => child.className)).toEqual([
+      'tab-strip-close-active',
+      'tab-strip-new-button',
+      'tab-strip-recent',
+    ])
+    expect(classNames).toContain('tab-strip-tabs')
+    expect(classNames).toContain('tab-strip-controls')
+    expect(classNames).toContain('tab-strip-close-active')
     expect(classNames).toContain('tab-strip-tab active')
     expect(classNames).toContain('tab-strip-recent-button')
     expect(classNames).toContain('tab-strip-recent-menu')
   })
 
-  it('历史按钮可打开菜单并把未打开的最近文稿送入标签', () => {
+  it('固定的 × 控件关闭当前活动标签', () => {
+    let closed: string | null = null
+    const controller = createWindowTabStripController({
+      onActivate: () => {},
+      onClose: (tabId) => { closed = tabId },
+    })
+    controller.handleTabsState({
+      enabled: true,
+      tabs: [
+        tab({ id: 'older', title: '旧文稿', isActive: false }),
+        tab({ id: 'current', title: '当前文稿', isActive: true }),
+      ],
+    })
+    const strip = findById(mountRoot, 'tab-strip')!
+    const closeButton = findByClass(strip, 'tab-strip-close-active')!
+    expect(closeButton.title).toBe('关闭 当前文稿')
+    const click = closeButton.listeners.get('click') as unknown as (event: { stopPropagation: () => void }) => void
+    click({ stopPropagation: () => {} })
+    expect(closed).toBe('current')
+  })
+
+  it('历史按钮展示完整最近记录（含已打开文件），点击后交给上层激活或打开', () => {
     let openedPath: string | null = null
     const controller = createWindowTabStripController({
       onActivate: () => {},
@@ -293,14 +325,15 @@ describe('标签条挂载与零痕迹回退（阶段 C：单 tab 常驻）', () 
     expect(button.attributes.get('aria-expanded')).toBe('true')
 
     const item = findByClass(menu, 'tab-strip-recent-item')!
-    expect(item.textContent).toBe('recent')
+    expect(item.children[0]?.textContent).toBe('open')
+    expect(item.children[1]?.textContent).toBe('已打开')
     item.listeners.get('click')?.()
-    expect(openedPath).toBe('/tmp/recent.md')
+    expect(openedPath).toBe('/tmp/open.md')
     expect(menu.hidden).toBe(true)
     expect(button.attributes.get('aria-expanded')).toBe('false')
   })
 
-  it('历史按钮无候选时仍展开并说明原因', () => {
+  it('历史按钮可显示已打开文稿而不是报空态', () => {
     const controller = createWindowTabStripController({ onActivate: () => {} })
     controller.handleRecentFiles(['/tmp/open.md'])
     controller.handleTabsState({
@@ -312,7 +345,8 @@ describe('标签条挂载与零痕迹回退（阶段 C：单 tab 常驻）', () 
     const menu = findByClass(strip, 'tab-strip-recent-menu')!
     button.listeners.get('click')?.()
     expect(menu.hidden).toBe(false)
-    expect(findByClass(menu, 'tab-strip-recent-empty')?.textContent).toBe('最近记录中的文稿都已在标签页中打开')
+    expect(findByClass(menu, 'tab-strip-recent-item')?.children[1]?.textContent).toBe('已打开')
+    expect(findByClass(menu, 'tab-strip-recent-empty')).toBeNull()
   })
 
   it('从单 tab 常驻切回关闭：节点被摘除（零痕迹回退，与阶段 A 前等价）', () => {
@@ -328,20 +362,15 @@ describe('标签条挂载与零痕迹回退（阶段 C：单 tab 常驻）', () 
 })
 
 describe('最近文件入口（阶段 A 第二片）', () => {
-  it('候选过滤：排除已在 tab 中打开的路径，保序去重', () => {
-    const tabs = [
-      { filePath: '/tmp/a.md' },
-      { filePath: null },
-      { filePath: '/tmp/c.md' },
-    ]
+  it('最近记录保序去重，不隐藏当前已打开的文稿', () => {
     expect(
-      filterRecentFilesForTabStrip(['/tmp/a.md', '/tmp/b.md', '/tmp/a.md', '/tmp/c.md', '/tmp/d.md'], tabs),
-    ).toEqual(['/tmp/b.md', '/tmp/d.md'])
+      normalizeRecentFilesForTabStrip(['/tmp/a.md', '/tmp/b.md', '/tmp/a.md', '/tmp/c.md']),
+    ).toEqual(['/tmp/a.md', '/tmp/b.md', '/tmp/c.md'])
   })
 
-  it('候选过滤：非法输入安全收敛为空', () => {
-    expect(filterRecentFilesForTabStrip(['', 42 as unknown as string], [])).toEqual([])
-    expect(filterRecentFilesForTabStrip(['/tmp/a.md'], undefined as unknown as Array<{ filePath?: string | null }>)).toEqual(['/tmp/a.md'])
+  it('最近记录过滤非法输入并安全收敛', () => {
+    expect(normalizeRecentFilesForTabStrip(['', 42 as unknown as string])).toEqual([])
+    expect(normalizeRecentFilesForTabStrip(undefined as unknown as string[])).toEqual([])
   })
 
   it('菜单项标题：文档名去 .md 后缀，兼容 Windows 分隔符与无后缀回退', () => {
@@ -388,8 +417,14 @@ describe('标签条接线与挂载点（字符串断言）', () => {
     expect(css).toContain('#tab-strip {')
     expect(css).toContain('#tab-strip .tab-strip-tab.active')
     expect(css).toContain('#tab-strip .tab-strip-unsaved-dot')
-    expect(css).toMatch(/#tab-strip \.tab-strip-close\s*\{[\s\S]*?width:\s*24px[\s\S]*?height:\s*24px/)
-    expect(css).toContain('.tab-strip-item.active .tab-strip-close')
+    expect(css).toMatch(/#tab-strip \.tab-strip-close,[\s\S]*?#tab-strip \.tab-strip-close-active\s*\{[\s\S]*?width:\s*24px[\s\S]*?height:\s*24px/)
+    const stripStyle = css.match(/#tab-strip\s*\{([^}]*)\}/)?.[1] ?? ''
+    const tabsViewportStyle = css.match(/#tab-strip \.tab-strip-tabs\s*\{([^}]*)\}/)?.[1] ?? ''
+    expect(stripStyle).toContain('overflow: visible')
+    expect(stripStyle).not.toContain('overflow-x: auto')
+    expect(tabsViewportStyle).toContain('overflow-x: auto')
+    expect(css).toContain('#tab-strip .tab-strip-controls {')
+    expect(css).toContain('.tab-strip-item:hover .tab-strip-close')
   })
 
   it('渲染层模块零痕迹策略：不满足条件时摘除节点', () => {

@@ -3216,6 +3216,10 @@ async function init(): Promise<void> {
         .then(() => api.openTabDocument({ filePath, content: getMarkdown() }))
         .catch(() => {})
     },
+    onReorder: (draggedTabId, targetTabId, placeBefore) => {
+      // 拖拽排序：重排在主进程 TabCollection 层完成，全量回推 tabs-state
+      void api.reorderTab(draggedTabId, targetTabId, placeBefore).catch(() => {})
+    },
   })
   api.onTabsState((payload) => {
     tabStrip.handleTabsState(payload)

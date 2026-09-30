@@ -8,8 +8,10 @@ import {
   recentFileDisplayName,
   recentMenuKeyCloses,
   renderTabStripItems,
+  resolveTabDropPlaceBefore,
   resolveTabStripItemClassName,
   shouldRenderTabStrip,
+  TAB_DRAG_MIME,
   type WindowTabStripItem,
 } from './window-tabs'
 
@@ -53,15 +55,42 @@ describe('tab 按钮样式与未保存圆点', () => {
   })
 })
 
+const makeFakeClassList = (owner: { className: string }) => ({
+  add(...names: string[]): void {
+    const set = new Set(owner.className.split(/\s+/).filter(Boolean))
+    names.forEach((name) => set.add(name))
+    owner.className = [...set].join(' ')
+  },
+  remove(...names: string[]): void {
+    const set = new Set(owner.className.split(/\s+/).filter(Boolean))
+    names.forEach((name) => set.delete(name))
+    owner.className = [...set].join(' ')
+  },
+  toggle(name: string, force?: boolean): boolean {
+    const set = new Set(owner.className.split(/\s+/).filter(Boolean))
+    const on = force ?? !set.has(name)
+    if (on) set.add(name)
+    else set.delete(name)
+    owner.className = [...set].join(' ')
+    return on
+  },
+  contains(name: string): boolean {
+    return owner.className.split(/\s+/).includes(name)
+  },
+})
+
 describe('标签条 DOM 渲染（jsdom 不可用，用最小桩验证结构）', () => {
   class FakeNode {
     children: FakeNode[] = []
     listeners = new Map<string, () => void>()
     attributes = new Map<string, string>()
     className = ''
+    classList = makeFakeClassList(this as unknown as { className: string })
     dataset: Record<string, string> = {}
     textContent = ''
     type = ''
+    draggable = false
+    title = ''
     constructor(public tagName: string, public id = '') {}
     appendChild(child: FakeNode): void {
       this.children.push(child)
@@ -115,7 +144,7 @@ describe('标签条 DOM 渲染（jsdom 不可用，用最小桩验证结构）',
     expect(active.attributes.get('aria-selected')).toBe('true')
     // 未保存圆点是独立子元素
     expect(active.children.some((child) => child.className === 'tab-strip-unsaved-dot')).toBe(true)
-    expect(activeItem.children).toHaveLength(1)
+    expect(activeItem.children[1]?.className).toBe('tab-strip-close')
     expect(inactiveItem.className).toBe('tab-strip-item')
     expect(inactive.className).toBe('tab-strip-tab')
     expect(inactive.attributes.get('aria-selected')).toBe('false')
@@ -179,6 +208,7 @@ describe('标签条挂载与零痕迹回退（阶段 C：单 tab 常驻）', () 
     children: FakeMountNode[] = []
     parent: FakeMountNode | null = null
     className = ''
+    classList = makeFakeClassList(this as unknown as { className: string })
     dataset: Record<string, string> = {}
     textContent = ''
     type = ''
@@ -272,19 +302,18 @@ describe('标签条挂载与零痕迹回退（阶段 C：单 tab 常驻）', () 
     expect(stripNode!.children[0]?.className).toBe('tab-strip-tabs')
     expect(stripNode!.children[1]?.className).toBe('tab-strip-controls')
     expect(stripNode!.children[1]?.children.map((child) => child.className)).toEqual([
-      'tab-strip-close-active',
       'tab-strip-new-button',
       'tab-strip-recent',
     ])
     expect(classNames).toContain('tab-strip-tabs')
     expect(classNames).toContain('tab-strip-controls')
-    expect(classNames).toContain('tab-strip-close-active')
+    expect(classNames).not.toContain('tab-strip-close-active')
     expect(classNames).toContain('tab-strip-tab active')
     expect(classNames).toContain('tab-strip-recent-button')
     expect(classNames).toContain('tab-strip-recent-menu')
   })
 
-  it('固定的 × 控件关闭当前活动标签', () => {
+  it('活动标签自身带 ×，非活动标签也带 ×', () => {
     let closed: string | null = null
     const controller = createWindowTabStripController({
       onActivate: () => {},
@@ -298,11 +327,42 @@ describe('标签条挂载与零痕迹回退（阶段 C：单 tab 常驻）', () 
       ],
     })
     const strip = findById(mountRoot, 'tab-strip')!
-    const closeButton = findByClass(strip, 'tab-strip-close-active')!
-    expect(closeButton.title).toBe('关闭 当前文稿')
-    const click = closeButton.listeners.get('click') as unknown as (event: { stopPropagation: () => void }) => void
+    const tabsViewport = findByClass(strip, 'tab-strip-tabs')!
+    const [olderItem, currentItem] = tabsViewport.children
+    expect(olderItem!.children[1]?.className).toBe('tab-strip-close')
+    const activeClose = currentItem!.children[1]!
+    expect(activeClose.className).toBe('tab-strip-close')
+    expect(activeClose.title).toBe('关闭 当前文稿')
+    const click = activeClose.listeners.get('click') as unknown as (event: { stopPropagation: () => void }) => void
     click({ stopPropagation: () => {} })
     expect(closed).toBe('current')
+  })
+
+  it('拖拽排序：drop 事件把拖拽标签和落点交给 onReorder', () => {
+    let reorder: { dragged: string; target: string; before: boolean } | null = null
+    const controller = createWindowTabStripController({
+      onActivate: () => {},
+      onReorder: (draggedTabId, targetTabId, placeBefore) => {
+        reorder = { dragged: draggedTabId, target: targetTabId, before: placeBefore }
+      },
+    })
+    controller.handleTabsState({
+      enabled: true,
+      tabs: [tab({ id: 'a', isActive: true }), tab({ id: 'b' })],
+    })
+    const strip = findById(mountRoot, 'tab-strip')!
+    const targetItem = findByClass(strip, 'tab-strip-tabs')!.children[1]!
+    const dataTransfer = {
+      types: [TAB_DRAG_MIME],
+      getData: (mime: string) => (mime === TAB_DRAG_MIME ? 'a' : ''),
+      dropEffect: '',
+    }
+    const dragover = targetItem.listeners.get('dragover') as unknown as (event: unknown) => void
+    dragover({ clientX: 2, preventDefault: () => {}, dataTransfer })
+    expect(targetItem.className).toContain('tab-drop-before')
+    const drop = targetItem.listeners.get('drop') as unknown as (event: unknown) => void
+    drop({ clientX: 2, preventDefault: () => {}, dataTransfer })
+    expect(reorder).toEqual({ dragged: 'a', target: 'b', before: true })
   })
 
   it('历史按钮展示完整最近记录（含已打开文件），点击后交给上层激活或打开', () => {
@@ -385,6 +445,13 @@ describe('最近文件入口（阶段 A 第二片）', () => {
     expect(recentMenuKeyCloses(undefined)).toBe(false)
   })
 
+  it('拖拽落点判定：前半段插前、后半段插后、异常宽度回退到插前', () => {
+    expect(resolveTabDropPlaceBefore(10, 100)).toBe(true)
+    expect(resolveTabDropPlaceBefore(60, 100)).toBe(false)
+    expect(resolveTabDropPlaceBefore(0, 0)).toBe(true)
+    expect(resolveTabDropPlaceBefore(Number.NaN, 100)).toBe(true)
+  })
+
   it('CSS 提供最近文件入口样式：时钟按钮、下拉菜单、菜单项、空态', () => {
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
     expect(css).toContain('#tab-strip .tab-strip-recent-button')
@@ -417,13 +484,15 @@ describe('标签条接线与挂载点（字符串断言）', () => {
     expect(css).toContain('#tab-strip {')
     expect(css).toContain('#tab-strip .tab-strip-tab.active')
     expect(css).toContain('#tab-strip .tab-strip-unsaved-dot')
-    expect(css).toMatch(/#tab-strip \.tab-strip-close,[\s\S]*?#tab-strip \.tab-strip-close-active\s*\{[\s\S]*?width:\s*24px[\s\S]*?height:\s*24px/)
+    expect(css).toMatch(/#tab-strip \.tab-strip-close\s*\{[\s\S]*?width:\s*24px[\s\S]*?height:\s*24px/)
     const stripStyle = css.match(/#tab-strip\s*\{([^}]*)\}/)?.[1] ?? ''
     const tabsViewportStyle = css.match(/#tab-strip \.tab-strip-tabs\s*\{([^}]*)\}/)?.[1] ?? ''
     expect(stripStyle).toContain('overflow: visible')
     expect(stripStyle).not.toContain('overflow-x: auto')
     expect(tabsViewportStyle).toContain('overflow-x: auto')
     expect(css).toContain('#tab-strip .tab-strip-controls {')
+    expect(css).toContain('#tab-strip .tab-strip-item.tab-drop-before')
+    expect(css).toContain('#tab-strip .tab-strip-item.tab-drop-after')
     expect(css).toContain('.tab-strip-item:hover .tab-strip-close')
   })
 

@@ -420,6 +420,28 @@ body.platform-win32 #agent-toggle {
   scrollbar-width: none;
 }
 
+/* 溢出提示：按滚动位置在列表左右缘淡出，静默提示还有更多标签 */
+#tab-strip .tab-strip-tabs {
+  --tab-fade-size: 18px;
+  -webkit-mask-image: linear-gradient(to right, transparent 0, black var(--tab-fade-size), black calc(100% - var(--tab-fade-size)), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, black var(--tab-fade-size), black calc(100% - var(--tab-fade-size)), transparent 100%);
+}
+
+#tab-strip .tab-strip-tabs:not(.overflow-left) {
+  -webkit-mask-image: linear-gradient(to right, black 0, black calc(100% - var(--tab-fade-size)), transparent 100%);
+  mask-image: linear-gradient(to right, black 0, black calc(100% - var(--tab-fade-size)), transparent 100%);
+}
+
+#tab-strip .tab-strip-tabs:not(.overflow-right) {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, black var(--tab-fade-size), black 100%);
+  mask-image: linear-gradient(to right, transparent 0, black var(--tab-fade-size), black 100%);
+}
+
+#tab-strip .tab-strip-tabs:not(.overflow-left):not(.overflow-right) {
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
 #tab-strip .tab-strip-tabs::-webkit-scrollbar {
   display: none;
 }
@@ -439,6 +461,18 @@ body.platform-win32 #agent-toggle {
   min-width: 0;
 }
 
+#tab-strip .tab-strip-item.tab-dragging {
+  opacity: 0.45;
+}
+
+#tab-strip .tab-strip-item.tab-drop-before {
+  box-shadow: inset 2px 0 0 var(--link-color);
+}
+
+#tab-strip .tab-strip-item.tab-drop-after {
+  box-shadow: inset -2px 0 0 var(--link-color);
+}
+
 #tab-strip .tab-strip-tab {
   display: inline-flex;
   align-items: center;
@@ -456,8 +490,7 @@ body.platform-win32 #agent-toggle {
   font-weight: 600;
 }
 
-#tab-strip .tab-strip-close,
-#tab-strip .tab-strip-close-active {
+#tab-strip .tab-strip-close {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -485,15 +518,9 @@ body.platform-win32 #agent-toggle {
   pointer-events: auto;
 }
 
-#tab-strip .tab-strip-close:hover,
-#tab-strip .tab-strip-close-active:hover {
+#tab-strip .tab-strip-close:hover {
   background: color-mix(in srgb, var(--text-muted) 12%, transparent 88%);
   color: var(--text-color);
-}
-
-#tab-strip .tab-strip-close-active {
-  opacity: 1;
-  pointer-events: auto;
 }
 
 #tab-strip .tab-strip-title {
@@ -579,10 +606,8 @@ body.platform-win32 #agent-toggle {
   top: calc(100% + 6px);
   right: 0;
   z-index: 30;
-  min-width: 180px;
+  min-width: 200px;
   max-width: 280px;
-  max-height: 320px;
-  overflow-y: auto;
   padding: 4px;
   border: 1px solid var(--border-color);
   border-radius: 8px;
@@ -595,6 +620,28 @@ body.platform-win32 #agent-toggle {
   color: var(--text-muted);
   font-size: 11px;
   font-weight: 650;
+}
+
+#tab-strip .tab-strip-recent-filter {
+  width: calc(100% - 16px);
+  margin: 2px 8px 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--bg-color) 94%, var(--border-color) 6%);
+  color: var(--text-color);
+  font: inherit;
+  font-size: 12px;
+}
+
+#tab-strip .tab-strip-recent-filter:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--link-color) 45%, var(--border-color) 55%);
+}
+
+#tab-strip .tab-strip-recent-list {
+  max-height: 284px;
+  overflow-y: auto;
 }
 
 #tab-strip .tab-strip-recent-item {

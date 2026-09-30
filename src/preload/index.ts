@@ -331,6 +331,7 @@ export interface ElectronAPI {
   onTabOpenRequest: (callback: (payload: { filePath: string; documentKind?: 'draft' | 'file' | null; draftId?: string | null }) => void) => void
   switchTab: (tabId: string, content: string) => Promise<boolean>
   closeTab: (tabId: string, content: string) => Promise<boolean>
+  reorderTab: (draggedTabId: string, targetTabId: string, placeBefore: boolean) => Promise<boolean>
   createTab: (content: string) => Promise<boolean>
   openTabDocument: (payload: { filePath: string; documentKind?: 'draft' | 'file'; draftId?: string | null; content: string }) => Promise<boolean>
   onZoomChange: (callback: (data: { delta?: number; level?: number }) => void) => void
@@ -502,6 +503,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   switchTab: (tabId: string, content: string) => ipcRenderer.invoke('tabs-switch', tabId, content),
   closeTab: (tabId: string, content: string) => ipcRenderer.invoke('tabs-close', tabId, content),
+  reorderTab: (draggedTabId: string, targetTabId: string, placeBefore: boolean) =>
+    ipcRenderer.invoke('tabs-reorder', draggedTabId, targetTabId, placeBefore),
   createTab: (content: string) => ipcRenderer.invoke('tabs-new', content),
   openTabDocument: (payload: { filePath: string; documentKind?: 'draft' | 'file'; draftId?: string | null; content: string }) =>
     ipcRenderer.invoke('tabs-open-document', payload),

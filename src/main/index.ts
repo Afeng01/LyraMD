@@ -82,6 +82,7 @@ import {
   findTabByFilePath,
   getActiveTab,
   parseTabSession,
+  reorderTabInCollection,
   resolveLoadedSessionState,
   resolveTabForSave,
   serializeTabSession,
@@ -611,6 +612,7 @@ function formatRevisionReasonLabel(reason: RevisionReason): string {
   if (reason === 'external-change') return '外部更新前备份'
   if (reason === 'crash') return '异常恢复点'
   if (reason === 'restore') return '从备份恢复'
+  if (reason === 'tab-close') return '关闭标签前备份'
   return '本地备份'
 }
 
@@ -2116,6 +2118,15 @@ async function closeTabInWindow(win: BrowserWindow, tabId: string, editorContent
       sendTabsState(win)
       return false
     }
+    // 用户确认丢弃：先把未保存正文留一份本地备份（不弹提醒，恢复入口在「文稿安全」里）
+    await recordManagedRevisionSnapshot({
+      content: target.unsavedContent,
+      displayTitle: target.displayTitle || '未命名文档',
+      documentKind: target.documentKind,
+      draftId: target.draftId,
+      filePath: target.filePath,
+      reason: 'tab-close',
+    }).catch(() => {})
   }
 
   const wasActive = state.tabs.activeTabId === tabId
@@ -2764,6 +2775,16 @@ ipcMain.handle('tabs-close', async (event, tabId: string, content: string) => {
   const win = getWinFromEvent(event)
   if (!win || typeof tabId !== 'string') return false
   return closeTabInWindow(win, tabId, typeof content === 'string' ? content : undefined)
+})
+
+ipcMain.handle('tabs-reorder', async (event, draggedTabId: string, targetTabId: string, placeBefore: boolean) => {
+  const win = getWinFromEvent(event)
+  if (!win || typeof draggedTabId !== 'string' || typeof targetTabId !== 'string') return false
+  const state = getState(win)
+  if (!reorderTabInCollection(state.tabs, draggedTabId, targetTabId, placeBefore === true)) return false
+  persistLastActiveDocument(state)
+  sendTabsState(win)
+  return true
 })
 
 ipcMain.handle('tabs-new', async (event, content: string) => {

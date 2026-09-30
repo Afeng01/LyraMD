@@ -24,7 +24,11 @@ export interface TabStripHandlers {
   onClose?: (tabId: string) => void
   /** 最近文件入口：点选未打开的最近文稿，先 flushAutoSave 再走 openTabDocument */
   onOpenRecent?: (filePath: string) => void
+  /** 拖拽排序：draggedId 移动到 targetId 前/后（主进程重排后全量回推 tabs-state） */
+  onReorder?: (draggedTabId: string, targetTabId: string, placeBefore: boolean) => void
 }
+
+export const TAB_DRAG_MIME = 'application/x-lyramd-tab-id'
 
 /**
  * 标签条显隐判定（阶段 C：单一顶栏）：开关开启即常驻显示——单文档也是一个 tab；
@@ -65,6 +69,12 @@ export function recentMenuKeyCloses(key: string | undefined): boolean {
   return key === 'Escape'
 }
 
+/** 拖拽落点判定：鼠标落在目标前半段插到前面，后半段插到后面。 */
+export function resolveTabDropPlaceBefore(offsetX: number, width: number): boolean {
+  if (!Number.isFinite(offsetX) || !Number.isFinite(width) || width <= 0) return true
+  return offsetX < width / 2
+}
+
 /** 未保存小圆点 = 内部脏状态（unsavedContent 快照）；外部修改提示保留文字，两者不共用。 */
 export function hasUnsavedDot(tab: WindowTabStripItem): boolean {
   return tab.hasUnsaved === true
@@ -82,6 +92,46 @@ export function renderTabStripItems(
     item.className = tab.isActive ? 'tab-strip-item active' : 'tab-strip-item'
     item.dataset.tabId = tab.id
     item.setAttribute('role', 'presentation')
+    item.draggable = true
+    item.addEventListener('dragstart', (event) => {
+      const transfer = (event as DragEvent).dataTransfer
+      if (!transfer) return
+      transfer.setData(TAB_DRAG_MIME, tab.id)
+      transfer.effectAllowed = 'move'
+      item.classList.add('tab-dragging')
+    })
+    item.addEventListener('dragend', () => {
+      item.classList.remove('tab-dragging')
+    })
+    item.addEventListener('dragover', (event) => {
+      const transfer = (event as DragEvent).dataTransfer
+      if (!transfer || !transfer.types.includes(TAB_DRAG_MIME)) return
+      event.preventDefault()
+      transfer.dropEffect = 'move'
+      const rect = (item as HTMLElement).getBoundingClientRect?.()
+      const placeBefore = resolveTabDropPlaceBefore(
+        (event as DragEvent).clientX - (rect?.left ?? 0),
+        rect?.width ?? 0,
+      )
+      item.classList.toggle('tab-drop-before', placeBefore)
+      item.classList.toggle('tab-drop-after', !placeBefore)
+    })
+    item.addEventListener('dragleave', () => {
+      item.classList.remove('tab-drop-before', 'tab-drop-after')
+    })
+    item.addEventListener('drop', (event) => {
+      const transfer = (event as DragEvent).dataTransfer
+      item.classList.remove('tab-drop-before', 'tab-drop-after')
+      const draggedId = transfer?.getData(TAB_DRAG_MIME)
+      if (!transfer || !draggedId || draggedId === tab.id) return
+      event.preventDefault()
+      const rect = (item as HTMLElement).getBoundingClientRect?.()
+      const placeBefore = resolveTabDropPlaceBefore(
+        (event as DragEvent).clientX - (rect?.left ?? 0),
+        rect?.width ?? 0,
+      )
+      handlers.onReorder?.(draggedId, tab.id, placeBefore)
+    })
 
     const button = doc.createElement('button')
     button.type = 'button'
@@ -107,21 +157,18 @@ export function renderTabStripItems(
       handlers.onActivate(tab.id)
     })
 
-    if (!tab.isActive) {
-      const closeButton = doc.createElement('button')
-      closeButton.type = 'button'
-      closeButton.className = 'tab-strip-close'
-      closeButton.title = `关闭 ${tab.title}`
-      closeButton.setAttribute('aria-label', `关闭标签 ${tab.title}`)
-      closeButton.textContent = '×'
-      closeButton.addEventListener('click', (event) => {
-        event.stopPropagation()
-        handlers.onClose?.(tab.id)
-      })
-      item.append(button, closeButton)
-    } else {
-      item.append(button)
-    }
+    const closeButton = doc.createElement('button')
+    closeButton.type = 'button'
+    closeButton.className = 'tab-strip-close'
+    closeButton.title = `关闭 ${tab.title}`
+    closeButton.setAttribute('aria-label', `关闭标签 ${tab.title}`)
+    closeButton.textContent = '×'
+    closeButton.addEventListener('click', (event) => {
+      event.stopPropagation()
+      handlers.onClose?.(tab.id)
+    })
+
+    item.append(button, closeButton)
     container.append(item)
   }
 }
@@ -146,9 +193,13 @@ export function createWindowTabStripController(handlers: TabStripHandlers): Wind
   // 最近文件下拉（阶段 A 第二片）：时钟按钮仅在标签条可见时渲染，Esc/点击外部关闭
   let recentMenu: HTMLElement | null = null
   let recentButton: HTMLButtonElement | null = null
+  let recentList: HTMLElement | null = null
+  let recentFilterInput: HTMLInputElement | null = null
+  let recentFilterText = ''
   let recentFiles: string[] = []
   let currentTabs: WindowTabStripItem[] = []
   let outsideCloseAttached = false
+  let resizeListenerAttached = false
 
   const onDocumentKeydown = (event: KeyboardEvent): void => {
     if (!recentMenuKeyCloses(event.key)) return
@@ -181,20 +232,38 @@ export function createWindowTabStripController(handlers: TabStripHandlers): Wind
     recentButton?.setAttribute('aria-expanded', 'false')
   }
 
-  function renderRecentMenuItems(): void {
-    if (!recentMenu) return
-    recentMenu.replaceChildren()
-    const candidates = normalizeRecentFilesForTabStrip(recentFiles)
+  /** 溢出提示：列表左右两侧按滚动位置淡出，静默提示还有更多标签。 */
+  function updateOverflowState(): void {
+    if (!tabsViewport) return
+    const el = tabsViewport
+    el.classList.toggle('overflow-left', el.scrollLeft > 4)
+    el.classList.toggle('overflow-right', el.scrollLeft + el.clientWidth < el.scrollWidth - 4)
+  }
+
+  function renderRecentListItems(): void {
+    if (!recentMenu || !recentList) return
+    recentList.replaceChildren()
+    const allCandidates = normalizeRecentFilesForTabStrip(recentFiles)
     const openPaths = new Set(currentTabs.map((tab) => tab.filePath).filter((path): path is string => Boolean(path)))
-    const heading = document.createElement('div')
-    heading.className = 'tab-strip-recent-heading'
-    heading.textContent = '最近打开的文稿'
-    recentMenu.append(heading)
-    if (candidates.length === 0) {
+    const query = recentFilterText.trim().toLowerCase()
+    const candidates = query
+      ? allCandidates.filter((filePath) =>
+          filePath.toLowerCase().includes(query)
+          || recentFileDisplayName(filePath).toLowerCase().includes(query),
+        )
+      : allCandidates
+    if (allCandidates.length === 0) {
       const empty = document.createElement('div')
       empty.className = 'tab-strip-recent-empty'
       empty.textContent = '还没有最近打开的文稿'
-      recentMenu.append(empty)
+      recentList.append(empty)
+      return
+    }
+    if (candidates.length === 0) {
+      const empty = document.createElement('div')
+      empty.className = 'tab-strip-recent-empty'
+      empty.textContent = `没有匹配「${recentFilterText.trim()}」的最近文稿`
+      recentList.append(empty)
       return
     }
     for (const filePath of candidates) {
@@ -218,31 +287,37 @@ export function createWindowTabStripController(handlers: TabStripHandlers): Wind
         closeRecentMenu()
         handlers.onOpenRecent?.(filePath)
       })
-      recentMenu.append(item)
+      recentList.append(item)
     }
   }
 
   function openRecentMenu(): void {
     if (!recentMenu) return
-    renderRecentMenuItems()
+    if (!recentList) {
+      // 菜单结构只建一次：过滤输入框保持稳定，输入时只重绘列表，不丢焦点
+      const heading = document.createElement('div')
+      heading.className = 'tab-strip-recent-heading'
+      heading.textContent = '最近打开的文稿'
+      const filterInput = document.createElement('input')
+      filterInput.type = 'text'
+      filterInput.className = 'tab-strip-recent-filter'
+      filterInput.placeholder = '输入以过滤…'
+      filterInput.setAttribute('aria-label', '过滤最近文稿')
+      filterInput.setAttribute('spellcheck', 'false')
+      filterInput.addEventListener('input', () => {
+        recentFilterText = filterInput.value
+        renderRecentListItems()
+      })
+      recentList = document.createElement('div')
+      recentList.className = 'tab-strip-recent-list'
+      recentMenu.append(heading, filterInput, recentList)
+      recentFilterInput = filterInput
+    }
+    recentFilterText = ''
+    if (recentFilterInput) recentFilterInput.value = ''
+    renderRecentListItems()
     recentMenu.hidden = false
     attachOutsideClose()
-  }
-
-  function renderActiveTabCloseControl(container: HTMLElement): void {
-    const activeTab = currentTabs.find((tab) => tab.isActive)
-    if (!activeTab) return
-    const button = document.createElement('button')
-    button.type = 'button'
-    button.className = 'tab-strip-close-active'
-    button.textContent = '×'
-    button.title = `关闭 ${activeTab.title}`
-    button.setAttribute('aria-label', `关闭标签 ${activeTab.title}`)
-    button.addEventListener('click', (event) => {
-      event.stopPropagation()
-      handlers.onClose?.(activeTab.id)
-    })
-    container.append(button)
   }
 
   /** 固定操作区里的新建按钮。 */
@@ -291,11 +366,17 @@ export function createWindowTabStripController(handlers: TabStripHandlers): Wind
   }
 
   const detachStrip = (): void => {
+    if (resizeListenerAttached) {
+      window.removeEventListener('resize', updateOverflowState)
+      resizeListenerAttached = false
+    }
     if (!strip) return
     strip.replaceChildren()
     strip.remove()
     tabsViewport = null
     controls = null
+    recentList = null
+    recentFilterInput = null
   }
 
   const handleTabsState = (payload: TabsStatePayload): void => {
@@ -335,15 +416,20 @@ export function createWindowTabStripController(handlers: TabStripHandlers): Wind
       tabsViewport.className = 'tab-strip-tabs'
       tabsViewport.setAttribute('role', 'tablist')
       tabsViewport.setAttribute('aria-label', '文稿标签页')
+      tabsViewport.addEventListener('scroll', updateOverflowState, { passive: true })
       controls = document.createElement('div')
       controls.className = 'tab-strip-controls'
       strip.append(tabsViewport, controls)
+      if (typeof window !== 'undefined' && !resizeListenerAttached) {
+        window.addEventListener('resize', updateOverflowState)
+        resizeListenerAttached = true
+      }
     }
     renderTabStripItems(tabsViewport, payload.tabs, handlers)
     controls.replaceChildren()
-    renderActiveTabCloseControl(controls)
     renderNewTabControl(controls)
     renderRecentControl(controls)
+    updateOverflowState()
   }
 
   const handleRecentFiles = (nextRecentFiles: string[]): void => {

@@ -11,6 +11,7 @@ export type RevisionReason =
   | 'external-change'
   | 'crash'
   | 'restore'
+  | 'tab-close'
 
 export interface RevisionSnapshotInput {
   content: string

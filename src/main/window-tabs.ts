@@ -140,6 +140,25 @@ export function closeTabFromCollection(collection: TabCollection, tabId: string)
   }
 }
 
+/** 拖拽排序：把 draggedId 移动到 targetId 前/后；任一 id 无效时不做任何变更。 */
+export function reorderTabInCollection(
+  collection: TabCollection,
+  draggedTabId: string,
+  targetTabId: string,
+  placeBefore: boolean,
+): boolean {
+  if (draggedTabId === targetTabId) return false
+  const fromIndex = collection.tabs.findIndex((tab) => tab.id === draggedTabId)
+  const targetIndex = collection.tabs.findIndex((tab) => tab.id === targetTabId)
+  if (fromIndex < 0 || targetIndex < 0) return false
+  const [dragged] = collection.tabs.splice(fromIndex, 1)
+  if (!dragged) return false
+  const shiftedTargetIndex = collection.tabs.findIndex((tab) => tab.id === targetTabId)
+  const insertIndex = placeBefore ? shiftedTargetIndex : shiftedTargetIndex + 1
+  collection.tabs.splice(insertIndex, 0, dragged)
+  return true
+}
+
 /** 在同一窗口全部 tab 里按路径找文档；文件可能开在非活动 tab。 */
 export function findTabByFilePath(collection: TabCollection, filePath: string): WindowTabState | null {
   return collection.tabs.find((tab) => tab.filePath === filePath) ?? null

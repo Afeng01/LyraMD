@@ -93,12 +93,14 @@ html, body {
   z-index: 1;
 }
 
+/* macOS：标签行就是标题栏，第二行不再保留；Windows 保留菜单栏标题栏 */
 #titlebar {
   -webkit-app-region: drag;
   height: 36px;
   flex-shrink: 0;
   position: relative;
   border-bottom: 1px solid transparent;
+  display: none;
 }
 
 #windows-titlebar {
@@ -293,7 +295,7 @@ body.platform-win32 #agent-toggle {
   height: 28px;
   border: 1px solid transparent;
   border-radius: 6px;
-  background: color-mix(in srgb, var(--bg-color) 92%, var(--text-muted) 8%);
+  background: transparent;
   color: var(--text-muted);
   opacity: 0.7;
   cursor: pointer;
@@ -314,7 +316,7 @@ body.platform-win32 #agent-toggle {
   height: 28px;
   border: 1px solid transparent;
   border-radius: 6px;
-  background: color-mix(in srgb, var(--bg-color) 92%, var(--text-muted) 8%);
+  background: transparent;
   color: var(--text-muted);
   opacity: 0.7;
   cursor: pointer;
@@ -333,6 +335,8 @@ body.platform-win32 #agent-toggle {
 
 #safety-toggle,
 #agent-toggle {
+  /* 暂不展示：入口保留（Cmd/Ctrl+J、设置内），待定归宿后再放出 */
+  display: none;
   position: absolute;
   top: 4px;
   width: 28px;
@@ -404,7 +408,8 @@ body.platform-win32 #agent-toggle {
   flex: none;
   min-width: 0;
   min-height: 34px;
-  padding: 3px 10px;
+  /* 顶距 6px：标签垂直中心约 20px，与 macOS 红绿灯位置 y14+6 对齐 */
+  padding: 6px 10px 4px;
   padding-left: 84px;
   overflow: visible;
   background: var(--bg-color);

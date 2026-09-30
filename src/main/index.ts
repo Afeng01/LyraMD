@@ -1,5 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, shell } from 'electron'
-import { join, basename, dirname, extname, relative } from 'path'
+import { join, basename, dirname, extname, isAbsolute, relative } from 'path'
 import { readFile, writeFile, readdir, copyFile, mkdir, rename, unlink, stat } from 'fs/promises'
 import { FSWatcher, existsSync, readdirSync, watch } from 'fs'
 import { pathToFileURL } from 'url'
@@ -2579,12 +2579,17 @@ async function createWorkdirFileInWindow(win: BrowserWindow): Promise<SidebarSna
   if (!creationRoot) {
     return createSidebarSnapshot(win)
   }
+  return createWorkdirFileInDir(win, creationRoot)
+}
 
-  const nextPath = resolveNewWorkdirMarkdownPath(creationRoot, (candidatePath) => existsSync(candidatePath))
+/** 在指定文件夹里新建文稿（右键菜单入口）：创建后直接在当前窗口打开为新 tab/文档。 */
+async function createWorkdirFileInDir(win: BrowserWindow, dirPath: string): Promise<SidebarSnapshot> {
+  const state = getState(win)
+  const nextPath = resolveNewWorkdirMarkdownPath(dirPath, (candidatePath) => existsSync(candidatePath))
   await writeFile(nextPath, '', 'utf-8')
-  state.workdirPath = creationRoot
+  state.workdirPath = dirPath
   state.activeSidebarTab = 'workdir'
-  sidebarState.workdirPath = creationRoot
+  sidebarState.workdirPath = dirPath
   await refreshWorkdirEntries()
   await persistSidebarState()
   await loadFileInWindow(win, nextPath, { documentKind: 'file' })
@@ -3226,10 +3231,140 @@ ipcMain.handle('remove-workspace', async (event, workspacePath: string) => {
   return createSidebarSnapshot(win)
 })
 
+// ---- 工作目录条目操作：拖拽移动 / 重命名 / 删除（废纸篓）/ 访达显示 ----
+
+function isPathInsideWorkspaceRoots(targetPath: string): boolean {
+  return sidebarState.workspacePaths.some((rootPath) => {
+    const rel = relative(rootPath, targetPath)
+    return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel))
+  })
+}
+
+/** 返回与目标路径冲突的已打开 tab 文件路径；无冲突返回 null。 */
+function findOpenTabConflictForPath(targetPath: string): string | null {
+  const normalizedTarget = targetPath.endsWith('/') || targetPath.endsWith('\\')
+    ? targetPath.slice(0, -1)
+    : targetPath
+  for (const window of BrowserWindow.getAllWindows()) {
+    const state = getState(window)
+    for (const tab of state.tabs.tabs) {
+      if (!tab.filePath) continue
+      if (tab.filePath === normalizedTarget) return tab.filePath
+      if (tab.filePath.startsWith(normalizedTarget + '/') || tab.filePath.startsWith(normalizedTarget + '\\')) {
+        return tab.filePath
+      }
+    }
+  }
+  return null
+}
+
+ipcMain.handle('move-workdir-entry', async (event, sourcePath: string, targetDir: string) => {
+  const win = getWinFromEvent(event)
+  if (!win) return { ok: false, error: '窗口不可用' }
+  const fail = (error: string) => ({ ok: false as const, error })
+  if (typeof sourcePath !== 'string' || typeof targetDir !== 'string') return fail('参数无效')
+  const sourceStat = await stat(sourcePath).catch(() => null)
+  if (!sourceStat?.isFile()) return fail('源文件不存在')
+  const targetStat = await stat(targetDir).catch(() => null)
+  if (!targetStat?.isDirectory()) return fail('目标文件夹不存在')
+  if (dirname(sourcePath) === targetDir) return { ok: true as const, state: createSidebarSnapshot(win) }
+  if (!isPathInsideWorkspaceRoots(targetDir)) return fail('目标位置不在工作目录内')
+  if (findOpenTabConflictForPath(sourcePath)) return fail('文件正在标签页中打开，请先关闭再移动')
+  const destPath = join(targetDir, basename(sourcePath))
+  if (existsSync(destPath)) return fail('目标位置已有同名文件')
+  try {
+    await rename(sourcePath, destPath)
+  } catch {
+    return fail('移动失败（可能跨磁盘或被占用）')
+  }
+  await refreshWorkdirEntries()
+  await persistSidebarState()
+  broadcastSidebarState()
+  return { ok: true as const, state: createSidebarSnapshot(win) }
+})
+
+ipcMain.handle('rename-workdir-entry', async (event, oldPath: string, newName: string) => {
+  const win = getWinFromEvent(event)
+  if (!win) return { ok: false, error: '窗口不可用' }
+  const fail = (error: string) => ({ ok: false as const, error })
+  const name = typeof newName === 'string' ? newName.trim() : ''
+  if (!name || name.includes('/') || name.includes('\\') || name.includes(':')) return fail('名称不合法')
+  const sourceStat = await stat(oldPath).catch(() => null)
+  if (!sourceStat) return fail('目标不存在')
+  if (!isPathInsideWorkspaceRoots(oldPath)) return fail('目标不在工作目录内')
+  if (findOpenTabConflictForPath(oldPath)) return fail('目标正在标签页中打开，请先关闭再重命名')
+  const destPath = join(dirname(oldPath), name)
+  if (destPath === oldPath) return { ok: true as const, state: createSidebarSnapshot(win) }
+  if (existsSync(destPath)) return fail('同目录下已有同名项')
+  try {
+    await rename(oldPath, destPath)
+  } catch {
+    return fail('重命名失败（可能被占用）')
+  }
+  if (sourceStat.isFile()) {
+    sidebarState.recentFiles = sidebarState.recentFiles.map((entry) => (entry === oldPath ? destPath : entry))
+    if (sidebarState.fileTitleOverrides[oldPath] !== undefined) {
+      sidebarState.fileTitleOverrides[destPath] = sidebarState.fileTitleOverrides[oldPath]
+      delete sidebarState.fileTitleOverrides[oldPath]
+    }
+  }
+  await refreshWorkdirEntries()
+  await persistSidebarState()
+  broadcastSidebarState()
+  return { ok: true as const, state: createSidebarSnapshot(win) }
+})
+
+ipcMain.handle('delete-workdir-entry', async (event, targetPath: string) => {
+  const win = getWinFromEvent(event)
+  if (!win) return { ok: false, error: '窗口不可用' }
+  const fail = (error: string) => ({ ok: false as const, error })
+  if (typeof targetPath !== 'string') return fail('参数无效')
+  const targetStat = await stat(targetPath).catch(() => null)
+  if (!targetStat) return fail('目标不存在')
+  if (!isPathInsideWorkspaceRoots(targetPath)) return fail('目标不在工作目录内')
+  if (targetPath === sidebarState.draftDirectoryPath) return fail('草稿目录不能在这里删除')
+  if (sidebarState.workspacePaths.includes(targetPath)) {
+    return fail('工作目录根文件夹不能在这里删除，可从列表移除')
+  }
+  if (sidebarState.draftEntries.some((entry) => entry.path === targetPath
+    || entry.path.startsWith(targetPath + '/')
+    || entry.path.startsWith(targetPath + '\\'))
+  ) {
+    return fail('目标包含草稿，草稿不能从这里删除')
+  }
+  if (findOpenTabConflictForPath(targetPath)) return fail('目标正在标签页中打开，请先关闭再删除')
+  const trashed = await moveFileToTrashAndVerify(targetPath, {
+    trashItem: shell.trashItem,
+    exists: existsSync,
+  })
+  if (!trashed) return fail('删除失败（已尝试移入废纸篓）')
+  if (targetStat.isFile()) {
+    sidebarState.recentFiles = removeRecentFile(sidebarState.recentFiles, targetPath)
+  }
+  await refreshWorkdirEntries()
+  await persistSidebarState()
+  broadcastSidebarState()
+  return { ok: true as const, state: createSidebarSnapshot(win) }
+})
+
+ipcMain.handle('reveal-workdir-entry', async (_event, targetPath: string) => {
+  if (typeof targetPath !== 'string' || !existsSync(targetPath)) return false
+  shell.showItemInFolder(targetPath)
+  return true
+})
+
 ipcMain.handle('create-workdir-file', async (event) => {
   const win = getWinFromEvent(event)
   if (!win) return null
   return createWorkdirFileInWindow(win)
+})
+
+ipcMain.handle('create-workdir-file-in', async (event, dirPath: string) => {
+  const win = getWinFromEvent(event)
+  if (!win || typeof dirPath !== 'string') return null
+  const dirStat = await stat(dirPath).catch(() => null)
+  if (!dirStat?.isDirectory() || !isPathInsideWorkspaceRoots(dirPath)) return createSidebarSnapshot(win)
+  return createWorkdirFileInDir(win, dirPath)
 })
 
 ipcMain.handle('create-workdir-folder', async (event) => {

@@ -327,6 +327,40 @@ describe('library create action regression', () => {
   })
 })
 
+describe('workdir entry operations regression', () => {
+  it('wires drag-move, rename, delete, reveal and create-in-folder through preload and main IPC', () => {
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+    const preload = readFileSync(join(process.cwd(), 'src/preload/index.ts'), 'utf8')
+    const main = readFileSync(join(process.cwd(), 'src/main/index.ts'), 'utf8')
+
+    expect(renderer).toContain('makeWorkdirFileDraggable(fileRow, item.filePath)')
+    expect(renderer).toContain('applyWorkdirDropTarget(button, row.absolutePath)')
+    expect(renderer).toContain('applyWorkdirDropTarget(select, rootPath)')
+    expect(renderer).toContain("api.moveWorkdirEntry(sourcePath, targetDir)")
+    expect(renderer).toContain("api.renameWorkdirEntry(editTarget.folderPath, trimmedTitle)")
+    expect(renderer).toContain("api.deleteWorkdirEntry(targetPath)")
+    expect(renderer).toContain("api.createWorkdirFileIn(folderPath)")
+    expect(preload).toContain("ipcRenderer.invoke('move-workdir-entry', sourcePath, targetDir)")
+    expect(preload).toContain("ipcRenderer.invoke('rename-workdir-entry', oldPath, newName)")
+    expect(preload).toContain("ipcRenderer.invoke('delete-workdir-entry', targetPath)")
+    expect(main).toContain("ipcMain.handle('move-workdir-entry'")
+    expect(main).toContain("ipcMain.handle('rename-workdir-entry'")
+    expect(main).toContain("ipcMain.handle('delete-workdir-entry'")
+    expect(main).toContain("ipcMain.handle('create-workdir-file-in'")
+    // 删除走废纸篓，而不是直接 unlink
+    expect(main).toContain('moveFileToTrashAndVerify(targetPath, ')
+    // 草稿与工作目录根受保护，不可从右键删除
+    expect(main).toContain("targetPath === sidebarState.draftDirectoryPath")
+    expect(main).toContain("sidebarState.workspacePaths.includes(targetPath)")
+  })
+
+  it('files and folders share the same inline rename editor kind', () => {
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+    expect(renderer).toContain("kind: 'folder'; folderPath: string; value: string")
+    expect(renderer).toContain("sidebarInlineTitleEdit?.kind === 'folder'")
+  })
+})
+
 describe('workspace removal confirmation regression', () => {
   it('handles the second workspace-removal click before clearing pending confirmation', () => {
     const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')

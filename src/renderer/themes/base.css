@@ -843,6 +843,54 @@ body.platform-win32 #agent-toggle {
   font-weight: 600;
 }
 
+/* 工作目录拖拽：源行半透明，落点高亮描边 */
+.workdir-dragging {
+  opacity: 0.45;
+}
+
+.workdir-drop-target {
+  box-shadow: inset 0 0 0 1.5px var(--link-color);
+  border-radius: 6px;
+}
+
+#workdir-context-menu {
+  position: fixed;
+  z-index: 90;
+  min-width: 148px;
+  padding: 4px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-color);
+  box-shadow: 0 8px 24px color-mix(in srgb, rgba(15, 23, 42, 0.16) 60%, transparent 40%);
+}
+
+.workdir-context-item {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-color);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.workdir-context-item:hover {
+  background: color-mix(in srgb, var(--bg-color) 88%, var(--border-color) 12%);
+}
+
+.workdir-context-item.danger {
+  color: #c0392b;
+}
+
+.workdir-context-item.danger:hover {
+  background: color-mix(in srgb, #c0392b 10%, transparent 90%);
+}
+
 .sidebar-workspace-root.active .workspace-root-select,
 .workspace-root-chevron:hover,
 .workspace-root-select:hover {

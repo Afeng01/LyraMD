@@ -518,6 +518,7 @@ async function init(): Promise<void> {
   let sidebarInlineTitleEdit:
     | { kind: 'draft'; draftId: string; value: string }
     | { kind: 'file'; filePath: string; value: string }
+    | { kind: 'folder'; folderPath: string; value: string }
     | null = null
   let pendingTitleEditRequest:
     | {
@@ -1209,6 +1210,17 @@ async function init(): Promise<void> {
     }
 
     sidebarInlineTitleEdit = null
+
+    if (editTarget.kind === 'folder') {
+      const result = await api.renameWorkdirEntry(editTarget.folderPath, trimmedTitle).catch(() => null)
+      if (result?.ok) {
+        if (result.state) setSidebarState(result.state)
+      } else {
+        if (result?.error) console.warn('重命名失败:', result.error)
+        renderSidebar()
+      }
+      return
+    }
 
     const action = resolveSidebarInlineTitleCommitAction(editTarget)
 
@@ -2691,6 +2703,121 @@ async function init(): Promise<void> {
     return button
   }
 
+  const WORKDIR_DRAG_MIME = 'application/x-lyramd-workdir-file'
+
+  /** 工作目录文件行可拖拽：dragstart 把源路径放进 dataTransfer。 */
+  const makeWorkdirFileDraggable = (element: HTMLElement, filePath: string): void => {
+    element.draggable = true
+    element.addEventListener('dragstart', (event) => {
+      const transfer = (event as DragEvent).dataTransfer
+      if (!transfer) return
+      transfer.setData(WORKDIR_DRAG_MIME, filePath)
+      transfer.effectAllowed = 'move'
+      element.classList.add('workdir-dragging')
+    })
+    element.addEventListener('dragend', () => {
+      element.classList.remove('workdir-dragging')
+    })
+  }
+
+  /** 文件夹 / 工作目录根作为拖拽落点：松手后把源文件移动到该目录。 */
+  const applyWorkdirDropTarget = (element: HTMLElement, targetDir: string): void => {
+    element.addEventListener('dragover', (event) => {
+      const transfer = (event as DragEvent).dataTransfer
+      if (!transfer || !transfer.types.includes(WORKDIR_DRAG_MIME)) return
+      event.preventDefault()
+      transfer.dropEffect = 'move'
+      element.classList.add('workdir-drop-target')
+    })
+    element.addEventListener('dragleave', () => {
+      element.classList.remove('workdir-drop-target')
+    })
+    element.addEventListener('drop', (event) => {
+      element.classList.remove('workdir-drop-target')
+      const transfer = (event as DragEvent).dataTransfer
+      const sourcePath = transfer?.getData(WORKDIR_DRAG_MIME)
+      if (!transfer || !sourcePath) return
+      event.preventDefault()
+      event.stopPropagation()
+      void api.moveWorkdirEntry(sourcePath, targetDir).then((result) => {
+        if (result?.ok && result.state) setSidebarState(result.state)
+        else if (result && !result.ok && result.error) window.alert(result.error)
+      }).catch(() => {})
+    })
+  }
+
+  // ---- 工作目录右键菜单 ----
+
+  let workdirContextMenu: HTMLDivElement | null = null
+  let workdirContextMenuCloser: ((event: PointerEvent) => void) | null = null
+
+  const closeWorkdirContextMenu = (): void => {
+    if (workdirContextMenuCloser) {
+      document.removeEventListener('pointerdown', workdirContextMenuCloser, true)
+      workdirContextMenuCloser = null
+    }
+    workdirContextMenu?.remove()
+    workdirContextMenu = null
+  }
+
+  interface WorkdirContextMenuItem {
+    label: string
+    danger?: boolean
+    action: () => void
+  }
+
+  const showWorkdirContextMenu = (x: number, y: number, items: WorkdirContextMenuItem[]): void => {
+    closeWorkdirContextMenu()
+    const menu = document.createElement('div')
+    menu.id = 'workdir-context-menu'
+    menu.setAttribute('role', 'menu')
+    for (const item of items) {
+      const button = document.createElement('button')
+      button.type = 'button'
+      button.className = `workdir-context-item${item.danger ? ' danger' : ''}`
+      button.textContent = item.label
+      button.setAttribute('role', 'menuitem')
+      button.addEventListener('click', () => {
+        closeWorkdirContextMenu()
+        item.action()
+      })
+      menu.appendChild(button)
+    }
+    document.body.appendChild(menu)
+    const rect = menu.getBoundingClientRect()
+    menu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - rect.width - 8))}px`
+    menu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - rect.height - 8))}px`
+    workdirContextMenu = menu
+    workdirContextMenuCloser = (event: PointerEvent) => {
+      if (menu.contains(event.target as Node)) return
+      closeWorkdirContextMenu()
+    }
+    document.addEventListener('pointerdown', workdirContextMenuCloser, true)
+  }
+
+  const runWorkdirEntryRename = (targetPath: string): void => {
+    sidebarInlineTitleEdit = {
+      kind: 'folder',
+      folderPath: targetPath,
+      value: basename(targetPath),
+    }
+    renderSidebar()
+  }
+
+  const runWorkdirEntryDelete = (targetPath: string): void => {
+    void api.deleteWorkdirEntry(targetPath).then((result) => {
+      if (result?.ok && result.state) setSidebarState(result.state)
+      else if (result && !result.ok && result.error) window.alert(result.error)
+    }).catch(() => {})
+  }
+
+  const openWorkdirDeleteConfirm = (x: number, y: number, targetPath: string, targetName: string): void => {
+    showWorkdirContextMenu(x, y, [
+      { label: `确认删除「${targetName}」`, danger: true, action: () => runWorkdirEntryDelete(targetPath) },
+      { label: '取消', action: () => {} },
+    ])
+  }
+
   const createWorkbenchItem = (item: SidebarItem, allowInlineEdit: boolean): HTMLElement => {
     if (item.kind === 'draft') {
       if (allowInlineEdit && sidebarInlineTitleEdit?.kind === 'draft' && sidebarInlineTitleEdit.draftId === item.id) {
@@ -2739,6 +2866,7 @@ async function init(): Promise<void> {
       sidebarState?.currentFilePath ?? null,
       'workdir-item',
     )
+    makeWorkdirFileDraggable(fileRow, item.filePath)
     if (item.pinned) appendPinnedMark(fileRow)
     return fileRow
   }
@@ -2779,6 +2907,24 @@ async function init(): Promise<void> {
       wrapper.style.setProperty('--tree-depth', String(row.depth))
     }
 
+    if (sidebarInlineTitleEdit?.kind === 'folder' && sidebarInlineTitleEdit.folderPath === row.absolutePath) {
+      wrapper.appendChild(createSidebarInlineEditor(
+        `重命名文件夹 ${row.name}`,
+        sidebarInlineTitleEdit.value,
+        (nextValue) => {
+          if (!sidebarInlineTitleEdit || sidebarInlineTitleEdit.kind !== 'folder') return
+          sidebarInlineTitleEdit.value = nextValue
+        },
+        () => {
+          void commitSidebarInlineTitleEdit()
+        },
+        () => {
+          cancelSidebarInlineTitleEdit()
+        },
+      ))
+      return wrapper
+    }
+
     const button = document.createElement('button')
     button.type = 'button'
     button.className = 'sidebar-item workdir-folder-item'
@@ -2786,6 +2932,7 @@ async function init(): Promise<void> {
     button.dataset.workdirFolderExpanded = row.expanded ? 'true' : 'false'
     button.setAttribute('aria-expanded', row.expanded ? 'true' : 'false')
     button.title = row.relativePath
+    applyWorkdirDropTarget(button, row.absolutePath)
     button.appendChild(createIconSvg(row.expanded
       ? ['M5 7.2 9 11.2 13 7.2']
       : ['M7.2 5 11.2 9 7.2 13'],
@@ -2841,6 +2988,7 @@ async function init(): Promise<void> {
     select.dataset.workspaceSelectPath = rootPath
     select.title = rootPath
     select.setAttribute('aria-label', `选择工作目录 ${basename(rootPath)}`)
+    applyWorkdirDropTarget(select, rootPath)
     select.appendChild(createIconSvg([
       'M3.5 5.4h4.2l1.2 1.4h5.6v6.8h-11Z',
       'M3.5 6.8h11',
@@ -3977,6 +4125,54 @@ async function init(): Promise<void> {
     if (target?.closest('#workdir-empty-action')) {
       api.chooseWorkdir().catch(() => {})
       return
+    }
+  })
+
+  document.addEventListener('contextmenu', (event) => {
+    const target = event.target as HTMLElement | null
+    if (!target) return
+
+    const folderButton = target.closest('[data-workdir-folder-path]') as HTMLElement | null
+    if (folderButton) {
+      event.preventDefault()
+      const folderPath = folderButton.dataset.workdirFolderPath
+      if (!folderPath) return
+      showWorkdirContextMenu(event.clientX, event.clientY, [
+        { label: '新建文稿', action: () => {
+          void api.createWorkdirFileIn(folderPath).then((state) => {
+            if (state) setSidebarState(state)
+          }).catch(() => {})
+        } },
+        { label: '重命名', action: () => runWorkdirEntryRename(folderPath) },
+        { label: '删除文件夹…', danger: true, action: () => openWorkdirDeleteConfirm(event.clientX, event.clientY, folderPath, basename(folderPath)) },
+        { label: '在访达中显示', action: () => void api.revealWorkdirEntry(folderPath).catch(() => {}) },
+      ])
+      return
+    }
+
+    const fileButton = target.closest('[data-file-path]') as HTMLElement | null
+    if (fileButton) {
+      event.preventDefault()
+      const filePath = fileButton.dataset.filePath
+      if (!filePath) return
+      showWorkdirContextMenu(event.clientX, event.clientY, [
+        { label: '打开', action: () => {
+          persistCurrentViewportOffset()
+          void flushAutoSave().then(() => {
+            api.openSidebarFile(filePath).catch(() => {})
+          })
+        } },
+        { label: '重命名', action: () => {
+          sidebarInlineTitleEdit = {
+            kind: 'file',
+            filePath,
+            value: sidebarState?.fileTitleOverrides[filePath] ?? basename(filePath),
+          }
+          renderSidebar()
+        } },
+        { label: '删除…', danger: true, action: () => openWorkdirDeleteConfirm(event.clientX, event.clientY, filePath, basename(filePath)) },
+        { label: '在访达中显示', action: () => void api.revealWorkdirEntry(filePath).catch(() => {}) },
+      ])
     }
   })
 

@@ -474,10 +474,13 @@ describe('标签条接线与挂载点（字符串断言）', () => {
   const moduleSource = readFileSync(join(process.cwd(), 'src/renderer/window-tabs.ts'), 'utf8')
   const mainSource = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
 
-  it('index.html 在 #workspace 前预置空标签条容器', () => {
-    expect(html).toContain('<div id="tab-strip" hidden></div>')
-    expect(html.indexOf('id="tab-strip"')).toBeGreaterThan(-1)
-    expect(html.indexOf('id="tab-strip"')).toBeLessThan(html.indexOf('<div id="workspace">'))
+  it('index.html 预置标签条容器为 app-shell 首行，侧栏/设置按钮移入工作区底部', () => {
+    const appShellStart = html.indexOf('<div id="app-shell">')
+    expect(html.indexOf('<div id="tab-strip" hidden></div>')).toBeGreaterThan(appShellStart)
+    expect(html.indexOf('<div id="tab-strip" hidden></div>')).toBeLessThan(html.indexOf('<div id="titlebar">'))
+    expect(html.indexOf('<div id="workspace">')).toBeLessThan(html.indexOf('id="sidebar-toggle"'))
+    expect(html.indexOf('<div id="workspace">')).toBeLessThan(html.indexOf('id="settings-toggle"'))
+    expect(html.indexOf('id="sidebar-toggle"')).toBeLessThan(html.indexOf('id="sidebar-drawer-backdrop"'))
   })
 
   it('base.css 提供标签条样式和 24×24 关闭热区', () => {

@@ -31,9 +31,9 @@ describe('outline shortcut affordance', () => {
     expect(renderer).toContain("if (sidebarState?.activeSidebarTab === 'outline') renderOutlinePanel()")
   })
 
-  it('keeps only the AI control in the top-right titlebar area', () => {
+  it('keeps the AI control in the top-right titlebar area (agent first, safety beside it)', () => {
     expect(css).toMatch(/#agent-toggle\s*\{[\s\S]*right:\s*16px/)
-    expect(css).toMatch(/body\.platform-win32 #agent-toggle\s*\{[\s\S]*right:\s*166px/)
+    expect(css).toMatch(/body\.platform-win32 #agent-toggle\s*\{[\s\S]*right:\s*130px/)
     expect(css).not.toContain('#outline-toggle')
     expect(html).not.toContain('agent-activity-dot')
     expect(css).not.toContain('#agent-activity-dot')

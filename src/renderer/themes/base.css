@@ -95,7 +95,7 @@ html, body {
 
 #titlebar {
   -webkit-app-region: drag;
-  height: 52px;
+  height: 36px;
   flex-shrink: 0;
   position: relative;
   border-bottom: 1px solid transparent;
@@ -118,6 +118,7 @@ body.platform-win32 #titlebar {
   height: 36px;
   display: flex;
   align-items: stretch;
+  order: -1;
   border-bottom-color: color-mix(in srgb, var(--border-color) 50%, transparent 50%);
   background: color-mix(in srgb, var(--bg-color) 97%, var(--border-color) 3%);
 }
@@ -271,38 +272,28 @@ body.platform-win32 #windows-titlebar {
   color: #fff;
 }
 
-body.platform-win32 #sidebar-toggle,
-body.platform-win32 #settings-toggle,
-body.platform-win32 #safety-toggle,
-body.platform-win32 #agent-toggle {
+body.platform-win32 #safety-toggle {
+  left: auto;
+  right: 166px;
   top: 4px;
 }
 
-body.platform-win32 #sidebar-toggle {
-  left: 104px;
-}
-
-body.platform-win32 #settings-toggle {
-  left: 136px;
-}
-
-body.platform-win32 #safety-toggle {
-  left: 168px;
-}
-
 body.platform-win32 #agent-toggle {
-  right: 166px;
+  right: 130px;
+  top: 4px;
 }
 
 #sidebar-toggle {
   position: absolute;
-  top: 12px;
-  left: 76px;
+  top: auto;
+  bottom: 10px;
+  left: 10px;
+  z-index: 26;
   width: 28px;
   height: 28px;
   border: 1px solid transparent;
   border-radius: 6px;
-  background: transparent;
+  background: color-mix(in srgb, var(--bg-color) 92%, var(--text-muted) 8%);
   color: var(--text-muted);
   opacity: 0.7;
   cursor: pointer;
@@ -315,13 +306,15 @@ body.platform-win32 #agent-toggle {
 
 #settings-toggle {
   position: absolute;
-  top: 12px;
-  left: 108px;
+  top: auto;
+  bottom: 10px;
+  left: 44px;
+  z-index: 26;
   width: 28px;
   height: 28px;
   border: 1px solid transparent;
   border-radius: 6px;
-  background: transparent;
+  background: color-mix(in srgb, var(--bg-color) 92%, var(--text-muted) 8%);
   color: var(--text-muted);
   opacity: 0.7;
   cursor: pointer;
@@ -332,10 +325,16 @@ body.platform-win32 #agent-toggle {
   transition: all 0.18s ease;
 }
 
+/* 设置按钮跟随侧栏右缘：侧栏展开时贴其右下角，收起时回到左下角与侧栏按钮并排 */
+#app-shell.sidebar-open #settings-toggle,
+#app-shell.drawer-mode.drawer-open #settings-toggle {
+  left: calc(min(var(--sidebar-width), 100vw - 44px) - 38px);
+}
+
 #safety-toggle,
 #agent-toggle {
   position: absolute;
-  top: 12px;
+  top: 4px;
   width: 28px;
   height: 28px;
   border: 1px solid transparent;
@@ -352,7 +351,8 @@ body.platform-win32 #agent-toggle {
 }
 
 #safety-toggle {
-  left: 140px;
+  left: auto;
+  right: 48px;
 }
 
 #agent-toggle {
@@ -393,7 +393,8 @@ body.platform-win32 #agent-toggle {
   overflow: hidden;
 }
 
-/* 顶部文稿标签：单文稿同样保留一个 tab，外壳退后，用间距而非边框分组。 */
+/* 顶部文稿标签：单文稿同样保留一个 tab，外壳退后，用间距而非边框分组。
+   标签行现在是窗口第一行：macOS 左侧预留红绿灯拖拽区，空白处可拖动窗口。 */
 #tab-strip {
   position: relative;
   z-index: 20;
@@ -404,8 +405,22 @@ body.platform-win32 #agent-toggle {
   min-width: 0;
   min-height: 34px;
   padding: 3px 10px;
+  padding-left: 84px;
   overflow: visible;
   background: var(--bg-color);
+  -webkit-app-region: drag;
+}
+
+body.platform-win32 #tab-strip {
+  padding-left: 10px;
+}
+
+body.settings-window-mode #tab-strip {
+  display: none;
+}
+
+#tab-strip .tab-strip-tabs,
+#tab-strip .tab-strip-controls {
   -webkit-app-region: no-drag;
 }
 
@@ -733,7 +748,7 @@ body.platform-win32 #agent-toggle {
   max-width: var(--sidebar-width);
   flex-shrink: 0;
   min-height: 0;
-  padding: 14px 12px 16px 18px;
+  padding: 14px 12px 52px 18px;
   background: color-mix(in srgb, var(--bg-color) 96%, var(--border-color) 4%);
   overflow: hidden;
   display: flex;

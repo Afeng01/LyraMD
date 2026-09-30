@@ -419,11 +419,12 @@ describe('sidebar polish regression', () => {
 
   it('adds left breathing room inside the sidebar without shifting the drawer shell', () => {
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
-    const sidebarRule = css.match(/#sidebar\s*\{[\s\S]*?\}/)?.[0] ?? ''
+    const sidebarRule = css.match(/#sidebar\s*\{([^}]*)\}/)?.[1] ?? ''
     const drawerShellRule = css.match(/#sidebar-drawer-shell\s*\{[\s\S]*?\}/)?.[0] ?? ''
     const workspaceRule = css.match(/#workspace\s*\{[\s\S]*?\}/)?.[0] ?? ''
 
-    expect(sidebarRule).toContain('padding: 14px 12px 16px 18px')
+    // 底部 52px 预留给左下角/右下角悬浮按钮，避免列表与角标重叠
+    expect(sidebarRule).toContain('padding: 14px 12px 52px 18px')
     expect(css).toMatch(/#app-shell:not\(\.sidebar-open\) #sidebar\s*\{[\s\S]*padding-left:\s*0/)
     expect(drawerShellRule).not.toContain('margin-left')
     expect(workspaceRule).not.toContain('padding-left')

@@ -562,8 +562,6 @@ body.settings-window-mode #tab-strip {
 #tab-strip .tab-strip-tab.active {
   background: color-mix(in srgb, var(--selection-bg) 30%, transparent 70%);
   color: var(--text-color);
-  /* 活动标签描边凸显：inset 环避免布局抖动 */
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--link-color) 45%, transparent 55%);
 }
 
 #tab-strip .tab-strip-tab.active .tab-strip-unsaved-dot {
@@ -617,6 +615,11 @@ body.settings-window-mode #tab-strip {
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
+}
+
+/* 时钟图标光学居中：小图标在大字重标签旁容易显得偏高，微调 1px */
+#tab-strip .tab-strip-recent-button svg {
+  margin-top: 1px;
 }
 
 #tab-strip .tab-strip-recent-button:hover {
@@ -2151,15 +2154,15 @@ body.settings-window-mode #tab-strip {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 4px;
+  left: 0;
   width: 1px;
-  background: var(--link-color);
-  opacity: 0;
-  transition: opacity 0.14s ease;
+  background: color-mix(in srgb, var(--border-color) 72%, transparent 28%);
+  transition: background 0.14s ease;
 }
 
-#sidebar-resizer:hover::before {
-  opacity: 1;
+#sidebar-resizer:hover::before,
+body.sidebar-resizing #sidebar-resizer::before {
+  background: var(--link-color);
 }
 
 body.sidebar-resizing,

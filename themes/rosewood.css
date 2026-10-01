@@ -1,0 +1,19 @@
+/* ===== LyraMD Theme: 夜檀 rosewood =====
+   内置主题独立样式文件，与 base.css 内置块保持一致。
+   导入：菜单「主题 > Import Theme...」，或放入 ~/.lyramd/themes/ */
+
+:root {
+  --bg-color: #1d1512;
+  --text-color: #ecdfd4;
+  --text-muted: #a8978a;
+  --border-color: #3a2c24;
+  --link-color: #d99a62;
+  --code-bg: rgba(217, 154, 98, 0.14);
+  --code-block-bg: #291e18;
+  --blockquote-border: #a06b42;
+  --blockquote-bg: #291e18;
+  --table-header-bg: #291e18;
+  --table-border: #3a2c24;
+  --selection-bg: rgba(217, 154, 98, 0.2);
+  --highlight-bg: rgba(214, 170, 90, 0.3);
+}

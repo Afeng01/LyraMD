@@ -4235,6 +4235,9 @@ body.theme-dark .settings-option input[type="radio"]:checked::after {
 }
 
 .settings-theme-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   min-height: 34px;
   padding: 0 12px;
   border: 1px solid color-mix(in srgb, var(--border-color) 35%, transparent 65%);
@@ -4245,6 +4248,40 @@ body.theme-dark .settings-option input[type="radio"]:checked::after {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
+}
+
+/* 主题色卡：小胶囊展示该主题的底色/文字/强调三色 */
+.theme-swatch {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+  width: 34px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 5px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent 45%);
+  background: var(--sw-bg, var(--bg-color));
+}
+
+.theme-swatch::before,
+.theme-swatch::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.theme-swatch::before {
+  background: var(--sw-text, var(--text-color));
+}
+
+.theme-swatch::after {
+  background: var(--sw-accent, var(--link-color));
+}
+
+.theme-name {
+  min-width: 0;
 }
 
 .settings-theme-button:hover {
@@ -5022,4 +5059,80 @@ body.theme-newsprint {
 
 .math-modal-btn.save:hover {
   opacity: 0.9;
+}
+
+/* ===== 内置主题：晨雾 Mist =====
+   冷调浅灰蓝的清晨纸面，弱化边界感，适合长时间浅色写作。 */
+body.theme-mist {
+  --bg-color: #f2f5f7;
+  --text-color: #2b3440;
+  --text-muted: #5d6b78;
+  --border-color: #d5dde3;
+  --link-color: #2e6589;
+  --code-bg: #e6ecf0;
+  --code-block-bg: #2b3440;
+  --code-block-text: #e2e8ee;
+  --blockquote-border: #3a7ca5;
+  --blockquote-bg: #e9eef2;
+  --table-header-bg: #e9eef2;
+  --table-border: #d5dde3;
+  --selection-bg: rgba(58, 124, 165, 0.18);
+  --highlight-bg: #f0e2b6;
+}
+
+/* ===== 内置主题：暖沙 Sand =====
+   奶油底的暖调纸面，配赭石强调色，适合散文与随笔。 */
+body.theme-sand {
+  --bg-color: #f8f2e7;
+  --text-color: #453a2c;
+  --text-muted: #7a6d5a;
+  --border-color: #e2d7c3;
+  --link-color: #8f5220;
+  --code-bg: #efe6d4;
+  --code-block-bg: #3a3226;
+  --code-block-text: #efe6d4;
+  --blockquote-border: #b3742f;
+  --blockquote-bg: #f1e8d6;
+  --table-header-bg: #f1e8d6;
+  --table-border: #e2d7c3;
+  --selection-bg: rgba(163, 98, 42, 0.18);
+  --highlight-bg: #f3ddb0;
+}
+
+/* ===== 内置主题：墨绿 Pine =====
+   深松绿的暗色主题，比 Dark 更柔和，夜间不刺眼。 */
+body.theme-pine {
+  --bg-color: #101a15;
+  --text-color: #d9e4dc;
+  --text-muted: #93a89a;
+  --border-color: #2a3d31;
+  --link-color: #7cc79b;
+  --code-bg: rgba(124, 199, 155, 0.14);
+  --code-block-bg: #182720;
+  --code-block-text: #d9e4dc;
+  --blockquote-border: #4e8a66;
+  --blockquote-bg: #182720;
+  --table-header-bg: #182720;
+  --table-border: #2a3d31;
+  --selection-bg: rgba(124, 199, 155, 0.2);
+  --highlight-bg: rgba(214, 180, 96, 0.32);
+}
+
+/* ===== 内置主题：夜檀 Rosewood =====
+   暖棕底的暗色主题，檀木色强调，适合夜间暖光环境。 */
+body.theme-rosewood {
+  --bg-color: #1d1512;
+  --text-color: #ecdfd4;
+  --text-muted: #a8978a;
+  --border-color: #3a2c24;
+  --link-color: #d99a62;
+  --code-bg: rgba(217, 154, 98, 0.14);
+  --code-block-bg: #291e18;
+  --code-block-text: #ecdfd4;
+  --blockquote-border: #a06b42;
+  --blockquote-bg: #291e18;
+  --table-header-bg: #291e18;
+  --table-border: #3a2c24;
+  --selection-bg: rgba(217, 154, 98, 0.2);
+  --highlight-bg: rgba(214, 170, 90, 0.3);
 }

@@ -1,0 +1,19 @@
+/* ===== LyraMD Theme: 暖沙 sand =====
+   内置主题独立样式文件，与 base.css 内置块保持一致。
+   导入：菜单「主题 > Import Theme...」，或放入 ~/.lyramd/themes/ */
+
+:root {
+  --bg-color: #f8f2e7;
+  --text-color: #453a2c;
+  --text-muted: #7a6d5a;
+  --border-color: #e2d7c3;
+  --link-color: #8f5220;
+  --code-bg: #efe6d4;
+  --code-block-bg: #3a3226;
+  --blockquote-border: #b3742f;
+  --blockquote-bg: #f1e8d6;
+  --table-header-bg: #f1e8d6;
+  --table-border: #e2d7c3;
+  --selection-bg: rgba(163, 98, 42, 0.18);
+  --highlight-bg: #f3ddb0;
+}

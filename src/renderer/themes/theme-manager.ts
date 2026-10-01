@@ -2,7 +2,11 @@ const themes: Record<string, string> = {
   light: 'theme-light',
   dark: 'theme-dark',
   elegant: 'theme-elegant',
-  newsprint: 'theme-newsprint'
+  newsprint: 'theme-newsprint',
+  mist: 'theme-mist',
+  sand: 'theme-sand',
+  pine: 'theme-pine',
+  rosewood: 'theme-rosewood'
 }
 
 let customStyleEl: HTMLStyleElement | null = null

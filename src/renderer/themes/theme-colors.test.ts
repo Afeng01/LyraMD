@@ -24,8 +24,8 @@ describe('theme color contract', () => {
     expect(elegant).toContain('--link-color: #bc4424;')
   })
 
-  it('ships exactly the four built-in standalone theme files', () => {
-    for (const name of ['light.css', 'dark.css', 'elegant.css', 'newsprint.css']) {
+  it('ships exactly the built-in standalone theme files', () => {
+    for (const name of ['light.css', 'dark.css', 'elegant.css', 'newsprint.css', 'mist.css', 'sand.css', 'pine.css', 'rosewood.css']) {
       expect(() => readFileSync(join(process.cwd(), 'themes', name), 'utf8')).not.toThrow()
       expect(readFileSync(join(process.cwd(), 'themes', name), 'utf8')).toMatch(/:root\s*\{/)
     }

@@ -1,4 +1,4 @@
-// 主题颜色契约检查：四个内置主题（light/dark/elegant/newsprint）的语义色
+// 主题颜色契约检查：八个内置主题（light/dark/elegant/newsprint/mist/sand/pine/rosewood）的语义色
 // 必须同时满足——
 //   1) base.css 内置块与 themes/*.css 独立文件的 token 值完全一致；
 //   2) 正文弱化文字（--text-muted）和链接（--link-color）对各自底色的
@@ -42,6 +42,30 @@ const expectedThemes = {
     'link-color': '#2c5f8a',
     'text-color': '#1a1a1a',
     'text-muted': '#666666',
+  },
+  mist: {
+    'bg-color': '#f2f5f7',
+    'link-color': '#2e6589',
+    'text-color': '#2b3440',
+    'text-muted': '#5d6b78',
+  },
+  sand: {
+    'bg-color': '#f8f2e7',
+    'link-color': '#8f5220',
+    'text-color': '#453a2c',
+    'text-muted': '#7a6d5a',
+  },
+  pine: {
+    'bg-color': '#101a15',
+    'link-color': '#7cc79b',
+    'text-color': '#d9e4dc',
+    'text-muted': '#93a89a',
+  },
+  rosewood: {
+    'bg-color': '#1d1512',
+    'link-color': '#d99a62',
+    'text-color': '#ecdfd4',
+    'text-muted': '#a8978a',
   },
 }
 
@@ -124,7 +148,7 @@ const filesStandalone = fs.readdirSync(dirThemes)
 assert.deepEqual(
   filesStandalone,
   Object.keys(expectedThemes).map((name) => `${name}.css`).sort(),
-  'themes/ 目录必须且只能包含 light/dark/elegant/newsprint 四个主题文件',
+  'themes/ 目录必须且只能包含 expectedThemes 列出的内置主题文件，防止出现没人引用的孤儿主题',
 )
 
 for (const [nameTheme, valuesExpected] of Object.entries(expectedThemes)) {
@@ -168,4 +192,4 @@ assert.equal(valuesDirect['bg-color'], valuesDefault['bg-color'])
 assert.equal(valuesDirect['text-color'], valuesDefault['text-color'])
 assert.equal(valuesDirect['border-color'], valuesDefault['border-color'])
 
-console.log('Theme color contract passed for 4 built-in and standalone themes.')
+console.log(`Theme color contract passed for ${Object.keys(expectedThemes).length} built-in and standalone themes.`)

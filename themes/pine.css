@@ -1,0 +1,19 @@
+/* ===== LyraMD Theme: 墨绿 pine =====
+   内置主题独立样式文件，与 base.css 内置块保持一致。
+   导入：菜单「主题 > Import Theme...」，或放入 ~/.lyramd/themes/ */
+
+:root {
+  --bg-color: #101a15;
+  --text-color: #d9e4dc;
+  --text-muted: #93a89a;
+  --border-color: #2a3d31;
+  --link-color: #7cc79b;
+  --code-bg: rgba(124, 199, 155, 0.14);
+  --code-block-bg: #182720;
+  --blockquote-border: #4e8a66;
+  --blockquote-bg: #182720;
+  --table-header-bg: #182720;
+  --table-border: #2a3d31;
+  --selection-bg: rgba(124, 199, 155, 0.2);
+  --highlight-bg: rgba(214, 180, 96, 0.32);
+}

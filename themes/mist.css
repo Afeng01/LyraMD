@@ -1,0 +1,19 @@
+/* ===== LyraMD Theme: 晨雾 mist =====
+   内置主题独立样式文件，与 base.css 内置块保持一致。
+   导入：菜单「主题 > Import Theme...」，或放入 ~/.lyramd/themes/ */
+
+:root {
+  --bg-color: #f2f5f7;
+  --text-color: #2b3440;
+  --text-muted: #5d6b78;
+  --border-color: #d5dde3;
+  --link-color: #2e6589;
+  --code-bg: #e6ecf0;
+  --code-block-bg: #2b3440;
+  --blockquote-border: #3a7ca5;
+  --blockquote-bg: #e9eef2;
+  --table-header-bg: #e9eef2;
+  --table-border: #d5dde3;
+  --selection-bg: rgba(58, 124, 165, 0.18);
+  --highlight-bg: #f0e2b6;
+}

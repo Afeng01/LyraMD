@@ -3,10 +3,14 @@ import { applyTheme } from './themes/theme-manager'
 import { changelogReleases, splitLeadingBold, type ChangelogRelease } from './changelog'
 
 const BUILT_IN_THEMES = [
-  { id: 'elegant', label: 'Elegant' },
-  { id: 'newsprint', label: 'Newsprint' },
-  { id: 'light', label: 'Light' },
-  { id: 'dark', label: 'Dark' },
+  { id: 'elegant', label: '雅陶' },
+  { id: 'newsprint', label: '新闻纸' },
+  { id: 'light', label: '简白' },
+  { id: 'dark', label: '深夜' },
+  { id: 'mist', label: '晨雾' },
+  { id: 'sand', label: '暖沙' },
+  { id: 'pine', label: '墨绿' },
+  { id: 'rosewood', label: '夜檀' },
 ] as const
 
 function renderReleaseNotesPane(): void {

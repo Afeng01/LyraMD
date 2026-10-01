@@ -4067,11 +4067,21 @@ async function init(): Promise<void> {
     if (workspaceSelect) {
       event.preventDefault()
       const workspacePath = workspaceSelect.dataset.workspaceSelectPath
-      if (workspacePath) {
-        api.selectWorkspace(workspacePath).then((state) => {
-          if (state) setSidebarState(state)
+      if (!workspacePath) return
+      // 活动工作目录：点击名称在展开/收起之间切换，不再只能展开
+      if (sidebarState && workspacePath === sidebarState.workdirPath) {
+        const previousScrollTop = libraryScrollRegion?.scrollTop ?? 0
+        void api.toggleWorkspaceExpanded(workspacePath).then((state) => {
+          if (state) {
+            setSidebarState(state)
+            if (libraryScrollRegion) libraryScrollRegion.scrollTop = previousScrollTop
+          }
         }).catch(() => syncSidebarState())
+        return
       }
+      api.selectWorkspace(workspacePath).then((state) => {
+        if (state) setSidebarState(state)
+      }).catch(() => syncSidebarState())
       return
     }
 
@@ -4174,6 +4184,26 @@ async function init(): Promise<void> {
         } },
         { label: '删除…', danger: true, action: () => openWorkdirDeleteConfirm(event.clientX, event.clientY, filePath, basename(filePath)) },
         { label: '在访达中显示', action: () => void api.revealWorkdirEntry(filePath).catch(() => {}) },
+      ])
+      return
+    }
+
+    // 草稿行（未保存但有落盘路径的文档）：右键同样给菜单，否则表现为“有的文档右键无反应”
+    const draftRowButton = target.closest('[data-draft-id]') as HTMLElement | null
+    if (draftRowButton) {
+      const draftId = draftRowButton.dataset.draftId
+      const entry = sidebarState?.draftEntries.find((item) => item.id === draftId)
+      if (!entry?.path) return
+      event.preventDefault()
+      const draftPath = entry.path
+      showWorkdirContextMenu(event.clientX, event.clientY, [
+        { label: '打开', action: () => {
+          persistCurrentViewportOffset()
+          void flushAutoSave().then(() => {
+            api.openSidebarFile(draftPath).catch(() => {})
+          })
+        } },
+        { label: '在访达中显示', action: () => void api.revealWorkdirEntry(draftPath).catch(() => {}) },
       ])
     }
   })

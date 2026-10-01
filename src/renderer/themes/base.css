@@ -1364,6 +1364,8 @@ body.settings-window-mode #tab-strip {
   overflow-x: hidden;
   padding-right: 2px;
   overscroll-behavior: contain;
+  /* 侧栏列表是同步整体重建，锚定补偿只会造成点击文档后列表跳动 */
+  overflow-anchor: none;
 }
 
 .workdir-name {

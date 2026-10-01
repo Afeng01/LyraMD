@@ -1212,11 +1212,14 @@ async function init(): Promise<void> {
     sidebarInlineTitleEdit = null
 
     if (editTarget.kind === 'folder') {
-      const result = await api.renameWorkdirEntry(editTarget.folderPath, trimmedTitle).catch(() => null)
+      const result = await api.renameWorkdirEntry(editTarget.folderPath, trimmedTitle).catch((error) => {
+        window.alert(`重命名失败：${error instanceof Error ? error.message : String(error)}`)
+        return null
+      })
       if (result?.ok) {
         if (result.state) setSidebarState(result.state)
       } else {
-        if (result?.error) console.warn('重命名失败:', result.error)
+        if (result?.error) window.alert(`重命名失败：${result.error}`)
         renderSidebar()
       }
       return
@@ -2742,7 +2745,9 @@ async function init(): Promise<void> {
       void api.moveWorkdirEntry(sourcePath, targetDir).then((result) => {
         if (result?.ok && result.state) setSidebarState(result.state)
         else if (result && !result.ok && result.error) window.alert(result.error)
-      }).catch(() => {})
+      }).catch((error) => {
+        window.alert(`移动失败：${error instanceof Error ? error.message : String(error)}`)
+      })
     })
   }
 
@@ -2808,7 +2813,10 @@ async function init(): Promise<void> {
     void api.deleteWorkdirEntry(targetPath).then((result) => {
       if (result?.ok && result.state) setSidebarState(result.state)
       else if (result && !result.ok && result.error) window.alert(result.error)
-    }).catch(() => {})
+    }).catch((error) => {
+      // 主进程未注册 handler 等异常不再静默吞掉
+      window.alert(`删除失败：${error instanceof Error ? error.message : String(error)}`)
+    })
   }
 
   const openWorkdirDeleteConfirm = (x: number, y: number, targetPath: string, targetName: string): void => {

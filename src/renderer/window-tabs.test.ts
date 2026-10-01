@@ -511,6 +511,9 @@ describe('标签条接线与挂载点（字符串断言）', () => {
     // 垂直滚轮在标签区横滑
     expect(moduleSource).toContain("addEventListener('wheel'")
     expect(moduleSource).toContain('viewport.scrollLeft += wheelEvent.deltaY')
+    // 标签整体重建后保持滚动位置，激活标签在视口外也不跳回最开头
+    expect(moduleSource).toContain('const previousScrollLeft = tabsViewport?.scrollLeft ?? 0')
+    expect(moduleSource).toContain('tabsViewport.scrollLeft = previousScrollLeft')
     expect(mainSource).toContain('api.onTabNewRequest(')
     expect(mainSource).toContain('api.onTabActivateRequest(')
     expect(mainSource).toContain('api.onTabOpenRequest(')

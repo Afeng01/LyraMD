@@ -410,6 +410,7 @@ export function createWindowTabStripController(handlers: TabStripHandlers): Wind
     strip.hidden = false
     closeRecentMenu()
     currentTabs = payload.tabs
+    const previousScrollLeft = tabsViewport?.scrollLeft ?? 0
     if (!tabsViewport || !controls) {
       strip.replaceChildren()
       tabsViewport = document.createElement('div')
@@ -440,6 +441,8 @@ export function createWindowTabStripController(handlers: TabStripHandlers): Wind
     renderNewTabControl(controls)
     renderRecentControl(controls)
     updateOverflowState()
+    // 整体重建会把 scrollLeft 归零：激活标签在视口外时也不能跳回最开头
+    if (previousScrollLeft > 0) tabsViewport.scrollLeft = previousScrollLeft
   }
 
   const handleRecentFiles = (nextRecentFiles: string[]): void => {

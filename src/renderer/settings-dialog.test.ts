@@ -104,6 +104,7 @@ describe('settings dialog regression', () => {
     const changelogModule = readFileSync(join(process.cwd(), 'src/renderer/changelog.ts'), 'utf8')
 
     expect(html).toContain('data-settings-pane="feedback"')
+    expect(html).toContain('<span class="settings-nav-label">提交反馈</span>')
     expect(html).toContain('data-settings-panel="feedback"')
     expect(html).toContain('data-settings-pane="release-notes"')
     expect(html).toContain('data-settings-panel="release-notes"')
@@ -112,6 +113,7 @@ describe('settings dialog regression', () => {
     expect(html).not.toContain('data-settings-pane="help"')
     expect(html).toContain('id="settings-feedback-submit"')
     expect(file).toContain('feedback: {')
+    expect(file).toContain("title: '提交反馈'")
     expect(file).toContain("'release-notes': {")
     expect(html).toContain('更新日志')
     // 更新日志卡片从 CHANGELOG.md 动态渲染，不再手写静态卡片

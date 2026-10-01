@@ -311,7 +311,7 @@ const SETTINGS_PANE_META: Record<
   feedback: {
     description: '把问题或建议整理成 GitHub Issue，提交前可以检查和修改。',
     kicker: '帮助',
-    title: '反馈',
+    title: '提交反馈',
   },
   'release-notes': {
     description: '最近几个 LyraMD 1.x 版本的主要变化，更早细节见 GitHub Releases。',

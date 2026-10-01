@@ -11,6 +11,7 @@ const BUILT_IN_THEMES = [
   { id: 'sand', label: '暖沙' },
   { id: 'pine', label: '墨绿' },
   { id: 'rosewood', label: '夜檀' },
+  { id: 'terminal', label: '旧屏微光' },
 ] as const
 
 function renderReleaseNotesPane(): void {

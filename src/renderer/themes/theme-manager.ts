@@ -6,7 +6,8 @@ const themes: Record<string, string> = {
   mist: 'theme-mist',
   sand: 'theme-sand',
   pine: 'theme-pine',
-  rosewood: 'theme-rosewood'
+  rosewood: 'theme-rosewood',
+  terminal: 'theme-terminal'
 }
 
 let customStyleEl: HTMLStyleElement | null = null

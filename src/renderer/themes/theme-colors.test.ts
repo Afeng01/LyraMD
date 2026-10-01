@@ -25,7 +25,7 @@ describe('theme color contract', () => {
   })
 
   it('ships exactly the built-in standalone theme files', () => {
-    for (const name of ['light.css', 'dark.css', 'elegant.css', 'newsprint.css', 'mist.css', 'sand.css', 'pine.css', 'rosewood.css']) {
+    for (const name of ['light.css', 'dark.css', 'elegant.css', 'newsprint.css', 'mist.css', 'sand.css', 'pine.css', 'rosewood.css', 'terminal.css']) {
       expect(() => readFileSync(join(process.cwd(), 'themes', name), 'utf8')).not.toThrow()
       expect(readFileSync(join(process.cwd(), 'themes', name), 'utf8')).toMatch(/:root\s*\{/)
     }

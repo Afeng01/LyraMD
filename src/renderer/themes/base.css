@@ -3361,9 +3361,45 @@ body.settings-in-editor .settings-top-bar {
   min-height: 0;
 }
 
-/* 全屏后限制行宽，读感优先于填满 */
+/* 全屏后限制行宽，读感优先于填满；宽屏下居中避免右侧大片留白 */
+.settings-pane-content > .settings-pane {
+  max-width: 680px;
+  margin-inline: auto;
+}
+
 .settings-pane-content > .settings-pane > * {
   max-width: 680px;
+}
+
+/* 窄窗口：导航收缩为图标栏，内容占满剩余宽度 */
+@media (max-width: 780px) {
+  body.settings-in-editor #settings-dialog {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+
+  body.settings-in-editor .settings-nav-label,
+  body.settings-in-editor .settings-nav-section-label,
+  body.settings-in-editor #settings-close-label {
+    display: none;
+  }
+
+  body.settings-in-editor .settings-nav-item {
+    justify-content: center;
+    padding: 8px 6px;
+  }
+
+  body.settings-in-editor .settings-back-button {
+    justify-content: center;
+  }
+
+  body.settings-in-editor .settings-pane-content {
+    padding: 20px 18px 32px;
+  }
+
+  body.settings-in-editor .settings-pane-content > .settings-pane,
+  body.settings-in-editor .settings-pane-content > .settings-pane > * {
+    max-width: none;
+  }
 }
 
 .settings-pane-content::-webkit-scrollbar {
@@ -3482,8 +3518,9 @@ body.theme-dark .settings-option input[type="radio"]:checked::after {
   border-radius: 8px;
   background: color-mix(in srgb, var(--bg-color) 92%, var(--border-color) 8%);
   color: var(--text-color);
-  font-family: var(--font-mono, monospace);
-  font-size: 11px;
+  /* 跟随写作字体：自定义字体优先，未自定义时随主题变化 */
+  font-family: var(--lyra-editor-font-family);
+  font-size: 12px;
   margin-bottom: 8px;
 }
 
@@ -4360,30 +4397,31 @@ body.theme-dark .settings-theme-button.active {
   50% { opacity: 0.7; }
 }
 
+/* 仅悬浮弹窗形态：窄窗时导航折叠到顶部；编辑器内全屏由 780px 图标栏规则接管 */
 @media (max-width: 840px) {
-  body:not(.settings-window-mode) #settings-dialog {
+  body:not(.settings-window-mode):not(.settings-in-editor) #settings-dialog {
     width: min(100vw - 24px, 720px);
     height: auto;
     max-height: calc(100vh - 28px);
     grid-template-columns: 1fr;
   }
 
-  body:not(.settings-window-mode) .settings-nav {
+  body:not(.settings-window-mode):not(.settings-in-editor) .settings-nav {
     padding: 16px 10px;
     border-right: none;
     border-bottom: 1px solid color-mix(in srgb, var(--border-color) 45%, transparent 55%);
   }
 
-  body:not(.settings-window-mode) .settings-nav-list {
+  body:not(.settings-window-mode):not(.settings-in-editor) .settings-nav-list {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
-  body:not(.settings-window-mode) .settings-nav-section-label {
+  body:not(.settings-window-mode):not(.settings-in-editor) .settings-nav-section-label {
     display: none;
   }
 
-  body:not(.settings-window-mode) .settings-pane-content {
+  body:not(.settings-window-mode):not(.settings-in-editor) .settings-pane-content {
     padding: 16px 24px 24px;
   }
 
@@ -5135,4 +5173,35 @@ body.theme-rosewood {
   --table-border: #3a2c24;
   --selection-bg: rgba(217, 154, 98, 0.2);
   --highlight-bg: rgba(214, 170, 90, 0.3);
+}
+
+/* ===== 内置主题：旧屏微光 Terminal =====
+   移植自 Proma 的 CRT 终端主题（暖磷光 P1）：
+   真实磷光体偏暖偏黄，前景为低饱和暖绿白，长时间阅读不刺眼；
+   编辑器使用等宽字体并带极轻微磷光晕影，CRT 氛围靠色彩而非闪烁。 */
+body.theme-terminal {
+  --bg-color: #0f100e;
+  --text-color: #acb09f;
+  --text-muted: #798173;
+  --border-color: #2d3029;
+  --link-color: #6b9e52;
+  --code-bg: #161812;
+  --code-block-bg: #0a0b09;
+  --code-block-text: #acb09f;
+  --blockquote-border: #6b9e52;
+  --blockquote-bg: #14150f;
+  --table-header-bg: #14150f;
+  --table-border: #2d3029;
+  --selection-bg: rgba(107, 158, 82, 0.25);
+  --highlight-bg: rgba(168, 164, 94, 0.32);
+  --theme-editor-font-family: "JetBrains Mono", "IBM Plex Mono", "Cascadia Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+}
+
+body.theme-terminal #editor .ProseMirror {
+  text-shadow: 0 0 8px rgba(107, 158, 82, 0.12);
+}
+
+body.theme-terminal ::selection {
+  background: rgba(107, 158, 82, 0.3);
+  color: #0f100e;
 }

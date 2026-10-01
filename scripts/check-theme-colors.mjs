@@ -67,6 +67,12 @@ const expectedThemes = {
     'text-color': '#ecdfd4',
     'text-muted': '#a8978a',
   },
+  terminal: {
+    'bg-color': '#0f100e',
+    'link-color': '#6b9e52',
+    'text-color': '#acb09f',
+    'text-muted': '#798173',
+  },
 }
 
 function normalizeHex(value) {

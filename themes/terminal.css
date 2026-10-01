@@ -1,0 +1,20 @@
+/* ===== LyraMD Theme: 旧屏微光 Terminal =====
+   移植自 Proma 的 CRT 终端主题（暖磷光 P1）。
+   内置主题独立样式文件，与 base.css 内置块保持一致。
+   导入：菜单「主题 > Import Theme...」，或放入 ~/.lyramd/themes/ */
+
+:root {
+  --bg-color: #0f100e;
+  --text-color: #acb09f;
+  --text-muted: #798173;
+  --border-color: #2d3029;
+  --link-color: #6b9e52;
+  --code-bg: #161812;
+  --code-block-bg: #0a0b09;
+  --blockquote-border: #6b9e52;
+  --blockquote-bg: #14150f;
+  --table-header-bg: #14150f;
+  --table-border: #2d3029;
+  --selection-bg: rgba(107, 158, 82, 0.25);
+  --highlight-bg: rgba(168, 164, 94, 0.32);
+}

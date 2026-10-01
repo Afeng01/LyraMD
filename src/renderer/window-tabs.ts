@@ -417,6 +417,16 @@ export function createWindowTabStripController(handlers: TabStripHandlers): Wind
       tabsViewport.setAttribute('role', 'tablist')
       tabsViewport.setAttribute('aria-label', '文稿标签页')
       tabsViewport.addEventListener('scroll', updateOverflowState, { passive: true })
+      // 垂直滚轮在标签区横滑：标签多时不用拖底部滚动条
+      tabsViewport.addEventListener('wheel', (event) => {
+        const wheelEvent = event as WheelEvent
+        const viewport = tabsViewport
+        if (!viewport) return
+        if (Math.abs(wheelEvent.deltaY) <= Math.abs(wheelEvent.deltaX)) return
+        if (viewport.scrollWidth <= viewport.clientWidth) return
+        event.preventDefault()
+        viewport.scrollLeft += wheelEvent.deltaY
+      }, { passive: false })
       controls = document.createElement('div')
       controls.className = 'tab-strip-controls'
       strip.append(tabsViewport, controls)

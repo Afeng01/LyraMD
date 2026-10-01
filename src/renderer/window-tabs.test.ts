@@ -508,6 +508,9 @@ describe('标签条接线与挂载点（字符串断言）', () => {
   it('main.ts 接线：onTabsState 刷新标签条，四类 tab IPC 先 flushAutoSave 再回调', () => {
     expect(mainSource).toContain('createWindowTabStripController({')
     expect(mainSource).toContain('api.onTabsState(')
+    // 垂直滚轮在标签区横滑
+    expect(moduleSource).toContain("addEventListener('wheel'")
+    expect(moduleSource).toContain('viewport.scrollLeft += wheelEvent.deltaY')
     expect(mainSource).toContain('api.onTabNewRequest(')
     expect(mainSource).toContain('api.onTabActivateRequest(')
     expect(mainSource).toContain('api.onTabOpenRequest(')

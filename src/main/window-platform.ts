@@ -26,7 +26,8 @@ export function createWindowOptions({
     return {
       ...options,
       titleBarStyle: 'hiddenInset',
-      trafficLightPosition: { x: 14, y: 14 },
+      // 红绿灯垂直中心对齐标签行内容中心（顶距 6px + 标签 32px → 22px）：y = 22 - 6
+      trafficLightPosition: { x: 14, y: 16 },
     }
   }
 

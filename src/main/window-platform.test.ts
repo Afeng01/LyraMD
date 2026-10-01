@@ -10,7 +10,7 @@ describe('createWindowOptions', () => {
     })
 
     expect(options.titleBarStyle).toBe('hiddenInset')
-    expect(options.trafficLightPosition).toEqual({ x: 14, y: 14 })
+    expect(options.trafficLightPosition).toEqual({ x: 14, y: 16 })
   })
 
   it('uses custom window chrome on Windows', () => {

@@ -90,12 +90,12 @@ describe('buildTitleSyncPath', () => {
 })
 
 describe('macOS window chrome', () => {
-  it('uses a tighter traffic light offset so the hidden inset title bar does not feel oversized', () => {
+  it('aligns traffic lights with the tab strip content center', () => {
     const options = createWindowOptions({
       platform: 'darwin',
       preloadPath: '/app/dist/preload/index.js',
     })
 
-    expect(options.trafficLightPosition).toEqual({ x: 14, y: 14 })
+    expect(options.trafficLightPosition).toEqual({ x: 14, y: 16 })
   })
 })

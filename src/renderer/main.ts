@@ -4200,7 +4200,7 @@ async function init(): Promise<void> {
         { label: '打开', action: () => {
           persistCurrentViewportOffset()
           void flushAutoSave().then(() => {
-            api.openSidebarFile(draftPath).catch(() => {})
+            api.openDraft(draftId).catch(() => {})
           })
         } },
         { label: '在访达中显示', action: () => void api.revealWorkdirEntry(draftPath).catch(() => {}) },

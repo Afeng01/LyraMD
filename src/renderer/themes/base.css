@@ -4331,7 +4331,10 @@ body.theme-dark .settings-option input[type="radio"]:checked::after {
   border-color: var(--accent-color, var(--text-color));
 }
 
-body.theme-dark .settings-theme-button.active {
+body.theme-dark .settings-theme-button.active,
+body.theme-pine .settings-theme-button.active,
+body.theme-rosewood .settings-theme-button.active,
+body.theme-terminal .settings-theme-button.active {
   color: var(--bg-color);
 }
 

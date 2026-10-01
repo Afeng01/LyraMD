@@ -17,4 +17,5 @@
   --table-border: #2d3029;
   --selection-bg: rgba(107, 158, 82, 0.25);
   --highlight-bg: rgba(168, 164, 94, 0.32);
+  --theme-editor-font-family: "JetBrains Mono", "IBM Plex Mono", "Cascadia Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
 }

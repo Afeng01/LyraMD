@@ -1,4 +1,4 @@
-// 主题颜色契约检查：八个内置主题（light/dark/elegant/newsprint/mist/sand/pine/rosewood）的语义色
+// 主题颜色契约检查：九个内置主题（light/dark/elegant/newsprint/mist/sand/pine/rosewood/terminal）的语义色
 // 必须同时满足——
 //   1) base.css 内置块与 themes/*.css 独立文件的 token 值完全一致；
 //   2) 正文弱化文字（--text-muted）和链接（--link-color）对各自底色的
@@ -72,6 +72,7 @@ const expectedThemes = {
     'link-color': '#6b9e52',
     'text-color': '#acb09f',
     'text-muted': '#798173',
+    'theme-editor-font-family': '"jetbrains mono", "ibm plex mono", "cascadia code", ui-monospace, sfmono-regular, menlo, monaco, consolas, "courier new", monospace',
   },
 }
 
@@ -147,7 +148,7 @@ function getContrastRatio(valueForeground, valueBackground) {
   return (luminanceLight + 0.05) / (luminanceDark + 0.05)
 }
 
-// themes/ 目录只允许存在四个内置主题文件，防止再次出现没人引用的孤儿主题
+// themes/ 目录只允许存在 expectedThemes 列出的内置主题文件，防止再次出现没人引用的孤儿主题
 const filesStandalone = fs.readdirSync(dirThemes)
   .filter((file) => file.endsWith('.css'))
   .sort()

@@ -24,6 +24,16 @@ describe('theme color contract', () => {
     expect(elegant).toContain('--link-color: #bc4424;')
   })
 
+  it('uses a readable foreground for active theme cards in every dark theme', () => {
+    const base = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+    const rule = base.match(/body\.theme-dark \.settings-theme-button\.active,[\s\S]*?body\.theme-terminal \.settings-theme-button\.active\s*\{[^}]+\}/)?.[0] ?? ''
+
+    for (const theme of ['dark', 'pine', 'rosewood', 'terminal']) {
+      expect(rule).toContain(`body.theme-${theme} .settings-theme-button.active`)
+    }
+    expect(rule).toContain('color: var(--bg-color)')
+  })
+
   it('ships exactly the built-in standalone theme files', () => {
     for (const name of ['light.css', 'dark.css', 'elegant.css', 'newsprint.css', 'mist.css', 'sand.css', 'pine.css', 'rosewood.css', 'terminal.css']) {
       expect(() => readFileSync(join(process.cwd(), 'themes', name), 'utf8')).not.toThrow()

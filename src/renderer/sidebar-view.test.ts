@@ -454,6 +454,18 @@ describe('sidebar polish regression', () => {
     expect(css).toContain('.workdir-folder-item .sidebar-title')
   })
 
+  it('opens path-backed draft rows through the draft IPC path from their context menu', () => {
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+    const branchStart = renderer.indexOf("const draftRowButton = target.closest('[data-draft-id]')")
+    const branchEnd = renderer.indexOf('\n    }\n  })', branchStart)
+    const draftContextMenu = renderer.slice(branchStart, branchEnd)
+
+    expect(branchStart).toBeGreaterThanOrEqual(0)
+    expect(branchEnd).toBeGreaterThan(branchStart)
+    expect(draftContextMenu).toContain('api.openDraft(draftId)')
+    expect(draftContextMenu).not.toContain('api.openSidebarFile(draftPath)')
+  })
+
   it('uses a quiet, borderless active state for the sidebar view switcher', () => {
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
     const activeRule = css.match(/\.sidebar-tabs button\.active\s*\{[^}]*\}/)?.[0] ?? ''

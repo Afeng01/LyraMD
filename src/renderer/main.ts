@@ -969,15 +969,9 @@ async function init(): Promise<void> {
     },
   })
   const openSettingsSurface = (pane?: SettingsPaneId): void => {
-    if (settingsWindowMode) {
-      if (pane) settingsDialog.openPane(pane)
-      else settingsDialog.open()
-      return
-    }
-    api.openSettingsWindow(pane).catch(() => {
-      if (pane) settingsDialog.openPane(pane)
-      else settingsDialog.open()
-    })
+    // 设置改为编辑器内全屏surface；独立设置窗保留为设置窗模式（?settingsWindow=1）专用
+    if (pane) settingsDialog.openPane(pane)
+    else settingsDialog.open()
   }
   api.onSettingsChanged((settings) => {
     appSettings = settings

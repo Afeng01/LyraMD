@@ -414,52 +414,136 @@
           </button>
         </header>
 
-        <aside class="settings-nav" aria-label="设置分组">
+                <aside class="settings-nav" aria-label="设置分组">
           <nav class="settings-nav-list">
             <div class="settings-nav-section-label">基础</div>
-            <button type="button" class="settings-nav-item active" data-settings-pane="general">
-              <span class="settings-nav-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-              </span>
-              <span class="settings-nav-label">通用设置</span>
-            </button>
             <button type="button" class="settings-nav-item" data-settings-pane="workspace">
+              <span class="settings-nav-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1-1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              </span>
+              <span class="settings-nav-label">外观</span>
+            </button>
+            <button type="button" class="settings-nav-item active" data-settings-pane="general">
               <span class="settings-nav-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
               </span>
-              <span class="settings-nav-label">外观与文件</span>
+              <span class="settings-nav-label">写作与文件</span>
             </button>
             <button type="button" class="settings-nav-item" data-settings-pane="shortcuts">
               <span class="settings-nav-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><line x1="6" y1="8" x2="6" y2="8"></line><line x1="10" y1="8" x2="10" y2="8"></line><line x1="14" y1="8" x2="14" y2="8"></line><line x1="18" y1="8" x2="18" y2="8"></line><line x1="6" y1="12" x2="6" y2="12"></line><line x1="10" y1="12" x2="10" y2="12"></line><line x1="14" y1="12" x2="14" y2="12"></line><line x1="18" y1="12" x2="18" y2="12"></line><line x1="7" y1="16" x2="17" y2="16"></line></svg>
               </span>
-              <span class="settings-nav-label">快捷键管理</span>
+              <span class="settings-nav-label">快捷键</span>
             </button>
             <div class="settings-nav-section-label advanced">进阶</div>
+            <button type="button" class="settings-nav-item" data-settings-pane="safety">
+              <span class="settings-nav-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path></svg>
+              </span>
+              <span class="settings-nav-label">文稿安全</span>
+            </button>
             <button type="button" class="settings-nav-item" data-settings-pane="integrations">
               <span class="settings-nav-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7V2"></path><path d="M15 7V2"></path><path d="M6 13H2"></path><path d="M22 13h-4"></path><rect x="6" y="7" width="12" height="12" rx="2"></rect><path d="M9 19v3"></path><path d="M15 19v3"></path></svg>
               </span>
-              <span class="settings-nav-label">集成与终端</span>
+              <span class="settings-nav-label">AI 与集成</span>
             </button>
-            <button type="button" class="settings-nav-item" data-settings-pane="feedback">
+            <div class="settings-nav-section-label advanced">帮助</div>
+            <button type="button" class="settings-nav-item" data-settings-pane="guide">
+              <span class="settings-nav-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>
+              </span>
+              <span class="settings-nav-label">使用指南</span>
+            </button>
+            <button type="button" class="settings-nav-item" data-settings-pane="help">
               <span class="settings-nav-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"></path><path d="M8 9h8"></path><path d="M8 13h5"></path></svg>
               </span>
-              <span class="settings-nav-label">反馈与问题</span>
-            </button>
-            <button type="button" class="settings-nav-item" data-settings-pane="release-notes">
-              <span class="settings-nav-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13"></path><path d="M8 12h13"></path><path d="M8 18h13"></path><path d="M3 6h.01"></path><path d="M3 12h.01"></path><path d="M3 18h.01"></path></svg>
-              </span>
-              <span class="settings-nav-label">更新日志</span>
+              <span class="settings-nav-label">反馈与更新</span>
             </button>
           </nav>
         </aside>
-
         <div class="settings-pane-shell">
           <div class="settings-pane-content">
+            <section class="settings-pane" data-settings-panel="workspace" hidden>
+              <section class="settings-group">
+                <div class="settings-group-heading">
+                  <h4 class="settings-group-title">主题</h4>
+                  <p class="settings-group-copy">切换当前写作氛围，或导入自己的 CSS 主题。</p>
+                </div>
+                <div id="settings-theme-summary" class="settings-theme-summary">当前主题 · Elegant</div>
+                <div class="settings-theme-grid">
+                  <button type="button" class="settings-theme-button" data-settings-theme="elegant">Elegant</button>
+                  <button type="button" class="settings-theme-button" data-settings-theme="newsprint">Newsprint</button>
+                  <button type="button" class="settings-theme-button" data-settings-theme="light">Light</button>
+                  <button type="button" class="settings-theme-button" data-settings-theme="dark">Dark</button>
+                </div>
+                <button id="settings-theme-import" type="button" class="overlay-button">导入自定义主题</button>
+              </section>
+
+              <section class="settings-group">
+                <div class="settings-group-heading">
+                  <h4 class="settings-group-title">编辑字体</h4>
+                  <p class="settings-group-copy">默认跟随主题字体，也可以固定为你更顺眼的字体。</p>
+                </div>
+                <div class="settings-field-grid">
+                  <label class="settings-field">
+                    <span>字体方案</span>
+                    <select id="settings-font-preset">
+                      <option value="theme">跟随主题</option>
+                      <option value="elegant">Elegant 内置</option>
+                      <option value="serif">宋体/衬线</option>
+                      <option value="sans">黑体/无衬线</option>
+                      <option value="mono">等宽</option>
+                      <option value="custom">自定义</option>
+                    </select>
+                  </label>
+                  <label class="settings-field span-2">
+                    <span>自定义字体</span>
+                    <input id="settings-font-custom" type="text" placeholder="LXGW WenKai, Noto Serif SC, serif" spellcheck="false">
+                  </label>
+                </div>
+              </section>
+
+              <section class="settings-group">
+                <div class="settings-group-heading">
+                  <h4 class="settings-group-title">底部状态</h4>
+                  <p class="settings-group-copy">控制右下角字数统计和 AI 精灵思考状态是否显示。</p>
+                </div>
+                <label class="settings-toggle-row">
+                  <span>
+                    <strong>显示字数与 AI 状态</strong>
+                    <small>关闭后隐藏右下角统计和思考计时。</small>
+                  </span>
+                  <input id="settings-show-document-stats" type="checkbox">
+                </label>
+              </section>
+            </section>
+
             <section class="settings-pane active" data-settings-panel="general">
+              <section class="settings-group">
+                <div class="settings-group-heading">
+                  <h4 class="settings-group-title">草稿位置</h4>
+                  <p class="settings-group-copy">未命名草稿会默认进入这个目录，方便和 Agent 协作时持续落盘。</p>
+                </div>
+                <div id="settings-draft-preview" class="settings-info-card">Documents/LyraMD Drafts</div>
+                <button id="settings-draft-choose" type="button" class="overlay-button">重新选择位置</button>
+              </section>
+
+              <section class="settings-group">
+                <div class="settings-group-heading">
+                  <h4 class="settings-group-title">标签页</h4>
+                  <p class="settings-group-copy">标签页默认开启；关闭此选项后，每个窗口只打开一篇文稿。</p>
+                </div>
+                <label class="settings-toggle-row">
+                  <span>
+                    <strong>在新标签页中打开文件</strong>
+                    <small>默认开启：⌘T 新建标签，新文稿在当前窗口打开；关闭后恢复单文档模式。</small>
+                  </span>
+                  <input id="settings-open-files-in-tabs" type="checkbox">
+                </label>
+              </section>
+
               <section class="settings-group">
                 <div class="settings-group-heading">
                   <h4 class="settings-group-title">标题同步</h4>
@@ -496,6 +580,72 @@
 
               <section class="settings-group">
                 <div class="settings-group-heading">
+                  <h4 class="settings-group-title">复制行为</h4>
+                  <p class="settings-group-copy">复制整篇文稿时如何处理本地图片。</p>
+                </div>
+                <label class="settings-toggle-row">
+                  <span>
+                    <strong>复制时内嵌本地图片</strong>
+                    <small>全选并复制整篇文稿时，把本地插图转成可直接粘贴到外部应用的 data URL。</small>
+                  </span>
+                  <input id="settings-embed-local-images-on-copy" type="checkbox">
+                </label>
+              </section>
+            </section>
+
+<section class="settings-pane" data-settings-panel="shortcuts" hidden>
+              <div class="settings-group-heading">
+                <h4 class="settings-group-title">快捷键</h4>
+                <p class="settings-group-copy">点击快捷键可自定义，按 Esc 取消录制。</p>
+              </div>
+              <div id="settings-shortcut-conflict" class="settings-shortcut-conflict" hidden></div>
+              <div class="settings-shortcut-list">
+                  <div class="settings-shortcut-item">
+                    <span class="settings-shortcut-label">保存</span>
+                    <kbd class="settings-shortcut-key" data-shortcut-action="save">Cmd/Ctrl+S</kbd>
+                  </div>
+                  <div class="settings-shortcut-item">
+                    <span class="settings-shortcut-label">另存为</span>
+                    <kbd class="settings-shortcut-key" data-shortcut-action="saveAs">Cmd/Ctrl+Shift+S</kbd>
+                  </div>
+                  <div class="settings-shortcut-item">
+                    <span class="settings-shortcut-label">打开设置</span>
+                    <kbd class="settings-shortcut-key" data-shortcut-action="settings">Cmd/Ctrl+,</kbd>
+                  </div>
+                  <div class="settings-shortcut-item">
+                    <span class="settings-shortcut-label">搜索</span>
+                    <kbd class="settings-shortcut-key" data-shortcut-action="search">Cmd/Ctrl+F</kbd>
+                  </div>
+                  <div class="settings-shortcut-item">
+                    <span class="settings-shortcut-label">切换侧边栏</span>
+                    <kbd class="settings-shortcut-key" data-shortcut-action="toggleSidebar">Cmd/Ctrl+\</kbd>
+                  </div>
+                  <div class="settings-shortcut-item">
+                    <span class="settings-shortcut-label">清理中英排版</span>
+                    <kbd class="settings-shortcut-key" data-shortcut-action="cleanCjkTypography">Cmd/Ctrl+Shift+F</kbd>
+                  </div>
+                  <div class="settings-shortcut-item">
+                    <span class="settings-shortcut-label">打开大纲</span>
+                    <kbd class="settings-shortcut-key" data-shortcut-action="toggleOutline">Cmd/Ctrl+Shift+O</kbd>
+                  </div>
+                  <div class="settings-shortcut-item">
+                    <span class="settings-shortcut-label">打开 AI 精灵</span>
+                    <kbd class="settings-shortcut-key" data-shortcut-action="openAiPalette">Cmd/Ctrl+J</kbd>
+                  </div>
+                  <div class="settings-shortcut-item">
+                    <span class="settings-shortcut-label">插入公式</span>
+                    <kbd class="settings-shortcut-key" data-shortcut-action="insertFormula">Cmd/Ctrl+Shift+E</kbd>
+                  </div>
+                  <div class="settings-shortcut-item">
+                    <span class="settings-shortcut-label">Markdown 语法速查</span>
+                    <kbd class="settings-shortcut-key" data-shortcut-action="openCheatsheet">Cmd/Ctrl+Shift+/</kbd>
+                  </div>
+                </div>
+              </section>
+
+            <section class="settings-pane" data-settings-panel="safety" hidden>
+              <section class="settings-group">
+                <div class="settings-group-heading">
                   <h4 class="settings-group-title">文稿安全</h4>
                   <p class="settings-group-copy">把最近备份、异常恢复和本地保留策略放到同一个入口，减少崩溃或误操作后的损失。</p>
                 </div>
@@ -508,55 +658,6 @@
                     <span>本地备份目录</span>
                     <button id="settings-open-revisions-directory" type="button" class="overlay-button">打开备份目录</button>
                   </div>
-                </div>
-                <div class="settings-integration-help settings-usage-guide">
-                  <h5>本地备份与恢复怎么找</h5>
-                  <ol>
-                    <li>打开任意草稿或正式 Markdown 文稿后，点击标题栏的“文稿安全”按钮，即可展开当前文稿的本地历史。</li>
-                    <li>列表会显示自动保存、手动保存、重命名、插图前检查点和异常恢复点；点“恢复为草稿”会新建一份草稿，不覆盖当前文稿。</li>
-                    <li>最近备份会优先显示这一版相对上一版的具体修改摘要，而不是从头把整篇文稿重新展开。</li>
-                    <li>如果上次是异常退出，右上方还会额外出现“异常恢复”提示；点“恢复为新草稿”即可把崩溃前最后一次快照找回来。</li>
-                    <li>如果外部更新提示“已阻止覆盖”，可以先点“查看 diff”看清这次改了什么：确认合理就点“接受外部版本”；想回退就点“恢复覆盖前正文”，会写成新草稿复核，不会改写现在打开的文件。</li>
-                    <li>这里还保留了一份 append-only 事件日志（~/.lyramd/document-journal.jsonl），记录每次保存与外部写入的前后状态，出问题时可用来回放时间线。</li>
-                    <li>这里的保留条数只影响每篇文稿单独保留多少个本地版本，不会动你的正式 Markdown 文件。</li>
-                  </ol>
-                </div>
-              </section>
-
-              <section class="settings-group">
-                <div class="settings-group-heading">
-                  <h4 class="settings-group-title">Agent 协作</h4>
-                  <p class="settings-group-copy">普通外部更新会显示新增、删除和修改行数；明显的清空或大幅删改会被拦截，并保留覆盖前正文的恢复入口。</p>
-                </div>
-                <div class="settings-integration-help settings-usage-guide">
-                  <h5>和 Agent 一起改文稿时</h5>
-                  <ol>
-                    <li>先看外部更新提示的新增、删除和修改行数，再决定是否保留这次改动。</li>
-                    <li>普通但不合适的更新，直接点“撤回这次更新”，会回到本轮外部写入之前。</li>
-                    <li>若提示“已阻止覆盖”，说明本次更新疑似清空或大幅删改；可以点“查看 diff”逐行看清改动，再在“接受外部版本”（知情接受）和“撤回这次更新”之间做决定。</li>
-                    <li>如果要找更早的版本，再去“文稿安全”里从最近备份恢复成新草稿。</li>
-                  </ol>
-                </div>
-              </section>
-              <section class="settings-group">
-                <div class="settings-group-heading">
-                  <h4 class="settings-group-title">编辑与导出</h4>
-                  <p class="settings-group-copy">数学公式、图表、高亮、任务列表与主题化导出的入口和写法。</p>
-                </div>
-                <div class="settings-integration-help settings-usage-guide">
-                  <h5>正文里直接写</h5>
-                  <ol>
-                    <li>数学公式：直接打 $$…$$，或按 Cmd/Ctrl+Shift+E 打开插入公式面板；公式用 KaTeX 渲染。</li>
-                    <li>流程图 / 架构图：打 ```mermaid 围栏代码块，图表会直接渲染在编辑器里。</li>
-                    <li>高亮：用 ==文字== 包住；任务列表：打 - [ ] 或 - [x]，方框可以直接点。</li>
-                    <li>代码块：悬停在围栏代码块右上角会出现复制按钮；不确定语法时按 Cmd/Ctrl+Shift+/ 打开 Markdown 语法速查。</li>
-                  </ol>
-                  <h5>导出与主题</h5>
-                  <ol>
-                    <li>文件菜单：导出 Word (docx)、导出 PDF（跟随当前主题、无白边）、导出 HTML（内联完整主题样式）。</li>
-                    <li>主题菜单：Light / Dark / Elegant / Newsprint 可切换，也可点 Import Theme… 导入自定义主题文件（需满足对比度守卫）。</li>
-                    <li>想系统看一遍新能力：帮助 → 新功能演示，四个内置样例文稿可直接点开。</li>
-                  </ol>
                 </div>
               </section>
             </section>
@@ -637,6 +738,7 @@
                   <textarea id="settings-ai-template-prompt" rows="7" spellcheck="false"></textarea>
                 </label>
               </section>
+
               <section class="settings-group">
                 <div class="settings-group-heading">
                   <h4 class="settings-group-title">Codex MCP</h4>
@@ -667,6 +769,66 @@
                   </ol>
                 </div>
               </section>
+            </section>
+
+            <section class="settings-pane" data-settings-panel="guide" hidden>
+              <section class="settings-group settings-usage-guide">
+                <div class="settings-group-heading">
+                  <h4 class="settings-group-title">文稿安全：备份与恢复</h4>
+                  <p class="settings-group-copy">崩溃、误删或外部覆盖后，怎么把内容找回来。</p>
+                </div>
+                <div class="settings-integration-help settings-usage-guide">
+                  <h5>本地备份与恢复怎么找</h5>
+                  <ol>
+                    <li>打开任意草稿或正式 Markdown 文稿后，点击标题栏的“文稿安全”按钮，即可展开当前文稿的本地历史。</li>
+                    <li>列表会显示自动保存、手动保存、重命名、插图前检查点和异常恢复点；点“恢复为草稿”会新建一份草稿，不覆盖当前文稿。</li>
+                    <li>最近备份会优先显示这一版相对上一版的具体修改摘要，而不是从头把整篇文稿重新展开。</li>
+                    <li>如果上次是异常退出，右上方还会额外出现“异常恢复”提示；点“恢复为新草稿”即可把崩溃前最后一次快照找回来。</li>
+                    <li>如果外部更新提示“已阻止覆盖”，可以先点“查看 diff”看清这次改了什么：确认合理就点“接受外部版本”；想回退就点“恢复覆盖前正文”，会写成新草稿复核，不会改写现在打开的文件。</li>
+                    <li>这里还保留了一份 append-only 事件日志（~/.lyramd/document-journal.jsonl），记录每次保存与外部写入的前后状态，出问题时可用来回放时间线。</li>
+                    <li>这里的保留条数只影响每篇文稿单独保留多少个本地版本，不会动你的正式 Markdown 文件。</li>
+                  </ol>
+                </div>
+              </section>
+
+              <section class="settings-group">
+                <div class="settings-group-heading">
+                  <h4 class="settings-group-title">Agent 协作</h4>
+                  <p class="settings-group-copy">普通外部更新会显示新增、删除和修改行数；明显的清空或大幅删改会被拦截，并保留覆盖前正文的恢复入口。</p>
+                </div>
+                <div class="settings-integration-help settings-usage-guide">
+                  <h5>和 Agent 一起改文稿时</h5>
+                  <ol>
+                    <li>先看外部更新提示的新增、删除和修改行数，再决定是否保留这次改动。</li>
+                    <li>普通但不合适的更新，直接点“撤回这次更新”，会回到本轮外部写入之前。</li>
+                    <li>若提示“已阻止覆盖”，说明本次更新疑似清空或大幅删改；可以点“查看 diff”逐行看清改动，再在“接受外部版本”（知情接受）和“撤回这次更新”之间做决定。</li>
+                    <li>如果要找更早的版本，再去“文稿安全”里从最近备份恢复成新草稿。</li>
+                  </ol>
+                </div>
+              </section>
+
+              <section class="settings-group">
+                <div class="settings-group-heading">
+                  <h4 class="settings-group-title">编辑与导出</h4>
+                  <p class="settings-group-copy">数学公式、图表、高亮、任务列表与主题化导出的入口和写法。</p>
+                </div>
+                <div class="settings-integration-help settings-usage-guide">
+                  <h5>正文里直接写</h5>
+                  <ol>
+                    <li>数学公式：直接打 $$…$$，或按 Cmd/Ctrl+Shift+E 打开插入公式面板；公式用 KaTeX 渲染。</li>
+                    <li>流程图 / 架构图：打 ```mermaid 围栏代码块，图表会直接渲染在编辑器里。</li>
+                    <li>高亮：用 ==文字== 包住；任务列表：打 - [ ] 或 - [x]，方框可以直接点。</li>
+                    <li>代码块：悬停在围栏代码块右上角会出现复制按钮；不确定语法时按 Cmd/Ctrl+Shift+/ 打开 Markdown 语法速查。</li>
+                  </ol>
+                  <h5>导出与主题</h5>
+                  <ol>
+                    <li>文件菜单：导出 Word (docx)、导出 PDF（跟随当前主题、无白边）、导出 HTML（内联完整主题样式）。</li>
+                    <li>主题菜单：Light / Dark / Elegant / Newsprint 可切换，也可点 Import Theme… 导入自定义主题文件（需满足对比度守卫）。</li>
+                    <li>想系统看一遍新能力：帮助 → 新功能演示，四个内置样例文稿可直接点开。</li>
+                  </ol>
+                </div>
+              </section>
+
               <section class="settings-group settings-usage-guide">
                 <div class="settings-group-heading">
                   <h4 class="settings-group-title">LyraMD 使用指南</h4>
@@ -680,7 +842,7 @@
               </section>
             </section>
 
-            <section class="settings-pane" data-settings-panel="feedback" hidden>
+            <section class="settings-pane" data-settings-panel="help" hidden>
               <section class="settings-group">
                 <div class="settings-group-heading">
                   <h4 class="settings-group-title">反馈与问题</h4>
@@ -715,8 +877,7 @@
                   </div>
                 </div>
               </section>
-            </section>
-            <section class="settings-pane" data-settings-panel="release-notes" hidden>
+
               <section class="settings-group">
                 <div class="settings-group-heading">
                   <h4 class="settings-group-title">更新日志</h4>
@@ -725,140 +886,7 @@
                 <div class="settings-release-notes" id="settings-release-notes-list"></div>
               </section>
             </section>
-            <section class="settings-pane" data-settings-panel="workspace" hidden>
-              <section class="settings-group">
-                <div class="settings-group-heading">
-                  <h4 class="settings-group-title">草稿位置</h4>
-                  <p class="settings-group-copy">未命名草稿会默认进入这个目录，方便和 Agent 协作时持续落盘。</p>
-                </div>
-                <div id="settings-draft-preview" class="settings-info-card">Documents/LyraMD Drafts</div>
-                <button id="settings-draft-choose" type="button" class="overlay-button">重新选择位置</button>
-              </section>
 
-              <section class="settings-group">
-                <div class="settings-group-heading">
-                  <h4 class="settings-group-title">主题</h4>
-                  <p class="settings-group-copy">切换当前写作氛围，或导入自己的 CSS 主题。</p>
-                </div>
-                <div id="settings-theme-summary" class="settings-theme-summary">当前主题 · Elegant</div>
-                <div class="settings-theme-grid">
-                  <button type="button" class="settings-theme-button" data-settings-theme="elegant">Elegant</button>
-                  <button type="button" class="settings-theme-button" data-settings-theme="newsprint">Newsprint</button>
-                  <button type="button" class="settings-theme-button" data-settings-theme="light">Light</button>
-                  <button type="button" class="settings-theme-button" data-settings-theme="dark">Dark</button>
-                </div>
-                <button id="settings-theme-import" type="button" class="overlay-button">导入自定义主题</button>
-              </section>
-
-              <section class="settings-group">
-                <div class="settings-group-heading">
-                  <h4 class="settings-group-title">编辑字体</h4>
-                  <p class="settings-group-copy">默认跟随主题字体，也可以固定为你更顺眼的字体。</p>
-                </div>
-                <div class="settings-field-grid">
-                  <label class="settings-field">
-                    <span>字体方案</span>
-                    <select id="settings-font-preset">
-                      <option value="theme">跟随主题</option>
-                      <option value="elegant">Elegant 内置</option>
-                      <option value="serif">宋体/衬线</option>
-                      <option value="sans">黑体/无衬线</option>
-                      <option value="mono">等宽</option>
-                      <option value="custom">自定义</option>
-                    </select>
-                  </label>
-                  <label class="settings-field span-2">
-                    <span>自定义字体</span>
-                    <input id="settings-font-custom" type="text" placeholder="LXGW WenKai, Noto Serif SC, serif" spellcheck="false">
-                  </label>
-                </div>
-              </section>
-
-              <section class="settings-group">
-                <div class="settings-group-heading">
-                  <h4 class="settings-group-title">底部状态</h4>
-                  <p class="settings-group-copy">控制右下角字数统计和 AI 精灵思考状态是否显示。</p>
-                </div>
-                <label class="settings-toggle-row">
-                  <span>
-                    <strong>显示字数与 AI 状态</strong>
-                    <small>关闭后隐藏右下角统计和思考计时。</small>
-                  </span>
-                  <input id="settings-show-document-stats" type="checkbox">
-                </label>
-                <label class="settings-toggle-row">
-                  <span>
-                    <strong>复制时内嵌本地图片</strong>
-                    <small>全选并复制整篇文稿时，把本地插图转成可直接粘贴到外部应用的 data URL。</small>
-                  </span>
-                  <input id="settings-embed-local-images-on-copy" type="checkbox">
-                </label>
-              </section>
-              <section class="settings-group">
-                <div class="settings-group-heading">
-                  <h4 class="settings-group-title">标签页</h4>
-                  <p class="settings-group-copy">标签页默认开启；关闭此选项后，每个窗口只打开一篇文稿。</p>
-                </div>
-                <label class="settings-toggle-row">
-                  <span>
-                    <strong>在新标签页中打开文件</strong>
-                    <small>默认开启：⌘T 新建标签，新文稿在当前窗口打开；关闭后恢复单文档模式。</small>
-                  </span>
-                  <input id="settings-open-files-in-tabs" type="checkbox">
-                </label>
-              </section>
-            </section>
-
-            <section class="settings-pane" data-settings-panel="shortcuts" hidden>
-              <div class="settings-group-heading">
-                <h4 class="settings-group-title">快捷键</h4>
-                <p class="settings-group-copy">点击快捷键可自定义，按 Esc 取消录制。</p>
-              </div>
-              <div id="settings-shortcut-conflict" class="settings-shortcut-conflict" hidden></div>
-              <div class="settings-shortcut-list">
-                  <div class="settings-shortcut-item">
-                    <span class="settings-shortcut-label">保存</span>
-                    <kbd class="settings-shortcut-key" data-shortcut-action="save">Cmd/Ctrl+S</kbd>
-                  </div>
-                  <div class="settings-shortcut-item">
-                    <span class="settings-shortcut-label">另存为</span>
-                    <kbd class="settings-shortcut-key" data-shortcut-action="saveAs">Cmd/Ctrl+Shift+S</kbd>
-                  </div>
-                  <div class="settings-shortcut-item">
-                    <span class="settings-shortcut-label">打开设置</span>
-                    <kbd class="settings-shortcut-key" data-shortcut-action="settings">Cmd/Ctrl+,</kbd>
-                  </div>
-                  <div class="settings-shortcut-item">
-                    <span class="settings-shortcut-label">搜索</span>
-                    <kbd class="settings-shortcut-key" data-shortcut-action="search">Cmd/Ctrl+F</kbd>
-                  </div>
-                  <div class="settings-shortcut-item">
-                    <span class="settings-shortcut-label">切换侧边栏</span>
-                    <kbd class="settings-shortcut-key" data-shortcut-action="toggleSidebar">Cmd/Ctrl+\</kbd>
-                  </div>
-                  <div class="settings-shortcut-item">
-                    <span class="settings-shortcut-label">清理中英排版</span>
-                    <kbd class="settings-shortcut-key" data-shortcut-action="cleanCjkTypography">Cmd/Ctrl+Shift+F</kbd>
-                  </div>
-                  <div class="settings-shortcut-item">
-                    <span class="settings-shortcut-label">打开大纲</span>
-                    <kbd class="settings-shortcut-key" data-shortcut-action="toggleOutline">Cmd/Ctrl+Shift+O</kbd>
-                  </div>
-                  <div class="settings-shortcut-item">
-                    <span class="settings-shortcut-label">打开 AI 精灵</span>
-                    <kbd class="settings-shortcut-key" data-shortcut-action="openAiPalette">Cmd/Ctrl+J</kbd>
-                  </div>
-                  <div class="settings-shortcut-item">
-                    <span class="settings-shortcut-label">插入公式</span>
-                    <kbd class="settings-shortcut-key" data-shortcut-action="insertFormula">Cmd/Ctrl+Shift+E</kbd>
-                  </div>
-                  <div class="settings-shortcut-item">
-                    <span class="settings-shortcut-label">Markdown 语法速查</span>
-                    <kbd class="settings-shortcut-key" data-shortcut-action="openCheatsheet">Cmd/Ctrl+Shift+/</kbd>
-                  </div>
-                </div>
-              </section>
-            </section>
           </div>
         </div>
       </div>

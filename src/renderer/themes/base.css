@@ -3044,7 +3044,8 @@ body.settings-window-mode #app-shell {
   height: 100vh;
 }
 
-body.settings-window-mode #settings-overlay {
+body.settings-window-mode #settings-overlay,
+body.settings-in-editor #settings-overlay {
   position: fixed;
   inset: 0;
   display: flex;
@@ -3052,6 +3053,17 @@ body.settings-window-mode #settings-overlay {
   justify-content: stretch;
   padding: 0;
   background: var(--bg-color);
+}
+
+body.settings-in-editor #settings-dialog {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  animation: none;
+  grid-template-columns: 200px minmax(0, 1fr);
 }
 
 body.settings-window-mode #settings-dialog {
@@ -3232,10 +3244,14 @@ body.settings-window-mode .settings-pane-shell {
 }
 
 .settings-nav-section-label {
-  margin: 2px 8px 4px;
+  margin: 14px 8px 6px;
   color: var(--text-muted);
   font-size: 10px;
   font-weight: 700;
+  letter-spacing: 0.08em;
+}
+.settings-nav-section-label:first-child {
+  margin-top: 2px;
 }
 
 .settings-nav-section-label.advanced {
@@ -3264,9 +3280,9 @@ body.settings-window-mode .settings-pane-shell {
 }
 
 .settings-nav-item.active {
-  background: color-mix(in srgb, var(--selection-bg) 25%, transparent 75%);
+  background: color-mix(in srgb, var(--selection-bg) 30%, transparent 70%);
   color: var(--text-color);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+  box-shadow: inset 2px 0 0 var(--accent-color, var(--text-color)), 0 2px 8px rgba(0, 0, 0, 0.02);
 }
 
 .settings-nav-icon {
@@ -3297,9 +3313,14 @@ body.settings-window-mode .settings-pane-shell {
 
 .settings-pane-content {
   flex: 1;
-  padding: 24px 32px;
+  padding: 28px 36px 40px;
   overflow-y: auto;
   min-height: 0;
+}
+
+/* 全屏后限制行宽，读感优先于填满 */
+.settings-pane-content > .settings-pane > * {
+  max-width: 680px;
 }
 
 .settings-pane-content::-webkit-scrollbar {
@@ -3318,7 +3339,7 @@ body.settings-window-mode .settings-pane-shell {
 .settings-pane.active {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 28px;
   animation: pane-fade-in 0.2s ease both;
 }
 
@@ -3348,8 +3369,9 @@ body.settings-window-mode .settings-pane-shell {
 }
 
 .settings-group-title {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
+  letter-spacing: 0.01em;
   color: var(--text-color);
 }
 

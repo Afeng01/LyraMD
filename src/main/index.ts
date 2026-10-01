@@ -402,14 +402,26 @@ function persistReleaseNoticeState(): Promise<void> {
   return writeFile(releaseNoticePath, serializeReleaseNoticeState(releaseNoticeState), 'utf-8').catch(() => {})
 }
 
-// 每个新版本安装后的首次启动，打开一次设置窗的「更新日志」面板。
+// 每个新版本安装后的首次启动，在主窗口内打开一次设置 surface 的「反馈与更新」面板。
 async function maybeOpenReleaseNotesOnce(): Promise<void> {
   const currentVersion = app.getVersion()
   if (!shouldShowReleaseNoticeOnLaunch(releaseNoticeState, currentVersion)) return
 
   releaseNoticeState = withReleaseNoticeShown(releaseNoticeState, currentVersion)
   await persistReleaseNoticeState()
-  openSettingsWindow('release-notes')
+  const mainWin = BrowserWindow.getAllWindows().find((candidate) => {
+    if (candidate.isDestroyed()) return false
+    try {
+      return !candidate.webContents.getURL().includes('settingsWindow=1')
+    } catch {
+      return false
+    }
+  })
+  if (!mainWin) return
+  mainWin.webContents.send('settings-open-pane', 'help')
+  if (mainWin.isMinimized()) mainWin.restore()
+  mainWin.show()
+  mainWin.focus()
 }
 
 // Per-window state

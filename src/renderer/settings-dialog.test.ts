@@ -70,34 +70,47 @@ describe('settings dialog regression', () => {
 
     expect(html).toContain('data-settings-pane="integrations"')
     expect(html).toContain('data-settings-panel="integrations"')
-    expect(html).toContain('集成与终端')
+    expect(html).toContain('AI 与集成')
     expect(html).toContain('Codex MCP')
     expect(file).toContain("activePane === 'integrations'")
   })
 
-  it('renders feedback as a standalone settings pane below integrations', () => {
+  it('renders Codex MCP as a standalone integrations pane', () => {
     const file = readFileSync(join(process.cwd(), 'src/renderer/settings-dialog.ts'), 'utf8')
     const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
 
     expect(html).toContain('data-settings-pane="integrations"')
-    expect(html).toContain('data-settings-pane="feedback"')
-    expect(html.indexOf('data-settings-pane="feedback"')).toBeGreaterThan(html.indexOf('data-settings-pane="integrations"'))
-    expect(html).toContain('data-settings-panel="feedback"')
-    expect(html).toContain('id="settings-feedback-submit"')
-    expect(file).toContain("feedback: {")
+    expect(html).toContain('data-settings-panel="integrations"')
+    expect(html).toContain('AI 与集成')
+    expect(html).toContain('Codex MCP')
+    expect(file).toContain("activePane === 'integrations'")
   })
 
-  it('renders release notes as a settings pane below feedback', () => {
+  it('renders safety and guide as dedicated panes after integrations', () => {
+    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
+
+    expect(html).toContain('data-settings-pane="safety"')
+    expect(html).toContain('data-settings-panel="safety"')
+    expect(html).toContain('data-settings-pane="guide"')
+    expect(html).toContain('data-settings-panel="guide"')
+    expect(html.indexOf('data-settings-pane="integrations"')).toBeGreaterThan(html.indexOf('data-settings-pane="safety"'))
+    expect(html.indexOf('data-settings-pane="guide"')).toBeGreaterThan(html.indexOf('data-settings-pane="integrations"'))
+  })
+
+  it('merges feedback and release notes into a single help pane below guide', () => {
     const file = readFileSync(join(process.cwd(), 'src/renderer/settings-dialog.ts'), 'utf8')
     const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
     const changelogModule = readFileSync(join(process.cwd(), 'src/renderer/changelog.ts'), 'utf8')
     const changelog = readFileSync(join(process.cwd(), 'CHANGELOG.md'), 'utf8')
 
-    expect(html).toContain('data-settings-pane="feedback"')
-    expect(html).toContain('data-settings-pane="release-notes"')
-    expect(html.indexOf('data-settings-pane="release-notes"')).toBeGreaterThan(html.indexOf('data-settings-pane="feedback"'))
-    expect(html).toContain('data-settings-panel="release-notes"')
+    expect(html).not.toContain('data-settings-pane="feedback"')
+    expect(html).not.toContain('data-settings-pane="release-notes"')
+    expect(html).toContain('data-settings-pane="help"')
+    expect(html).toContain('data-settings-panel="help"')
+    expect(html.indexOf('data-settings-pane="help"')).toBeGreaterThan(html.indexOf('data-settings-pane="guide"'))
+    expect(html).toContain('id="settings-feedback-submit"')
+    expect(file).toContain('help: {')
     expect(html).toContain('更新日志')
     // 更新日志卡片从 CHANGELOG.md 动态渲染，不再手写静态卡片
     expect(html).toContain('id="settings-release-notes-list"')
@@ -154,11 +167,11 @@ describe('settings dialog regression', () => {
     expect(css).toContain('settings-usage-guide')
   })
 
-  it('documents recent backup and crash recovery entry points in general settings', () => {
+  it('documents recent backup and crash recovery entry points in the safety pane', () => {
     const file = readFileSync(join(process.cwd(), 'src/renderer/settings-dialog.ts'), 'utf8')
     const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
 
-    expect(file).toContain('本地备份、恢复入口和保留策略')
+    expect(file).toContain('本地备份保留策略与备份目录入口')
     expect(html).toContain('每篇文稿保留备份条数')
     expect(html).toContain('id="settings-document-safety-max-revisions"')
     expect(html).toContain('id="settings-open-revisions-directory"')
@@ -280,7 +293,7 @@ describe('settings dialog regression', () => {
     expect(css).toContain('.settings-ai-test-toast.error')
   })
 
-  it('opens settings in a detached resizable window instead of scaling with the editor', () => {
+  it('opens settings fullscreen inside the editor, with a detached window kept for settings-window mode', () => {
     const file = readFileSync(join(process.cwd(), 'src/renderer/settings-dialog.ts'), 'utf8')
     const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
     const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
@@ -292,7 +305,9 @@ describe('settings dialog regression', () => {
     expect(html).not.toContain('settings-window-dot')
     expect(file).not.toContain('initSettingsDialogDrag')
     expect(renderer).toContain('openSettingsSurface')
-    expect(renderer).toContain('api.openSettingsWindow')
+    // 设置改为编辑器内全屏 surface，不再从主窗口跳独立窗
+    expect(renderer).not.toContain('api.openSettingsWindow')
+    expect(renderer).toContain('settingsDialog.open()')
     expect(renderer).toContain('api.onSettingsChanged')
     expect(preload).toContain('openSettingsWindow: (pane?: string) => ipcRenderer.invoke(\'open-settings-window\', pane)')
     expect(preload).toContain('onSettingsChanged: (callback: (settings: AppSettings) => void) => {')
@@ -300,6 +315,8 @@ describe('settings dialog regression', () => {
     expect(main).toContain("ipcMain.handle('open-settings-window'")
     expect(main).toContain("win.webContents.send('settings-updated', appSettings)")
     expect(css).toContain('body.settings-window-mode #settings-overlay')
+    expect(css).toContain('body.settings-in-editor #settings-overlay')
+    expect(css).toContain('body.settings-in-editor #settings-dialog')
     expect(css).toContain('body.settings-window-mode #settings-dialog::before')
     expect(css).toContain('body.settings-window-mode .settings-top-bar {\n  display: none;')
     expect(css).toContain('-webkit-app-region: drag')

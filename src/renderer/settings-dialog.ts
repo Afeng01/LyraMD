@@ -267,41 +267,46 @@ interface CreateSettingsDialogControllerOptions {
   onSidebarStateChange: (state: SidebarState) => void
 }
 
-export type SettingsPaneId = 'general' | 'workspace' | 'shortcuts' | 'integrations' | 'feedback' | 'release-notes'
+export type SettingsPaneId = 'general' | 'workspace' | 'shortcuts' | 'integrations' | 'safety' | 'guide' | 'help'
 
 const SETTINGS_PANE_META: Record<
   SettingsPaneId,
   { description: string; kicker: string; title: string }
 > = {
   general: {
-    description: '决定标题同步、另存为切换方式，以及本地备份、恢复入口和保留策略。',
+    description: '草稿位置、标签页、标题同步与另存为行为，以及复制时的图片处理。',
     kicker: '基础',
-    title: '编辑器行为',
+    title: '写作与文件',
   },
   workspace: {
-    description: '管理草稿落点与视觉主题，让编辑器保持稳定且顺手。',
+    description: '主题、编辑字体与底部状态显示，决定写作氛围。',
     kicker: '基础',
-    title: '文件与外观',
+    title: '外观',
   },
   shortcuts: {
     description: '把最常用的动作收拢成一页速查，减少在菜单里来回寻找。',
-    kicker: '快捷键',
-    title: '键盘操作',
+    kicker: '基础',
+    title: '快捷键',
   },
   integrations: {
-    description: '配置 AI 助手、MCP bridge 和后续终端能力。',
+    description: 'AI 精灵的模型配置与 Prompt 模板，以及 Codex MCP 连接。',
     kicker: '进阶',
-    title: '集成与终端',
+    title: 'AI 与集成',
   },
-  feedback: {
-    description: '把问题和建议整理成 GitHub Issue，方便后续继续跟进。',
-    kicker: '反馈',
-    title: '反馈与问题',
+  safety: {
+    description: '本地备份保留策略与备份目录入口，崩溃或误操作后可以找回。',
+    kicker: '进阶',
+    title: '文稿安全',
   },
-  'release-notes': {
-    description: '查看 LyraMD 最近几个版本的主要变化，判断当前构建补了什么。',
-    kicker: '反馈',
-    title: '更新日志',
+  guide: {
+    description: '从备份恢复、Agent 协作到导出语法的完整说明，集中在一页。',
+    kicker: '帮助',
+    title: '使用指南',
+  },
+  help: {
+    description: '提交问题与建议到 GitHub Issue，或查看最近版本的变化。',
+    kicker: '帮助',
+    title: '反馈与更新',
   },
 }
 
@@ -816,6 +821,10 @@ export function createSettingsDialogController({
     clearShortcutConflict()
     render()
     if (activePane === 'integrations') void loadCodexStatus()
+    // 编辑器内全屏设置：非独立设置窗时铺满整个窗口
+    if (!document.body.classList.contains('settings-window-mode')) {
+      document.body.classList.add('settings-in-editor')
+    }
     if (!overlay) return
     overlay.hidden = false
     overlay.setAttribute('aria-hidden', 'false')
@@ -837,6 +846,7 @@ export function createSettingsDialogController({
     dialogOpen = false
     stopRecording()
     clearShortcutConflict()
+    document.body.classList.remove('settings-in-editor')
     if (document.body.classList.contains('settings-window-mode')) {
       api.closeWindow().catch(() => {})
       return

@@ -761,11 +761,10 @@ body.settings-window-mode #tab-strip {
   min-height: 0;
   padding: 14px 12px 52px 18px;
   background: color-mix(in srgb, var(--bg-color) 96%, var(--border-color) 4%);
-  border-right: 1px solid color-mix(in srgb, var(--border-color) 72%, transparent 28%);
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  transition: width 0.18s ease, min-width 0.18s ease, max-width 0.18s ease, padding 0.18s ease, border-color 0.18s ease;
+  transition: width 0.18s ease, min-width 0.18s ease, max-width 0.18s ease, padding 0.18s ease;
 }
 
 #app-shell:not(.sidebar-open) #sidebar {
@@ -3128,6 +3127,45 @@ body.settings-window-mode .settings-pane-shell {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+body.settings-in-editor .settings-top-bar {
+  /* macOS 红绿灯占左侧约 66px；标题从红绿灯右侧起，避免重叠 */
+  padding-left: 84px;
+}
+
+.settings-nav-footer {
+  flex: none;
+  padding: 10px 8px 4px;
+  border-top: 1px solid color-mix(in srgb, var(--border-color) 35%, transparent 65%);
+}
+
+.settings-back-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  transition: background 0.14s ease, color 0.14s ease;
+}
+
+.settings-back-button:hover {
+  background: color-mix(in srgb, var(--selection-bg) 30%, transparent 70%);
+  color: var(--text-color);
+}
+
+.settings-back-button svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
 }
 
 .settings-close-x {

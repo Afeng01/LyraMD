@@ -409,9 +409,6 @@
           <div class="settings-title-block">
             <h2 id="settings-pane-title">编辑器行为</h2>
           </div>
-          <button id="settings-close" type="button" class="settings-close-x" aria-label="关闭设置">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-          </button>
         </header>
 
                 <aside class="settings-nav" aria-label="设置分组">
@@ -427,7 +424,7 @@
               <span class="settings-nav-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
               </span>
-              <span class="settings-nav-label">写作与文件</span>
+              <span class="settings-nav-label">编辑器</span>
             </button>
             <button type="button" class="settings-nav-item" data-settings-pane="shortcuts">
               <span class="settings-nav-icon">
@@ -455,13 +452,25 @@
               </span>
               <span class="settings-nav-label">使用指南</span>
             </button>
-            <button type="button" class="settings-nav-item" data-settings-pane="help">
+            <button type="button" class="settings-nav-item" data-settings-pane="feedback">
               <span class="settings-nav-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"></path><path d="M8 9h8"></path><path d="M8 13h5"></path></svg>
               </span>
-              <span class="settings-nav-label">反馈与更新</span>
+              <span class="settings-nav-label">反馈</span>
+            </button>
+            <button type="button" class="settings-nav-item" data-settings-pane="release-notes">
+              <span class="settings-nav-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l2 2"></path><circle cx="12" cy="12" r="9"></circle></svg>
+              </span>
+              <span class="settings-nav-label">更新日志</span>
             </button>
           </nav>
+          <div class="settings-nav-footer">
+            <button id="settings-close" type="button" class="settings-back-button" aria-label="返回编辑器">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"></path><path d="M12 19l-7-7 7-7"></path></svg>
+              <span id="settings-close-label">返回编辑器</span>
+            </button>
+          </div>
         </aside>
         <div class="settings-pane-shell">
           <div class="settings-pane-content">
@@ -528,20 +537,6 @@
                 </div>
                 <div id="settings-draft-preview" class="settings-info-card">Documents/LyraMD Drafts</div>
                 <button id="settings-draft-choose" type="button" class="overlay-button">重新选择位置</button>
-              </section>
-
-              <section class="settings-group">
-                <div class="settings-group-heading">
-                  <h4 class="settings-group-title">标签页</h4>
-                  <p class="settings-group-copy">标签页默认开启；关闭此选项后，每个窗口只打开一篇文稿。</p>
-                </div>
-                <label class="settings-toggle-row">
-                  <span>
-                    <strong>在新标签页中打开文件</strong>
-                    <small>默认开启：⌘T 新建标签，新文稿在当前窗口打开；关闭后恢复单文档模式。</small>
-                  </span>
-                  <input id="settings-open-files-in-tabs" type="checkbox">
-                </label>
               </section>
 
               <section class="settings-group">
@@ -842,7 +837,7 @@
               </section>
             </section>
 
-            <section class="settings-pane" data-settings-panel="help" hidden>
+            <section class="settings-pane" data-settings-panel="feedback" hidden>
               <section class="settings-group">
                 <div class="settings-group-heading">
                   <h4 class="settings-group-title">反馈与问题</h4>
@@ -877,7 +872,9 @@
                   </div>
                 </div>
               </section>
+            </section>
 
+            <section class="settings-pane" data-settings-panel="release-notes" hidden>
               <section class="settings-group">
                 <div class="settings-group-heading">
                   <h4 class="settings-group-title">更新日志</h4>

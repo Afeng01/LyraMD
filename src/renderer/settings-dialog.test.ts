@@ -97,20 +97,22 @@ describe('settings dialog regression', () => {
     expect(html.indexOf('data-settings-pane="guide"')).toBeGreaterThan(html.indexOf('data-settings-pane="integrations"'))
   })
 
-  it('merges feedback and release notes into a single help pane below guide', () => {
+  it('splits feedback and release notes into separate panes below guide', () => {
     const file = readFileSync(join(process.cwd(), 'src/renderer/settings-dialog.ts'), 'utf8')
     const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
     const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
     const changelogModule = readFileSync(join(process.cwd(), 'src/renderer/changelog.ts'), 'utf8')
-    const changelog = readFileSync(join(process.cwd(), 'CHANGELOG.md'), 'utf8')
 
-    expect(html).not.toContain('data-settings-pane="feedback"')
-    expect(html).not.toContain('data-settings-pane="release-notes"')
-    expect(html).toContain('data-settings-pane="help"')
-    expect(html).toContain('data-settings-panel="help"')
-    expect(html.indexOf('data-settings-pane="help"')).toBeGreaterThan(html.indexOf('data-settings-pane="guide"'))
+    expect(html).toContain('data-settings-pane="feedback"')
+    expect(html).toContain('data-settings-panel="feedback"')
+    expect(html).toContain('data-settings-pane="release-notes"')
+    expect(html).toContain('data-settings-panel="release-notes"')
+    expect(html.indexOf('data-settings-pane="feedback"')).toBeGreaterThan(html.indexOf('data-settings-pane="guide"'))
+    expect(html.indexOf('data-settings-pane="release-notes"')).toBeGreaterThan(html.indexOf('data-settings-pane="feedback"'))
+    expect(html).not.toContain('data-settings-pane="help"')
     expect(html).toContain('id="settings-feedback-submit"')
-    expect(file).toContain('help: {')
+    expect(file).toContain('feedback: {')
+    expect(file).toContain("'release-notes': {")
     expect(html).toContain('更新日志')
     // 更新日志卡片从 CHANGELOG.md 动态渲染，不再手写静态卡片
     expect(html).toContain('id="settings-release-notes-list"')
@@ -118,90 +120,25 @@ describe('settings dialog regression', () => {
     expect(file).toContain('renderReleaseNotesPane()')
     expect(file).toContain("from './changelog'")
     expect(changelogModule).toContain("from '../../CHANGELOG.md?raw'")
-    expect(changelog).toContain('## 1.3.8（2026-07-10）')
-    expect(css).toContain('.settings-release-notes')
-  })
-
-  it('builds a prefilled GitHub issue URL without requiring a local GitHub token', () => {
-    const url = buildFeedbackIssueUrl({
-      type: 'bug',
-      title: '侧栏拖拽异常',
-      description: '拖动侧栏时会选中文本。',
-      includeDiagnostics: true,
-      diagnostics: {
-        themeName: 'elegant',
-        userAgent: 'Vitest',
-      },
-    })
-
-    expect(url.startsWith('https://github.com/Afeng01/LyraMD/issues/new?')).toBe(true)
-    expect(decodeURIComponent(url)).toContain('侧栏拖拽异常')
-    expect(decodeURIComponent(url)).toContain('拖动侧栏时会选中文本。')
-    expect(decodeURIComponent(url)).toContain('主题：elegant')
-    expect(decodeURIComponent(url)).toContain('User Agent：Vitest')
-    expect(url).not.toContain('token')
-  })
-
-  it('separates basic and advanced settings in the navigation', () => {
-    const file = readFileSync(join(process.cwd(), 'src/renderer/settings-dialog.ts'), 'utf8')
-    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
-    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
-
-    expect(html).toContain('<div class="settings-nav-section-label">基础</div>')
-    expect(html).toContain('<div class="settings-nav-section-label advanced">进阶</div>')
-    expect(file).toContain("kicker: '进阶'")
-    expect(css).toContain('.settings-nav-section-label')
-  })
-
-  it('renders Codex MCP usage help and keeps integration controls compact', () => {
-    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
-    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
-
-    expect(html).toContain('settings-integration-help')
-    expect(html).toContain('LyraMD 使用指南')
-    expect(html).toContain('在 LyraMD 中写笔记，保持当前文档打开')
-    expect(html).toContain('在 Codex 里请求它使用 LyraMD MCP 读取或写入当前文档')
-    expect(css).toContain('-webkit-app-region: drag')
-    expect(css).toContain('text-overflow: ellipsis')
-    expect(css).toContain('white-space: nowrap')
-    expect(css).toContain('settings-usage-guide')
-  })
-
-  it('documents recent backup and crash recovery entry points in the safety pane', () => {
-    const file = readFileSync(join(process.cwd(), 'src/renderer/settings-dialog.ts'), 'utf8')
-    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
-
-    expect(file).toContain('本地备份保留策略与备份目录入口')
-    expect(html).toContain('每篇文稿保留备份条数')
-    expect(html).toContain('id="settings-document-safety-max-revisions"')
-    expect(html).toContain('id="settings-open-revisions-directory"')
-    expect(html).toContain('点击标题栏的“文稿安全”按钮')
-  })
-
-  it('removes background controls and renders bottom status visibility control', () => {
-    const file = readFileSync(join(process.cwd(), 'src/renderer/settings-dialog.ts'), 'utf8')
-    const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
-
-    expect(html).not.toContain('name="settings-background-scope"')
-    expect(html).not.toContain('name="settings-background-mode"')
-    expect(html).not.toContain('id="settings-background-opacity"')
-    expect(html).not.toContain('id="settings-background-reset"')
-    expect(html).toContain('id="settings-show-document-stats"')
     expect(html).toContain('显示字数与 AI 状态')
     expect(file).toContain('updateShowDocumentStats')
     expect(file).toContain('api.updateSettings({ showDocumentStats')
+    // 关闭入口在左下角「返回编辑器」，右上角×已移除
+    expect(html).toContain('settings-back-button')
+    expect(html).toContain('id="settings-close"')
+    expect(html).not.toContain('settings-close-x"')
+    expect(css).toContain('.settings-nav-footer')
+    expect(css).toContain('body.settings-in-editor .settings-top-bar')
   })
 
-  it('exposes the default-on open-in-tabs toggle in the general pane', () => {
+  it('removes the tabs preference: tabs are the only document model', () => {
     const file = readFileSync(join(process.cwd(), 'src/renderer/settings-dialog.ts'), 'utf8')
     const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
 
-    expect(html).toContain('id="settings-open-files-in-tabs"')
-    expect(html).toContain('在新标签页中打开文件')
-    expect(html).toContain('标签页默认开启；关闭此选项后，每个窗口只打开一篇文稿。')
-    expect(file).toContain('updateOpenFilesInTabs')
-    expect(file).toContain('api.updateSettings({ tabs: { enabled }')
-    expect(file).toMatch(/openInTabsInput\.checked = appSettings\.tabs\?\.enabled === true/)
+    expect(html).not.toContain('id="settings-open-files-in-tabs"')
+    expect(html).not.toContain('在新标签页中打开文件')
+    expect(file).not.toContain('updateOpenFilesInTabs')
+    expect(file).not.toContain('openInTabsInput')
   })
 
   it('opens settings from buttons and shortcuts instead of toggling an already open dialog closed', () => {

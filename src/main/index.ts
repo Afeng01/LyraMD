@@ -418,7 +418,7 @@ async function maybeOpenReleaseNotesOnce(): Promise<void> {
     }
   })
   if (!mainWin) return
-  mainWin.webContents.send('settings-open-pane', 'help')
+  mainWin.webContents.send('settings-open-pane', 'release-notes')
   if (mainWin.isMinimized()) mainWin.restore()
   mainWin.show()
   mainWin.focus()
@@ -1813,9 +1813,9 @@ function getEffectiveDraftDirectoryPath(): string {
   return sidebarState.draftDirectoryPath ?? defaultDraftDirectoryPath()
 }
 
-// 标签页开关保留为用户偏好；默认启用，关闭后恢复单文档窗口行为。
+// 标签页已是唯一形态（设置项已随 2026-10 设置重构移除）；函数保留为守卫点，便于将来需要单文档模式时回退。
 function areTabsEnabled(): boolean {
-  return appSettings.tabs?.enabled === true
+  return true
 }
 
 function sendTabsState(win: BrowserWindow): void {

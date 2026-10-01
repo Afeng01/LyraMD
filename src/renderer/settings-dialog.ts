@@ -267,16 +267,16 @@ interface CreateSettingsDialogControllerOptions {
   onSidebarStateChange: (state: SidebarState) => void
 }
 
-export type SettingsPaneId = 'general' | 'workspace' | 'shortcuts' | 'integrations' | 'safety' | 'guide' | 'help'
+export type SettingsPaneId = 'general' | 'workspace' | 'shortcuts' | 'integrations' | 'safety' | 'guide' | 'feedback' | 'release-notes'
 
 const SETTINGS_PANE_META: Record<
   SettingsPaneId,
   { description: string; kicker: string; title: string }
 > = {
   general: {
-    description: '草稿位置、标签页、标题同步与另存为行为，以及复制时的图片处理。',
+    description: '草稿位置、标题同步与另存为行为，以及复制时的图片处理。',
     kicker: '基础',
-    title: '写作与文件',
+    title: '编辑器',
   },
   workspace: {
     description: '主题、编辑字体与底部状态显示，决定写作氛围。',
@@ -303,10 +303,15 @@ const SETTINGS_PANE_META: Record<
     kicker: '帮助',
     title: '使用指南',
   },
-  help: {
-    description: '提交问题与建议到 GitHub Issue，或查看最近版本的变化。',
+  feedback: {
+    description: '把问题或建议整理成 GitHub Issue，提交前可以检查和修改。',
     kicker: '帮助',
-    title: '反馈与更新',
+    title: '反馈',
+  },
+  'release-notes': {
+    description: '最近几个 LyraMD 1.x 版本的主要变化，更早细节见 GitHub Releases。',
+    kicker: '帮助',
+    title: '更新日志',
   },
 }
 
@@ -390,7 +395,6 @@ export function createSettingsDialogController({
     document.querySelectorAll<HTMLInputElement>('input[name="settings-save-as-mode"]'),
   )
   const showDocumentStatsInput = document.getElementById('settings-show-document-stats') as HTMLInputElement | null
-  const openInTabsInput = document.getElementById('settings-open-files-in-tabs') as HTMLInputElement | null
   const embedLocalImagesOnCopyInput = document.getElementById('settings-embed-local-images-on-copy') as HTMLInputElement | null
   const documentSafetyMaxRevisionsInput = document.getElementById('settings-document-safety-max-revisions') as HTMLInputElement | null
   const openRevisionsDirectoryButton = document.getElementById('settings-open-revisions-directory') as HTMLButtonElement | null
@@ -585,10 +589,6 @@ export function createSettingsDialogController({
 
     if (embedLocalImagesOnCopyInput) {
       embedLocalImagesOnCopyInput.checked = appSettings.embedLocalImagesOnCopy === true
-    }
-
-    if (openInTabsInput) {
-      openInTabsInput.checked = appSettings.tabs?.enabled === true
     }
 
     if (documentSafetyMaxRevisionsInput) {
@@ -824,6 +824,10 @@ export function createSettingsDialogController({
     // 编辑器内全屏设置：非独立设置窗时铺满整个窗口
     if (!document.body.classList.contains('settings-window-mode')) {
       document.body.classList.add('settings-in-editor')
+    } else {
+      // 独立设置窗里没有“编辑器”可返回，按钮语义改为关闭窗口
+      const closeLabel = document.getElementById('settings-close-label')
+      if (closeLabel) closeLabel.textContent = '关闭窗口'
     }
     if (!overlay) return
     overlay.hidden = false
@@ -899,16 +903,6 @@ export function createSettingsDialogController({
     const next = (await api.updateSettings({ embedLocalImagesOnCopy }).catch(() => null)) ?? {
       ...current,
       embedLocalImagesOnCopy,
-    }
-    onAppSettingsChange(next)
-    render()
-  }
-
-  const updateOpenFilesInTabs = async (enabled: boolean): Promise<void> => {
-    const current = getAppSettings()
-    const next = (await api.updateSettings({ tabs: { enabled } }).catch(() => null)) ?? {
-      ...current,
-      tabs: { enabled },
     }
     onAppSettingsChange(next)
     render()
@@ -1210,10 +1204,6 @@ export function createSettingsDialogController({
 
   embedLocalImagesOnCopyInput?.addEventListener('change', () => {
     void updateEmbedLocalImagesOnCopy(embedLocalImagesOnCopyInput.checked)
-  })
-
-  openInTabsInput?.addEventListener('change', () => {
-    void updateOpenFilesInTabs(openInTabsInput.checked)
   })
 
   documentSafetyMaxRevisionsInput?.addEventListener('change', () => {

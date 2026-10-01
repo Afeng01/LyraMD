@@ -87,6 +87,6 @@ describe('update banner surface wiring', () => {
   it('persists skip state and opens release notes once via release-notice.json', () => {
     expect(mainProcess).toContain("join(appDataDir, 'release-notice.json')")
     expect(mainProcess).toContain('maybeOpenReleaseNotesOnce')
-    expect(mainProcess).toContain("send('settings-open-pane', 'help')")
+    expect(mainProcess).toContain("send('settings-open-pane', 'release-notes')")
   })
 })

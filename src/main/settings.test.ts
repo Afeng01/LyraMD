@@ -65,7 +65,7 @@ describe('loadAppSettings', () => {
     })
   })
 
-  it('migrates legacy opt-in profiles to default-on tabs once', async () => {
+  it('drops the removed tabs preference from persisted profiles', async () => {
     const settingsModule = await loadSettingsModule()
     const tempDir = await createTempDir()
     const settingsPath = join(tempDir, 'settings.json')
@@ -74,24 +74,9 @@ describe('loadAppSettings', () => {
     const settings = await settingsModule.loadAppSettings(settingsPath)
     const persisted = JSON.parse(await readFile(settingsPath, 'utf-8'))
 
-    expect(settings.tabs.enabled).toBe(true)
+    expect('tabs' in settings).toBe(false)
     expect(settings.settingsSchemaVersion).toBe(settingsModule.APP_SETTINGS_SCHEMA_VERSION)
-    expect(persisted.tabs.enabled).toBe(true)
-    expect(persisted.settingsSchemaVersion).toBe(settingsModule.APP_SETTINGS_SCHEMA_VERSION)
-  })
-
-  it('preserves a deliberate tab opt-out after the default-on migration', async () => {
-    const settingsModule = await loadSettingsModule()
-    const tempDir = await createTempDir()
-    const settingsPath = join(tempDir, 'settings.json')
-    await writeFile(settingsPath, JSON.stringify({
-      settingsSchemaVersion: settingsModule.APP_SETTINGS_SCHEMA_VERSION,
-      tabs: { enabled: false },
-    }), 'utf-8')
-
-    const settings = await settingsModule.loadAppSettings(settingsPath)
-
-    expect(settings.tabs.enabled).toBe(false)
+    expect('tabs' in persisted).toBe(false)
   })
 
   it('normalizes phase c layout defaults', async () => {
@@ -99,7 +84,6 @@ describe('loadAppSettings', () => {
 
     const settings = settingsModule.normalizeAppSettings({})
 
-    expect(settings.tabs.enabled).toBe(true)
     expect(settings.agentPanelPosition).toBe('auto')
     expect(settings.showDocumentStats).toBe(true)
     expect(settings.background.mode).toBe('default')

@@ -3946,7 +3946,16 @@ function buildMenu(): void {
         {
           label: '打开设置',
           accelerator: shortcutFor('settings'),
-          click: () => { openSettingsWindow() }
+          click: () => {
+            // 与设置按钮同路径：在当前主窗口内打开全屏设置，不再弹独立设置窗
+            const focused = BrowserWindow.getFocusedWindow()
+            if (focused && focused.webContents.getURL().includes('settingsWindow=1')) {
+              focused.close()
+              return
+            }
+            const target = focused ?? getDialogParentWindow()
+            target?.webContents.send('menu-settings')
+          }
         }
       ]
     },

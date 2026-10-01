@@ -3109,6 +3109,8 @@ body.settings-window-mode .settings-pane-shell {
   grid-template-columns: 1fr auto;
   align-items: center;
   gap: 12px;
+  /* 高度 44px：标题中心 22px，与 macOS 红绿灯中心（y16+6）对齐 */
+  height: 44px;
   padding: 0 12px 0 16px;
   border-bottom: 1px solid color-mix(in srgb, var(--border-color) 35%, transparent 65%);
   background: color-mix(in srgb, var(--bg-color) 96%, var(--border-color) 4%);
@@ -3136,18 +3138,18 @@ body.settings-in-editor .settings-top-bar {
 
 .settings-nav-footer {
   flex: none;
-  padding: 10px 8px 4px;
+  padding: 4px 6px 2px;
   border-top: 1px solid color-mix(in srgb, var(--border-color) 35%, transparent 65%);
 }
 
 .settings-back-button {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   width: 100%;
-  padding: 8px 10px;
+  padding: 5px 8px;
   border: none;
-  border-radius: 8px;
+  border-radius: 7px;
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
@@ -3163,8 +3165,8 @@ body.settings-in-editor .settings-top-bar {
 }
 
 .settings-back-button svg {
-  width: 15px;
-  height: 15px;
+  width: 13px;
+  height: 13px;
   flex: none;
 }
 
@@ -3323,7 +3325,7 @@ body.settings-in-editor .settings-top-bar {
 .settings-nav-item.active {
   background: color-mix(in srgb, var(--selection-bg) 30%, transparent 70%);
   color: var(--text-color);
-  box-shadow: inset 2px 0 0 var(--accent-color, var(--text-color)), 0 2px 8px rgba(0, 0, 0, 0.02);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
 }
 
 .settings-nav-icon {

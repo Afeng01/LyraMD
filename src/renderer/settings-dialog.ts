@@ -1144,26 +1144,36 @@ export function createSettingsDialogController({
   feedbackSubmitButton?.addEventListener('click', submitFeedbackIssue)
 
   window.addEventListener('keydown', (event) => {
-    if (!dialogOpen || !recordingShortcut) return
+    if (!dialogOpen) return
 
-    event.preventDefault()
-    event.stopPropagation()
+    if (recordingShortcut) {
+      event.preventDefault()
+      event.stopPropagation()
 
-    if (event.key === 'Escape') {
+      if (event.key === 'Escape') {
+        stopRecording()
+        clearShortcutConflict()
+        render()
+        return
+      }
+
+      const combo = formatKeyCombo(event)
+      const action = recordingShortcut.dataset.shortcutAction as ShortcutAction | undefined
+      if (!combo || !action) return
+
+      recordingShortcut.textContent = formatShortcutLabel(combo)
       stopRecording()
       clearShortcutConflict()
-      render()
+      void updateShortcut(action, combo)
       return
     }
 
-    const combo = formatKeyCombo(event)
-    const action = recordingShortcut.dataset.shortcutAction as ShortcutAction | undefined
-    if (!combo || !action) return
-
-    recordingShortcut.textContent = formatShortcutLabel(combo)
-    stopRecording()
-    clearShortcutConflict()
-    void updateShortcut(action, combo)
+    // Esc 返回编辑器：设置打开时按 Esc 等同于左下角「返回（Esc）」
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      event.stopPropagation()
+      close()
+    }
   }, true)
 
   for (const key of shortcutKeys) {

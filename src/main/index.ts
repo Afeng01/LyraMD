@@ -13,6 +13,8 @@ import {
   pushRecentFile,
   removeRecentFile,
   removeWorkspacePath,
+  renameWorkspacePathInState,
+  reorderWorkspacePaths,
   type PersistedSidebarState,
 } from './sidebar-state'
 import {
@@ -3238,6 +3240,73 @@ ipcMain.handle('remove-workspace', async (event, workspacePath: string) => {
     }
   }
   await refreshWorkdirEntries()
+  await persistSidebarState()
+  broadcastSidebarState()
+  return createSidebarSnapshot(win)
+})
+
+ipcMain.handle('rename-workspace', async (event, workspacePath: string, newName: string) => {
+  const win = getWinFromEvent(event)
+  if (!win) return { ok: false as const, error: '窗口不可用' }
+  const fail = (error: string) => ({ ok: false as const, error })
+  const name = typeof newName === 'string' ? newName.trim() : ''
+  if (!name || name.includes('/') || name.includes('\\') || name.includes(':')) return fail('名称不合法')
+  if (typeof workspacePath !== 'string' || !sidebarState.workspacePaths.includes(workspacePath)) {
+    return fail('目标不在工作目录列表中')
+  }
+  const sourceStat = await stat(workspacePath).catch(() => null)
+  if (!sourceStat) return fail('目标不存在')
+  if (workspacePath === sidebarState.draftDirectoryPath) return fail('草稿目录不能在这里重命名')
+  if (sidebarState.draftEntries.some((entry) => entry.path.startsWith(workspacePath + '/')
+    || entry.path.startsWith(workspacePath + '\\'))
+  ) {
+    return fail('目录内包含草稿，不能重命名')
+  }
+  if (findOpenTabConflictForPath(workspacePath)) return fail('目录内有文件正在标签页中打开，请先关闭再重命名')
+  const destPath = join(dirname(workspacePath), name)
+  if (destPath === workspacePath) return { ok: true as const, state: createSidebarSnapshot(win) }
+  if (existsSync(destPath)) return fail('同目录下已有同名项')
+  if (sidebarState.workspacePaths.some((path) => path !== workspacePath
+    && (destPath === path || path.startsWith(destPath + '/') || path.startsWith(destPath + '\\')))
+  ) {
+    return fail('新路径与其他工作目录冲突')
+  }
+  try {
+    await rename(workspacePath, destPath)
+  } catch {
+    return fail('重命名失败（可能被占用）')
+  }
+  renameWorkspacePathInState(sidebarState, workspacePath, destPath)
+  sidebarState.recentFiles = sidebarState.recentFiles.map((entry) => (entry.startsWith(workspacePath + '/')
+    ? destPath + entry.slice(workspacePath.length)
+    : entry))
+  for (const [key, value] of Object.entries(sidebarState.fileTitleOverrides)) {
+    if (key.startsWith(workspacePath + '/')) {
+      delete sidebarState.fileTitleOverrides[key]
+      sidebarState.fileTitleOverrides[destPath + key.slice(workspacePath.length)] = value
+    }
+  }
+  for (const window of BrowserWindow.getAllWindows()) {
+    const state = getState(window)
+    if (state.workdirPath === workspacePath) {
+      state.workdirPath = destPath
+    }
+  }
+  await refreshWorkdirEntries()
+  await persistSidebarState()
+  broadcastSidebarState()
+  return { ok: true as const, state: createSidebarSnapshot(win) }
+})
+
+ipcMain.handle('reorder-workspaces', async (event, orderedPaths: unknown) => {
+  const win = getWinFromEvent(event)
+  if (!win) return null
+  const nextWorkspacePaths = reorderWorkspacePaths(sidebarState.workspacePaths, orderedPaths)
+  if (!nextWorkspacePaths) return createSidebarSnapshot(win)
+  if (nextWorkspacePaths.every((path, index) => path === sidebarState.workspacePaths[index])) {
+    return createSidebarSnapshot(win)
+  }
+  sidebarState.workspacePaths = nextWorkspacePaths
   await persistSidebarState()
   broadcastSidebarState()
   return createSidebarSnapshot(win)

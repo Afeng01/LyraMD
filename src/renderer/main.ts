@@ -519,6 +519,7 @@ async function init(): Promise<void> {
     | { kind: 'draft'; draftId: string; value: string }
     | { kind: 'file'; filePath: string; value: string }
     | { kind: 'folder'; folderPath: string; value: string }
+    | { kind: 'workspace'; workspacePath: string; value: string }
     | null = null
   let pendingTitleEditRequest:
     | {
@@ -582,6 +583,11 @@ async function init(): Promise<void> {
             ...sidebarInlineTitleEdit,
             value: updatedDraft.displayTitle,
           }
+        }
+      } else if (sidebarInlineTitleEdit.kind === 'workspace') {
+        sidebarInlineTitleEdit = {
+          ...sidebarInlineTitleEdit,
+          value: basename(sidebarInlineTitleEdit.workspacePath),
         }
       } else {
         const nextValue = state.fileTitleOverrides[sidebarInlineTitleEdit.filePath]
@@ -1204,6 +1210,20 @@ async function init(): Promise<void> {
     }
 
     sidebarInlineTitleEdit = null
+
+    if (editTarget.kind === 'workspace') {
+      const result = await api.renameWorkspace(editTarget.workspacePath, trimmedTitle).catch((error) => {
+        window.alert(`重命名失败：${error instanceof Error ? error.message : String(error)}`)
+        return null
+      })
+      if (result?.ok) {
+        if (result.state) setSidebarState(result.state)
+      } else {
+        if (result?.error) window.alert(`重命名失败：${result.error}`)
+        renderSidebar()
+      }
+      return
+    }
 
     if (editTarget.kind === 'folder') {
       const result = await api.renameWorkdirEntry(editTarget.folderPath, trimmedTitle).catch((error) => {
@@ -2717,6 +2737,73 @@ async function init(): Promise<void> {
     })
   }
 
+  const WORKSPACE_DRAG_MIME = 'application/x-lyramd-workspace-path'
+
+  const clearWorkspaceDropIndicators = (): void => {
+    for (const element of document.querySelectorAll('.workspace-drop-before, .workspace-drop-after')) {
+      element.classList.remove('workspace-drop-before', 'workspace-drop-after')
+    }
+  }
+
+  /** 工作目录根行可拖拽：拖动排序的源。 */
+  const makeWorkspaceRowDraggable = (element: HTMLElement, rootPath: string): void => {
+    element.draggable = true
+    element.addEventListener('dragstart', (event) => {
+      const transfer = (event as DragEvent).dataTransfer
+      if (!transfer) return
+      transfer.setData(WORKSPACE_DRAG_MIME, rootPath)
+      transfer.effectAllowed = 'move'
+      element.classList.add('workspace-dragging')
+    })
+    element.addEventListener('dragend', () => {
+      element.classList.remove('workspace-dragging')
+      clearWorkspaceDropIndicators()
+    })
+  }
+
+  /** 工作目录根行作为排序落点：按鼠标在上/下半格决定插入到目标之前或之后。 */
+  const applyWorkspaceReorderTarget = (element: HTMLElement, rootPath: string): void => {
+    element.addEventListener('dragover', (event) => {
+      const transfer = (event as DragEvent).dataTransfer
+      if (!transfer || !transfer.types.includes(WORKSPACE_DRAG_MIME)) return
+      event.preventDefault()
+      transfer.dropEffect = 'move'
+      clearWorkspaceDropIndicators()
+      const rect = element.getBoundingClientRect()
+      element.classList.add(
+        (event as DragEvent).clientY < rect.top + rect.height / 2
+          ? 'workspace-drop-before'
+          : 'workspace-drop-after',
+      )
+    })
+    element.addEventListener('dragleave', () => {
+      element.classList.remove('workspace-drop-before', 'workspace-drop-after')
+    })
+    element.addEventListener('drop', (event) => {
+      const transfer = (event as DragEvent).dataTransfer
+      const sourcePath = transfer?.getData(WORKSPACE_DRAG_MIME)
+      element.classList.remove('workspace-drop-before', 'workspace-drop-after')
+      if (!transfer || !sourcePath || sourcePath === rootPath) return
+      if (!sidebarState?.workspacePaths.includes(sourcePath)
+        || !sidebarState.workspacePaths.includes(rootPath)) return
+      event.preventDefault()
+      event.stopPropagation()
+      const withoutSource = sidebarState.workspacePaths.filter((path) => path !== sourcePath)
+      const targetIndex = withoutSource.indexOf(rootPath)
+      const rect = element.getBoundingClientRect()
+      const insertBefore = (event as DragEvent).clientY < rect.top + rect.height / 2
+      const insertIndex = insertBefore ? targetIndex : targetIndex + 1
+      const nextOrder = [
+        ...withoutSource.slice(0, insertIndex),
+        sourcePath,
+        ...withoutSource.slice(insertIndex),
+      ]
+      void api.reorderWorkspaces(nextOrder).then((state) => {
+        if (state) setSidebarState(state)
+      }).catch(() => {})
+    })
+  }
+
   /** 文件夹 / 工作目录根作为拖拽落点：松手后把源文件移动到该目录。 */
   const applyWorkdirDropTarget = (element: HTMLElement, targetDir: string): void => {
     element.addEventListener('dragover', (event) => {
@@ -2968,9 +3055,31 @@ async function init(): Promise<void> {
   }
 
   const createWorkspaceRootRow = (rootPath: string, expanded: boolean, active: boolean): HTMLElement => {
+    if (sidebarInlineTitleEdit?.kind === 'workspace' && sidebarInlineTitleEdit.workspacePath === rootPath) {
+      const editingRow = document.createElement('div')
+      editingRow.className = 'sidebar-item-row sidebar-workspace-root editing'
+      editingRow.appendChild(createSidebarInlineEditor(
+        `重命名工作目录 ${basename(rootPath)}`,
+        sidebarInlineTitleEdit.value,
+        (nextValue) => {
+          if (!sidebarInlineTitleEdit || sidebarInlineTitleEdit.kind !== 'workspace') return
+          sidebarInlineTitleEdit.value = nextValue
+        },
+        () => {
+          void commitSidebarInlineTitleEdit()
+        },
+        () => {
+          cancelSidebarInlineTitleEdit()
+        },
+      ))
+      return editingRow
+    }
+
     const row = document.createElement('div')
     row.className = `sidebar-item-row sidebar-workspace-root${expanded ? ' expanded' : ' collapsed'}${active ? ' active' : ''}`
     row.dataset.workspaceRootPath = rootPath
+    makeWorkspaceRowDraggable(row, rootPath)
+    applyWorkspaceReorderTarget(row, rootPath)
 
     const toggle = document.createElement('button')
     toggle.type = 'button'
@@ -4143,6 +4252,36 @@ async function init(): Promise<void> {
   document.addEventListener('contextmenu', (event) => {
     const target = event.target as HTMLElement | null
     if (!target) return
+
+    const workspaceRootRow = target.closest('[data-workspace-root-path]') as HTMLElement | null
+    if (workspaceRootRow) {
+      event.preventDefault()
+      const rootPath = workspaceRootRow.dataset.workspaceRootPath
+      if (!rootPath || !sidebarState) return
+      if (isDraftWorkspaceRoot(sidebarState, rootPath)) {
+        showWorkdirContextMenu(event.clientX, event.clientY, [
+          { label: '在访达中显示', action: () => void api.revealWorkdirEntry(rootPath).catch(() => {}) },
+        ])
+        return
+      }
+      showWorkdirContextMenu(event.clientX, event.clientY, [
+        { label: '重命名', action: () => {
+          sidebarInlineTitleEdit = {
+            kind: 'workspace',
+            workspacePath: rootPath,
+            value: basename(rootPath),
+          }
+          renderSidebar()
+        } },
+        { label: '在访达中显示', action: () => void api.revealWorkdirEntry(rootPath).catch(() => {}) },
+        { label: '从列表移除', danger: true, action: () => {
+          api.removeWorkspace(rootPath).then((state) => {
+            if (state) setSidebarState(state)
+          }).catch(() => {})
+        } },
+      ])
+      return
+    }
 
     const folderButton = target.closest('[data-workdir-folder-path]') as HTMLElement | null
     if (folderButton) {

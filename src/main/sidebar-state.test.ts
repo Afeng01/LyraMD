@@ -14,6 +14,8 @@ import {
   pushRecentFile,
   removeRecentFile,
   removeWorkspacePath,
+  renameWorkspacePathInState,
+  reorderWorkspacePaths,
 } from './sidebar-state'
 
 describe('sidebar defaults', () => {
@@ -117,6 +119,54 @@ describe('removeWorkspacePath', () => {
   it('keeps the active workspace when removing another workspace', () => {
     expect(removeWorkspacePath(['/a', '/b', '/c'], '/c', '/b')).toEqual({
       workspacePaths: ['/a', '/b'],
+      workdirPath: '/b',
+    })
+  })
+})
+
+describe('reorderWorkspacePaths', () => {
+  it('accepts a permutation of the same workspace set', () => {
+    expect(reorderWorkspacePaths(['/a', '/b', '/c'], ['/c', '/a', '/b'])).toEqual(['/c', '/a', '/b'])
+  })
+
+  it('rejects lists that drop, add, or duplicate workspaces', () => {
+    expect(reorderWorkspacePaths(['/a', '/b'], ['/a'])).toBeNull()
+    expect(reorderWorkspacePaths(['/a', '/b'], ['/a', '/b', '/c'])).toBeNull()
+    expect(reorderWorkspacePaths(['/a', '/b'], ['/a', '/a'])).toBeNull()
+    expect(reorderWorkspacePaths(['/a', '/b'], ['/a', '/x'])).toBeNull()
+  })
+
+  it('rejects non-array payloads', () => {
+    expect(reorderWorkspacePaths(['/a', '/b'], null)).toBeNull()
+    expect(reorderWorkspacePaths(['/a', '/b'], 'nope')).toBeNull()
+  })
+})
+
+describe('renameWorkspacePathInState', () => {
+  it('rewrites list order, expanded state, and the active workdir path', () => {
+    const state = {
+      workspacePaths: ['/old', '/b'],
+      expandedWorkspacePaths: ['/old'],
+      workdirPath: '/old',
+    }
+    renameWorkspacePathInState(state, '/old', '/new')
+    expect(state).toEqual({
+      workspacePaths: ['/new', '/b'],
+      expandedWorkspacePaths: ['/new'],
+      workdirPath: '/new',
+    })
+  })
+
+  it('leaves unrelated workspaces untouched', () => {
+    const state = {
+      workspacePaths: ['/a', '/b'],
+      expandedWorkspacePaths: ['/b'],
+      workdirPath: '/b',
+    }
+    renameWorkspacePathInState(state, '/old', '/new')
+    expect(state).toEqual({
+      workspacePaths: ['/a', '/b'],
+      expandedWorkspacePaths: ['/b'],
       workdirPath: '/b',
     })
   })

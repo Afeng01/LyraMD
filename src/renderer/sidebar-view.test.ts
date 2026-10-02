@@ -376,6 +376,50 @@ describe('workspace removal confirmation regression', () => {
   })
 })
 
+describe('workspace context menu and reorder regression', () => {
+  it('adds a context menu with rename, reveal, and remove for workspace roots', () => {
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+    const menuStart = renderer.indexOf("const workspaceRootRow = target.closest('[data-workspace-root-path]')")
+    const menuEnd = renderer.indexOf("const folderButton = target.closest('[data-workdir-folder-path]')")
+    const workspaceMenu = renderer.slice(menuStart, menuEnd)
+
+    expect(menuStart).toBeGreaterThanOrEqual(0)
+    expect(menuEnd).toBeGreaterThan(menuStart)
+    expect(workspaceMenu).toContain("kind: 'workspace'")
+    expect(workspaceMenu).toContain('api.revealWorkdirEntry(rootPath)')
+    expect(workspaceMenu).toContain('api.removeWorkspace(rootPath)')
+    expect(workspaceMenu).toContain('isDraftWorkspaceRoot(sidebarState, rootPath)')
+  })
+
+  it('wires workspace rename and reorder through preload and main IPC', () => {
+    const preload = readFileSync(join(process.cwd(), 'src/preload/index.ts'), 'utf8')
+    const main = readFileSync(join(process.cwd(), 'src/main/index.ts'), 'utf8')
+
+    expect(preload).toContain("renameWorkspace: (oldPath: string, newName: string) => ipcRenderer.invoke('rename-workspace', oldPath, newName)")
+    expect(preload).toContain("reorderWorkspaces: (orderedPaths: string[]) => ipcRenderer.invoke('reorder-workspaces', orderedPaths)")
+    expect(main).toContain("ipcMain.handle('rename-workspace'")
+    expect(main).toContain("ipcMain.handle('reorder-workspaces'")
+  })
+
+  it('keeps workspace drag reorder MIME separate from workdir file drag', () => {
+    const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
+
+    expect(renderer).toContain("const WORKSPACE_DRAG_MIME = 'application/x-lyramd-workspace-path'")
+    expect(renderer).toContain('makeWorkspaceRowDraggable(row, rootPath)')
+    expect(renderer).toContain('applyWorkspaceReorderTarget(row, rootPath)')
+    expect(renderer).toContain('api.reorderWorkspaces(nextOrder)')
+    expect(renderer).not.toContain("transfer.setData(WORKDIR_DRAG_MIME, rootPath)")
+  })
+
+  it('styles the reorder drop indicators in the theme stylesheet', () => {
+    const css = readFileSync(join(process.cwd(), 'src/renderer/themes/base.css'), 'utf8')
+
+    expect(css).toContain('.sidebar-workspace-root.workspace-drop-before')
+    expect(css).toContain('.sidebar-workspace-root.workspace-drop-after')
+    expect(css).toContain('.workspace-dragging')
+  })
+})
+
 describe('sidebar polish regression', () => {
   it('sets title attributes on draft items for hover tooltip', () => {
     const renderer = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')

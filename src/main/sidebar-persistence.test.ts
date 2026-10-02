@@ -9,7 +9,9 @@ describe('sidebar persistence regression', () => {
     expect(file).toMatch(/ipcMain\.handle\('choose-workdir'[\s\S]*await refreshWorkdirEntries\(\)\n\s+await persistSidebarState\(\)[\s\S]*return createSidebarSnapshot\(win\)/)
     expect(file).toMatch(/ipcMain\.handle\('select-workspace'[\s\S]*sidebarState\.workspacePaths = addWorkspacePath[\s\S]*await refreshWorkdirEntries\(\)\n\s+await persistSidebarState\(\)[\s\S]*return createSidebarSnapshot\(win\)/)
     expect(file).toMatch(/ipcMain\.handle\('remove-workspace'[\s\S]*await refreshWorkdirEntries\(\)\n\s+await persistSidebarState\(\)[\s\S]*return createSidebarSnapshot\(win\)/)
-    expect(file).not.toContain("ipcMain.handle('reorder-workspaces'")
+    // reorder-workspaces 曾因 UI 无入口而在 51e92056 被当作死代码移除；
+    // 现在拖拽排序重新接上 IPC，这里改为正向断言：改序必须先持久化再返回快照。
+    expect(file).toMatch(/ipcMain\.handle\('reorder-workspaces'[\s\S]*?await persistSidebarState\(\)[\s\S]*?return createSidebarSnapshot\(win\)/)
   })
 
   it('scans expanded workspace roots only and keeps an independent tree per root', () => {

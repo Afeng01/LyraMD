@@ -282,6 +282,8 @@ export interface ElectronAPI {
   chooseWorkdir: () => Promise<SidebarState | null>
   selectWorkspace: (path: string) => Promise<SidebarState | null>
   removeWorkspace: (path: string) => Promise<SidebarState | null>
+  renameWorkspace: (oldPath: string, newName: string) => Promise<{ ok: boolean; error?: string; state?: SidebarState | null }>
+  reorderWorkspaces: (orderedPaths: string[]) => Promise<SidebarState | null>
   moveWorkdirEntry: (sourcePath: string, targetDir: string) => Promise<{ ok: boolean; error?: string; state?: SidebarState | null }>
   renameWorkdirEntry: (oldPath: string, newName: string) => Promise<{ ok: boolean; error?: string; state?: SidebarState | null }>
   deleteWorkdirEntry: (targetPath: string) => Promise<{ ok: boolean; error?: string; state?: SidebarState | null }>
@@ -397,6 +399,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   chooseWorkdir: () => ipcRenderer.invoke('choose-workdir'),
   selectWorkspace: (path: string) => ipcRenderer.invoke('select-workspace', path),
   removeWorkspace: (path: string) => ipcRenderer.invoke('remove-workspace', path),
+  renameWorkspace: (oldPath: string, newName: string) => ipcRenderer.invoke('rename-workspace', oldPath, newName),
+  reorderWorkspaces: (orderedPaths: string[]) => ipcRenderer.invoke('reorder-workspaces', orderedPaths),
   moveWorkdirEntry: (sourcePath: string, targetDir: string) => ipcRenderer.invoke('move-workdir-entry', sourcePath, targetDir),
   renameWorkdirEntry: (oldPath: string, newName: string) => ipcRenderer.invoke('rename-workdir-entry', oldPath, newName),
   deleteWorkdirEntry: (targetPath: string) => ipcRenderer.invoke('delete-workdir-entry', targetPath),

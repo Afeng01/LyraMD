@@ -149,6 +149,35 @@ export function removeWorkspacePath(
   }
 }
 
+/**
+ * 校验并应用工作目录拖拽排序：候选顺序必须与现有列表是完全相同的集合（不多、不少、不重复），
+ * 否则返回 null 让调用方维持原状态。
+ */
+export function reorderWorkspacePaths(
+  workspacePaths: string[],
+  orderedPaths: unknown,
+): string[] | null {
+  if (!Array.isArray(orderedPaths)) return null
+  const nextWorkspacePaths = orderedPaths.filter((path): path is string => typeof path === 'string')
+  if (nextWorkspacePaths.length !== workspacePaths.length) return null
+  const knownPaths = new Set(workspacePaths)
+  if (nextWorkspacePaths.some((path) => !knownPaths.has(path))) return null
+  if (new Set(nextWorkspacePaths).size !== nextWorkspacePaths.length) return null
+  return nextWorkspacePaths
+}
+
+/** 工作目录重命名后，同步列表、展开状态和当前工作目录里的路径引用。 */
+export function renameWorkspacePathInState(
+  state: Pick<PersistedSidebarState, 'workspacePaths' | 'expandedWorkspacePaths' | 'workdirPath'>,
+  oldPath: string,
+  newPath: string,
+): void {
+  state.workspacePaths = state.workspacePaths.map((path) => (path === oldPath ? newPath : path))
+  state.expandedWorkspacePaths = state.expandedWorkspacePaths
+    .map((path) => (path === oldPath ? newPath : path))
+  if (state.workdirPath === oldPath) state.workdirPath = newPath
+}
+
 export function createWindowSidebarViewState(state: PersistedSidebarState): WindowSidebarViewState {
   return {
     activeSidebarTab: normalizeSidebarTab(state.activeSidebarTab),

@@ -880,6 +880,19 @@ body.settings-window-mode #tab-strip {
   border-radius: 6px;
 }
 
+/* 工作目录根行拖拽排序：源行半透明，插入位置用上下指示线标出 */
+.workspace-dragging {
+  opacity: 0.45;
+}
+
+.sidebar-workspace-root.workspace-drop-before {
+  box-shadow: inset 0 2px 0 var(--link-color);
+}
+
+.sidebar-workspace-root.workspace-drop-after {
+  box-shadow: inset 0 -2px 0 var(--link-color);
+}
+
 #workdir-context-menu {
   position: fixed;
   z-index: 90;

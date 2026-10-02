@@ -146,7 +146,8 @@ describe('settings dialog regression', () => {
   it('opens settings from buttons and shortcuts instead of toggling an already open dialog closed', () => {
     const file = readFileSync(join(process.cwd(), 'src/renderer/main.ts'), 'utf8')
 
-    expect(file).toContain('settingsDialog.open()')
+    expect(file).toContain('controller.open()')
+    expect(file).toContain('ensureSettingsDialogController')
     expect(file).not.toContain('settingsDialog.toggle()')
   })
 
@@ -244,9 +245,11 @@ describe('settings dialog regression', () => {
     expect(html).not.toContain('settings-window-dot')
     expect(file).not.toContain('initSettingsDialogDrag')
     expect(renderer).toContain('openSettingsSurface')
+    expect(renderer).toContain('controller.open()')
+    expect(renderer).toContain("import('./settings-dialog')")
     // 设置改为编辑器内全屏 surface，不再从主窗口跳独立窗
     expect(renderer).not.toContain('api.openSettingsWindow')
-    expect(renderer).toContain('settingsDialog.open()')
+    expect(renderer).toContain('controller.open()')
     expect(renderer).toContain('api.onSettingsChanged')
     expect(preload).toContain('openSettingsWindow: (pane?: string) => ipcRenderer.invoke(\'open-settings-window\', pane)')
     expect(preload).toContain('onSettingsChanged: (callback: (settings: AppSettings) => void) => {')

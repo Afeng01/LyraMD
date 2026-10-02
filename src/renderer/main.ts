@@ -62,6 +62,7 @@ import {
   type AgentPanelPlacement,
 } from './phase-c-layout'
 import { createSettingsDialogController, type SettingsPaneId } from './settings-dialog'
+import type { SettingsDialogController } from './settings-dialog'
 import { createWindowTabStripController } from './window-tabs'
 import { createUpdateBannerController } from './update-banner'
 import {
@@ -957,7 +958,14 @@ async function init(): Promise<void> {
   updateDocumentStats(getMarkdown())
   refreshRenderedMedia()
   schedulePlaceholderLayoutSync()
-  const settingsDialog = createSettingsDialogController({
+  // 启动提速：设置面板是按需功能，整块（含 changelog）动态加载，
+  // 不再拖慢主包解析；首次空闲时预热，打开体验不变。
+  let settingsDialogController: SettingsDialogController | null = null
+  let settingsDialogControllerPromise: Promise<SettingsDialogController> | null = null
+  const ensureSettingsDialogController = (): Promise<SettingsDialogController> => {
+    if (!settingsDialogControllerPromise) {
+      settingsDialogControllerPromise = import('./settings-dialog').then(({ createSettingsDialogController: create }) => {
+        settingsDialogController = create({
     api,
     getAppSettings: () => appSettings,
     getSidebarState: () => sidebarState,
@@ -973,11 +981,31 @@ async function init(): Promise<void> {
     onSidebarStateChange: (state) => {
       setSidebarState(state)
     },
-  })
+        })
+        return settingsDialogController
+      })
+    }
+    return settingsDialogControllerPromise
+  }
   const openSettingsSurface = (pane?: SettingsPaneId): void => {
-    // 设置改为编辑器内全屏surface；独立设置窗保留为设置窗模式（?settingsWindow=1）专用
-    if (pane) settingsDialog.openPane(pane)
-    else settingsDialog.open()
+    void ensureSettingsDialogController().then((controller) => {
+      // 设置改为编辑器内全屏surface；独立设置窗保留为设置窗模式（?settingsWindow=1）专用
+      if (pane) controller.openPane(pane)
+      else controller.open()
+    })
+  }
+  const refreshSettingsDialog = (): void => {
+    // 控制器尚未创建 ＝ 设置面板从未打开，无需刷新
+    void settingsDialogController?.refresh()
+  }
+  const isSettingsSurfaceOpen = (): boolean => settingsDialogController?.isOpen() ?? false
+  const closeSettingsSurface = (): void => {
+    settingsDialogController?.close()
+  }
+  if (typeof requestIdleCallback === 'function') {
+    requestIdleCallback(() => { void ensureSettingsDialogController() }, { timeout: 3000 })
+  } else {
+    setTimeout(() => { void ensureSettingsDialogController() }, 1500)
   }
   api.onSettingsChanged((settings) => {
     appSettings = settings
@@ -988,15 +1016,15 @@ async function init(): Promise<void> {
     renderDocumentStats()
     refreshAgentPanelPlacement()
     void refreshClipboardImageEmbeds()
-    settingsDialog.refresh()
+    refreshSettingsDialog()
   })
   api.onSettingsOpenPane((pane) => {
-    settingsDialog.openPane(pane as SettingsPaneId)
+    openSettingsSurface(pane as SettingsPaneId)
   })
   createUpdateBannerController(api)
   if (settingsWindowMode) {
-    if (initialSettingsPane) settingsDialog.openPane(initialSettingsPane)
-    else settingsDialog.open()
+    if (initialSettingsPane) openSettingsSurface(initialSettingsPane)
+    else openSettingsSurface()
   }
 
   let immediateSaveInFlight = false
@@ -3273,7 +3301,7 @@ async function init(): Promise<void> {
       ...appSettings,
       themeName: theme,
     }
-    settingsDialog.refresh()
+    refreshSettingsDialog()
   }
 
   const importCustomThemeSelection = async (): Promise<void> => {
@@ -3285,7 +3313,7 @@ async function init(): Promise<void> {
       ...appSettings,
       themeName,
     }
-    settingsDialog.refresh()
+    refreshSettingsDialog()
   }
 
   const closeWindowsMenus = (): void => {
@@ -3536,7 +3564,7 @@ async function init(): Promise<void> {
     // 最近文件列表同步给标签条的时钟下拉（阶段 A 第二片）
     tabStrip.handleRecentFiles(state.recentFiles ?? [])
     refreshRenderedMedia()
-    settingsDialog.refresh()
+    refreshSettingsDialog()
   })
 
   sidebarToggle?.addEventListener('click', () => {
@@ -4049,9 +4077,9 @@ async function init(): Promise<void> {
       return
     }
 
-    if (event.key === 'Escape' && settingsDialog.isOpen()) {
+    if (event.key === 'Escape' && isSettingsSurfaceOpen()) {
       event.preventDefault()
-      settingsDialog.close()
+      closeSettingsSurface()
       return
     }
 

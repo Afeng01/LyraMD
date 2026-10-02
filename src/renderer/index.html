@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: file: https: http: lyramd-media:;">
   <title>LyraMD</title>
+  <style>
+    /* 启动骨架隐藏：外链 CSS 加载完成前不渲染裸 HTML，避免 FOUC 闪屏。
+       显示由 themes/base.css 的 body{visibility:visible} 接管。 */
+    html { background: #f0edea; }
+    body { visibility: hidden; }
+  </style>
 </head>
 <body>
   <div id="app-shell">

@@ -4,6 +4,12 @@
   padding: 0;
 }
 
+/* FOUC 治理：index.html 内联了 body{visibility:hidden}，
+   本文件加载完成时此处规则生效，骨架才显示——避免启动时闪出无样式 HTML。 */
+body {
+  visibility: visible;
+}
+
 [hidden] {
   display: none !important;
 }

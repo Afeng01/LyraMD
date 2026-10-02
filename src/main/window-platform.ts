@@ -12,6 +12,8 @@ export function createWindowOptions({
     height: 720,
     minWidth: 360,
     minHeight: 300,
+    // 与默认主题（雅陶）底色一致：渲染层首帧前窗口不闪白，也不再露出无样式骨架
+    backgroundColor: '#f0edea',
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,

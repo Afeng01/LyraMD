@@ -33,9 +33,9 @@ describe('changelog parser', () => {
     const releaseIndex = releases[0].version === '未发布' ? 1 : 0
     const latestRelease = releases[releaseIndex]
     expect(latestRelease.version).toMatch(/^\d+\.\d+\.\d+/)
-    expect(latestRelease.blocks.some((block) => block.kind === 'group' && block.title?.startsWith('主界面与标签页'))).toBe(true)
+    expect(latestRelease.blocks.some((block) => block.kind === 'group' && block.title?.startsWith('主界面与设置'))).toBe(true)
     const previousRelease = releases[releaseIndex + 1]
-    expect(previousRelease.version).toMatch(/^\d+\.\d+\.\d+$/)
+    expect(previousRelease.version).toMatch(/^\d+\.\d+\.\d+(?:-beta\.\d+)?$/)
     expect(previousRelease.blocks.length).toBeGreaterThan(0)
   })
 })

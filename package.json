@@ -1,6 +1,6 @@
 {
   "name": "lyramd",
-  "version": "1.4.0-beta.1",
+  "version": "1.4.0",
   "description": "Lyra's agent-native Markdown editor",
   "main": "dist/main/index.js",
   "author": "Cherry Xiao",

@@ -4,7 +4,7 @@ LyraMD 自己的版本线是 **1.1.x → 1.2.x → 1.3.x**。仓库里的 `v1.7.
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)；功能落地即 bump patch、绝不攒批（minor/major 只留给真正的大变化）。
 
-## 未发布
+## 1.4.0（2026-10-02）
 
 ### 主界面与设置打磨（2026-10-02）
 

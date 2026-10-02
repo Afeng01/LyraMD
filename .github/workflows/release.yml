@@ -39,6 +39,7 @@ jobs:
           path: |
             release/*.dmg
             release/*.zip
+            release/*.blockmap
             release/latest-mac.yml
           if-no-files-found: error
 
@@ -73,6 +74,7 @@ jobs:
           name: dist-windows
           path: |
             release/*.exe
+            release/*.blockmap
             release/latest.yml
           if-no-files-found: error
 

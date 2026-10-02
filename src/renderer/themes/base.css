@@ -2191,7 +2191,7 @@ body.sidebar-resizing * {
 
 #editor {
   position: relative;
-  padding: 0 40px 40px;
+  padding: 56px 40px 40px;
 }
 
 #document-stats {
@@ -4546,13 +4546,17 @@ body.theme-terminal .settings-theme-button.active {
   outline: none;
   max-width: 780px;
   margin: 0 auto;
-  min-height: calc(100vh - 92px);
+  min-height: calc(100vh - 148px);
   font-size: calc(16px * var(--editor-zoom, 1));
   line-height: 1.75;
   color: var(--text-color);
 }
 #editor .ProseMirror > * + * {
   margin-top: 0.75em;
+}
+/* 顶部留白由 #editor 的 padding-top 负责，首元素自己的上边距不再叠加，保证上下呼吸感可控 */
+#editor .ProseMirror > *:first-child {
+  margin-top: 0;
 }
 /* Typography */ #editor .ProseMirror h1 {
   font-size: 2em;
